@@ -1,0 +1,18 @@
+{
+  "name": "food_nutrients",
+  "fields": [
+    { "name": "food_name", "type": "string", "required": true, "indexed": true },
+    { "name": "category", "type": "string", "indexed": true },
+    { "name": "calories_per_100g", "type": "number" },
+    { "name": "protein_g", "type": "number" },
+    { "name": "carbs_g", "type": "number" },
+    { "name": "fat_g", "type": "number" },
+    { "name": "fiber_g", "type": "number" },
+    { "name": "sugar_g", "type": "number" },
+    { "name": "sodium_mg", "type": "number" },
+    { "name": "glycemic_index", "type": "number" },
+    { "name": "micronutrients", "type": "json" },
+    { "name": "health_tags", "type": "string[]" },
+    { "name": "embedding", "type": "vector", "dimensions": 1536 }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "MacroCoach",
+  "short_name": "MacroCoach",
+  "description": "AI-powered nutrition assistant that tells you what to eat next to hit your daily macro goals.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#2f9e6e",
+  "background_color": "#ffffff",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

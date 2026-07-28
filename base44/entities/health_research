@@ -1,0 +1,11 @@
+{
+  "name": "health_research",
+  "fields": [
+    { "name": "title", "type": "string", "required": true },
+    { "name": "summary", "type": "text" },
+    { "name": "condition", "type": "string", "indexed": true },
+    { "name": "recommendation", "type": "text" },
+    { "name": "source_url", "type": "string" },
+    { "name": "embedding", "type": "vector", "dimensions": 1536 }
+  ]
+}

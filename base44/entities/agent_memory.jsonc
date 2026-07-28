@@ -1,0 +1,77 @@
+{
+  "name": "agent_memory",
+  "type": "object",
+  "properties": {
+    "learned_preferences": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "avoided_foods": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "successful_meals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conversation_summary": {
+      "type": "string"
+    }
+  },
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

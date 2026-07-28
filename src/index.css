@@ -1,0 +1,140 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium milk + navy palette */
+    --background: 40 28% 97%;
+    --foreground: 224 40% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 40% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 40% 15%;
+    --primary: 224 47% 28%;
+    --primary-foreground: 40 30% 98%;
+    --secondary: 220 16% 92%;
+    --secondary-foreground: 224 40% 20%;
+    --muted: 220 16% 94%;
+    --muted-foreground: 220 14% 42%;
+    --accent: 215 50% 44%;
+    --accent-foreground: 40 30% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 16% 90%;
+    --input: 220 16% 90%;
+    --ring: 224 47% 28%;
+    --info: 210 70% 94%;
+    --info-foreground: 224 47% 22%;
+    --chart-1: 224 47% 28%;
+    --chart-2: 42 65% 52%;
+    --chart-3: 152 32% 42%;
+    --chart-4: 340 45% 58%;
+    --chart-5: 280 40% 55%;
+    --radius: 0.875rem;
+    --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
+    --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Cinzel', ui-serif, Georgia, serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sidebar-background: 40 28% 97%;
+    --sidebar-foreground: 224 40% 15%;
+    --sidebar-primary: 224 47% 28%;
+    --sidebar-primary-foreground: 40 30% 98%;
+    --sidebar-accent: 215 50% 44%;
+    --sidebar-accent-foreground: 40 30% 98%;
+    --sidebar-border: 220 16% 90%;
+    --sidebar-ring: 224 47% 28%;
+    --sa-top: env(safe-area-inset-top, 0px);
+    --sa-bottom: env(safe-area-inset-bottom, 0px);
+    --sa-left: env(safe-area-inset-left, 0px);
+    --sa-right: env(safe-area-inset-right, 0px);
+  }
+
+  .dark {
+    --background: 224 38% 8%;
+    --foreground: 40 20% 92%;
+    --card: 224 32% 12%;
+    --card-foreground: 40 20% 92%;
+    --popover: 224 32% 12%;
+    --popover-foreground: 40 20% 92%;
+    --primary: 215 60% 66%;
+    --primary-foreground: 224 40% 10%;
+    --secondary: 224 24% 18%;
+    --secondary-foreground: 40 20% 92%;
+    --muted: 224 24% 16%;
+    --muted-foreground: 220 14% 62%;
+    --accent: 215 60% 58%;
+    --accent-foreground: 224 40% 10%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 224 24% 20%;
+    --input: 224 24% 20%;
+    --ring: 215 60% 66%;
+    --info: 210 70% 94%;
+    --info-foreground: 224 47% 20%;
+    --chart-1: 215 60% 66%;
+    --chart-2: 42 70% 60%;
+    --chart-3: 152 32% 52%;
+    --chart-4: 340 50% 65%;
+    --chart-5: 280 45% 65%;
+    --sidebar-background: 224 38% 8%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 215 60% 66%;
+    --sidebar-primary-foreground: 224 40% 10%;
+    --sidebar-accent: 215 60% 58%;
+    --sidebar-accent-foreground: 224 40% 10%;
+    --sidebar-border: 224 24% 20%;
+    --sidebar-ring: 215 60% 66%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  html,
+  body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  button,
+  a,
+  [role="button"],
+  nav a {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+@layer utilities {
+  /* Expand the hit zone of small controls (under 44px) to the 44px touch minimum. */
+  .touch-target {
+    position: relative;
+  }
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
