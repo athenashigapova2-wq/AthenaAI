@@ -1,16 +1,62 @@
 // Supabase Edge Function: invoke-llm
 // Заменяет base44.integrations.Core.InvokeLLM({ prompt, response_json_schema }).
-// Держит ANTHROPIC_API_KEY на сервере — ключ никогда не попадает в клиентский бандл.
+// Использует GigaChat API (Сбер) — бесплатный тариф для физлиц (1 млн токенов
+// в месяц), регистрация через SberID, без банковской карты, без VPN.
+//
+// Важно про сертификат: GigaChat требует доверия корневому сертификату НУЦ
+// Минцифры (иначе TLS-запрос падает с ошибкой). Ниже он скачивается один раз
+// при холодном старте функции и используется для всех запросов к Сберу.
 //
 // Деплой:
 //   supabase functions deploy invoke-llm
-//   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+//   supabase secrets set GIGACHAT_AUTH_KEY=<Base64(Client ID:Client Secret) из личного кабинета Sber Developers>
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
+
+let cachedHttpClient: Deno.HttpClient | null = null;
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function getGigaChatHttpClient(): Promise<Deno.HttpClient> {
+  if (cachedHttpClient) return cachedHttpClient;
+  const certRes = await fetch(CA_CERT_URL);
+  const certText = await certRes.text();
+  cachedHttpClient = Deno.createHttpClient({ caCerts: [certText] });
+  return cachedHttpClient;
+}
+
+async function getGigaChatToken(): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 5000) {
+    return cachedToken.value;
+  }
+  const client = await getGigaChatHttpClient();
+  const res = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
+    method: 'POST',
+    client,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      RqUID: crypto.randomUUID(),
+      Authorization: `Basic ${GIGACHAT_AUTH_KEY}`,
+    },
+    body: 'scope=GIGACHAT_API_PERS',
+  });
+  if (!res.ok) throw new Error(`GigaChat auth failed: ${await res.text()}`);
+  const data = await res.json();
+  cachedToken = { value: data.access_token, expiresAt: data.expires_at };
+  return cachedToken.value;
+}
+
+function extractJson(text: string) {
+  // Модель иногда оборачивает JSON в ```json ... ``` — вырезаем на всякий случай
+  const cleaned = text.replace(/```json\s*|```/g, '').trim();
+  return JSON.parse(cleaned);
+}
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
@@ -18,8 +64,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Проверяем, что запрос пришёл от авторизованного пользователя (не важно кто именно,
-    // но токен должен быть валидным — иначе кто угодно тратит наши LLM-кредиты).
     const authHeader = req.headers.get('Authorization') ?? '';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
@@ -34,57 +78,44 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'prompt required' }), { status: 400 });
     }
 
-    // Если задана JSON-схема — просим модель вызвать "инструмент" с этой схемой.
-    // Это надёжнее, чем просить "верни JSON" в тексте: Claude обязан вернуть
-    // валидный по схеме tool_use-блок.
-    const body: Record<string, unknown> = {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
-    };
+    const client = await getGigaChatHttpClient();
+    const token = await getGigaChatToken();
 
-    if (response_json_schema) {
-      body.tools = [
-        {
-          name: 'respond',
-          description: 'Return the structured response.',
-          input_schema: response_json_schema,
-        },
-      ];
-      body.tool_choice = { type: 'tool', name: 'respond' };
-    }
+    const finalPrompt = response_json_schema
+      ? `${prompt}\n\nRespond with ONLY valid JSON matching this schema, no other text, no markdown fences:\n${JSON.stringify(response_json_schema)}`
+      : prompt;
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
       method: 'POST',
+      client,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: 'GigaChat',
+        messages: [{ role: 'user', content: finalPrompt }],
+      }),
     });
 
     if (!res.ok) {
-      const errText = await res.text();
-      return new Response(JSON.stringify({ error: `LLM error: ${errText}` }), { status: 502 });
+      return new Response(JSON.stringify({ error: `LLM error: ${await res.text()}` }), { status: 502 });
     }
 
     const data = await res.json();
+    const text = data.choices?.[0]?.message?.content ?? '';
 
     if (response_json_schema) {
-      const toolUse = data.content?.find((b: any) => b.type === 'tool_use');
-      if (!toolUse) {
-        return new Response(JSON.stringify({ error: 'No structured response returned' }), { status: 502 });
+      try {
+        return new Response(JSON.stringify(extractJson(text)), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid JSON from model', raw: text }), { status: 502 });
       }
-      return new Response(JSON.stringify(toolUse.input), {
-        headers: { 'Content-Type': 'application/json' },
-      });
     }
 
-    const text = data.content?.find((b: any) => b.type === 'text')?.text ?? '';
-    return new Response(JSON.stringify({ text }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(JSON.stringify({ text }), { headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }

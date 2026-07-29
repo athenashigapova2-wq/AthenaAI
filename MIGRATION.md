@@ -26,10 +26,22 @@ supabase.com → New Project (можно выбрать регион ближе 
 supabase functions deploy invoke-llm
 supabase functions deploy chat-with-coach
 supabase functions deploy analyzeFoodProduct
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase secrets set GIGACHAT_AUTH_KEY=<см. ниже>
 ```
-Ключ Anthropic получаешь на console.anthropic.com — он остаётся только на
-сервере, в клиентский код не попадает.
+
+**Используем GigaChat (Сбер)** — бесплатно для физлиц (1 млн токенов/мес),
+без карты, без VPN, регистрация по SberID:
+1. developers.sber.ru → войди через SberID
+2. Создай проект → **GigaChat API** → выбери тариф **GigaChat API PERS** (free)
+3. В личном кабинете нажми "Сгенерировать новый Client Secret" — тебе покажут
+   **Client ID** и **Client Secret** один раз, сохрани их
+4. Собери `Authorization key` = Base64 от строки `Client ID:Client Secret`
+   (можно в любом онлайн base64-энкодере, либо `echo -n "id:secret" | base64`)
+5. Это и есть значение для `GIGACHAT_AUTH_KEY`
+
+Функции сами скачивают и доверяют сертификату НУЦ Минцифры при первом
+запуске — вручную ничего устанавливать не нужно (это частый источник ошибок
+при других способах интеграции GigaChat, здесь он уже решён в коде).
 
 ### 4. Настрой .env
 Скопируй `.env.example` → `.env`, впиши:

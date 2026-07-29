@@ -9,16 +9,51 @@
 //   4. Считает детерминированную "nutritionInsight"-сводку сама (без похода к LLM).
 //   5. Собирает контекст (профиль, сегодняшние и недавние приёмы пищи, вес,
 //      список покупок) и системный промпт (перенесён из base44/agents/nutrition_coach.jsonc).
-//   6. Зовёт Anthropic API с историей диалога.
+//   6. Зовёт GigaChat API (Сбер, бесплатный тариф для физлиц) с историей диалога.
 //   7. Сохраняет и возвращает ответ ассистента.
 //
 // Деплой:
 //   supabase functions deploy chat-with-coach
-//   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+//   supabase secrets set GIGACHAT_AUTH_KEY=<Base64(Client ID:Client Secret)>
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
+const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
+
+let cachedHttpClient: Deno.HttpClient | null = null;
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function getGigaChatHttpClient(): Promise<Deno.HttpClient> {
+  if (cachedHttpClient) return cachedHttpClient;
+  const certRes = await fetch(CA_CERT_URL);
+  const certText = await certRes.text();
+  cachedHttpClient = Deno.createHttpClient({ caCerts: [certText] });
+  return cachedHttpClient;
+}
+
+async function getGigaChatToken(): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 5000) {
+    return cachedToken.value;
+  }
+  const client = await getGigaChatHttpClient();
+  const res = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
+    method: 'POST',
+    client,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      RqUID: crypto.randomUUID(),
+      Authorization: `Basic ${GIGACHAT_AUTH_KEY}`,
+    },
+    body: 'scope=GIGACHAT_API_PERS',
+  });
+  if (!res.ok) throw new Error(`GigaChat auth failed: ${await res.text()}`);
+  const data = await res.json();
+  cachedToken = { value: data.access_token, expiresAt: data.expires_at };
+  return cachedToken.value;
+}
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -173,21 +208,25 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
 
     const systemPrompt = `${BASE_INSTRUCTIONS}\n\n${contextBlock}`;
 
-    // 4. История диалога для Anthropic API (роли user/assistant чередуются)
-    const anthropicMessages = (history || []).map((m) => ({ role: m.role, content: m.content }));
+    // 4. История диалога для GigaChat (формат OpenAI-совместимый: role user/assistant)
+    const chatMessages = [
+      { role: 'system', content: systemPrompt },
+      ...(history || []).map((m) => ({ role: m.role, content: m.content })),
+    ];
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const client = await getGigaChatHttpClient();
+    const token = await getGigaChatToken();
+
+    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
       method: 'POST',
+      client,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 512,
-        system: systemPrompt,
-        messages: anthropicMessages,
+        model: 'GigaChat',
+        messages: chatMessages,
       }),
     });
 
@@ -197,7 +236,7 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
     }
 
     const data = await res.json();
-    const replyText = data.content?.find((b) => b.type === 'text')?.text?.trim() || '';
+    const replyText = data.choices?.[0]?.message?.content?.trim() || '';
 
     // 5. Сохраняем ответ ассистента (через service_role — RLS для user-insert
     //    не пускает "чужую" роль assistant, поэтому используем сервисный ключ)
