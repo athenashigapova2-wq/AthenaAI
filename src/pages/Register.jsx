@@ -5,21 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
-import { toast } from "@/components/ui/use-toast";
 import { useLang } from "@/lib/i18n";
 
+// Подтверждение почты отключено в Supabase (Authentication -> Confirm email = off),
+// поэтому register() сразу возвращает активную сессию — шаг с вводом кода не нужен.
 export default function Register() {
   const { t } = useLang();
-  const { register, verifyOtp, resendOtp } = useAuth();
+  const { register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,60 +26,13 @@ export default function Register() {
     setLoading(true);
     try {
       await register(email, password);
-      setShowOtp(true);
+      window.location.href = "/";
     } catch (err) {
       setError(err.message || t("auth_regFail"));
     } finally {
       setLoading(false);
     }
   };
-
-  const handleVerify = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      await verifyOtp(email, otpCode);
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.message || t("auth_invalidCode"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setError("");
-    try {
-      await resendOtp(email);
-      toast({ title: t("auth_codeSent"), description: t("auth_codeSentDesc") });
-    } catch (err) {
-      setError(err.message || t("auth_resendFail"));
-    }
-  };
-
-
-  if (showOtp) {
-    return (
-      <AuthLayout icon={Mail} title={t("auth_verifyTitle")} subtitle={t("auth_verifySub", { email })}>
-        {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
-        <div className="flex justify-center mb-6">
-          <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode} autoFocus autoComplete="one-time-code">
-            <InputOTPGroup>
-              <InputOTPSlot index={0} /><InputOTPSlot index={1} /><InputOTPSlot index={2} />
-              <InputOTPSlot index={3} /><InputOTPSlot index={4} /><InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
-        </div>
-        <Button className="w-full h-12 font-medium" onClick={handleVerify} disabled={loading || otpCode.length < 6}>
-          {loading ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("auth_verifying")}</>) : t("auth_verify")}
-        </Button>
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          {t("auth_noCode")}{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">{t("auth_resend")}</button>
-        </p>
-      </AuthLayout>
-    );
-  }
 
   return (
     <AuthLayout
