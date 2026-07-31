@@ -3,19 +3,18 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import AnimatedOutlet from "@/components/AnimatedOutlet";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/i18n";
-import { ChevronLeft, LayoutDashboard, Sparkles, MessageSquare, ShoppingCart, User, Dumbbell, ScanLine } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, Sparkles, MessageSquare, ShoppingCart, User, Dumbbell } from "lucide-react";
 
 const navItems = [
   { path: "/", icon: LayoutDashboard, labelKey: "nav_today" },
   { path: "/coach", icon: Sparkles, labelKey: "nav_coach" },
   { path: "/chat", icon: MessageSquare, labelKey: "nav_chat" },
-  { path: "/scanner", icon: ScanLine, labelKey: "nav_scan" },
   { path: "/workout", icon: Dumbbell, labelKey: "nav_train" },
   { path: "/shopping", icon: ShoppingCart, labelKey: "nav_list" },
   { path: "/profile", icon: User, labelKey: "nav_profile" },
 ];
 
-const TAB_ROOTS = ["/", "/coach", "/chat", "/scanner", "/workout", "/shopping", "/profile"];
+const TAB_ROOTS = ["/", "/coach", "/chat", "/workout", "/shopping", "/profile"];
 
 export default function AppLayout() {
   const location = useLocation();

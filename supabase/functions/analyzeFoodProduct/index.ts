@@ -13,6 +13,25 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 
+// Браузер шлёт preflight OPTIONS-запрос перед каждым fetch с фронтенда —
+// без этих заголовков в ответе он блокирует запрос ещё до того, как функция
+// успевает что-то сделать.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+// status по умолчанию 200: "not_found" — это ожидаемый штатный результат,
+// а не сетевая ошибка, клиент (FoodScanner.jsx) читает data.error из тела.
+// Реальные ошибки (401/400/500) передавай явным вторым аргументом.
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
 function score(n, healthConditions, goal) {
   const warnings = [];
   const positives = [];
@@ -53,8 +72,11 @@ function score(n, healthConditions, goal) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   try {
@@ -64,11 +86,11 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
     const { barcode, userProfile = {} } = await req.json();
-    if (!barcode) return new Response(JSON.stringify({ error: 'barcode required' }), { status: 400 });
+    if (!barcode) return jsonResponse({ error: 'barcode required' }, 400);
 
     // Профиль — из БД (авторитетный источник), не то что прислал клиент
     const { data: profiles } = await supabase.from('user_profiles').select('*').limit(1);
@@ -114,8 +136,9 @@ Deno.serve(async (req) => {
     }
 
     if (!product) {
-      // Товар не найден нигде — клиент должен предложить добавить вручную
-      return new Response(JSON.stringify({ error: 'not_found', barcode }), { status: 404 });
+      // Товар не найден нигде — это ожидаемый штатный кейс (не ошибка сервера),
+      // клиент по data.error === 'not_found' покажет форму ручного добавления
+      return jsonResponse({ error: 'not_found', barcode });
     }
 
     const { score: s, warnings, positives } = score(
@@ -131,7 +154,7 @@ Deno.serve(async (req) => {
       .filter((a) => a.category === category && (a.calories_per_100g || 0) < (product.calories || 999))
       .slice(0, 3);
 
-    return new Response(JSON.stringify({
+    return jsonResponse({
       product: {
         name: product.name, brand: product.brand, image: product.image,
         calories: product.calories, protein: product.protein, carbs: product.carbs, fat: product.fat,
@@ -142,8 +165,8 @@ Deno.serve(async (req) => {
       warnings,
       positives,
       alternatives: alternatives.map((a) => ({ name: a.food_name, calories: a.calories_per_100g, protein: a.protein_g })),
-    }), { headers: { 'Content-Type': 'application/json' } });
+    });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return jsonResponse({ error: error.message }, 500);
   }
 });

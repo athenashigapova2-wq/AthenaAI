@@ -19,6 +19,22 @@ const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 
 const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
 
+// Браузер шлёт preflight OPTIONS-запрос перед каждым fetch с фронтенда —
+// без этих заголовков в ответе он блокирует запрос ещё до того, как функция
+// успевает что-то сделать (это и было причиной "чат не отвечает").
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
 let cachedHttpClient: Deno.HttpClient | null = null;
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
@@ -59,8 +75,11 @@ function extractJson(text: string) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   try {
@@ -70,12 +89,12 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
     const { prompt, response_json_schema } = await req.json();
     if (!prompt) {
-      return new Response(JSON.stringify({ error: 'prompt required' }), { status: 400 });
+      return jsonResponse({ error: 'prompt required' }, 400);
     }
 
     const client = await getGigaChatHttpClient();
@@ -99,7 +118,7 @@ Deno.serve(async (req) => {
     });
 
     if (!res.ok) {
-      return new Response(JSON.stringify({ error: `LLM error: ${await res.text()}` }), { status: 502 });
+      return jsonResponse({ error: `LLM error: ${await res.text()}` }, 502);
     }
 
     const data = await res.json();
@@ -107,16 +126,14 @@ Deno.serve(async (req) => {
 
     if (response_json_schema) {
       try {
-        return new Response(JSON.stringify(extractJson(text)), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return jsonResponse(extractJson(text));
       } catch {
-        return new Response(JSON.stringify({ error: 'Invalid JSON from model', raw: text }), { status: 502 });
+        return jsonResponse({ error: 'Invalid JSON from model', raw: text }, 502);
       }
     }
 
-    return new Response(JSON.stringify({ text }), { headers: { 'Content-Type': 'application/json' } });
+    return jsonResponse({ text });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return jsonResponse({ error: error.message }, 500);
   }
 });

@@ -1,4 +1,3 @@
-import FoodScanner from '@/pages/FoodScanner';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -59,7 +58,6 @@ const AuthenticatedApp = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/calculator" element={<MacroCalculator />} />
           <Route path="/workout" element={<Workout />} />
-          <Route path="/scanner" element={<FoodScanner />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

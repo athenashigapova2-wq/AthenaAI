@@ -3,7 +3,7 @@ import { supabase } from "@/api/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Send, Sparkles, MessageCirclePlus, History } from "lucide-react";
+import { Loader2, Send, Sparkles, MessageCirclePlus, History, Trash2 } from "lucide-react";
 import MessageBubble from "@/components/agent/MessageBubble";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle,
@@ -103,6 +103,23 @@ export default function CoachChat() {
   };
 
   const convTitle = (conv) => conv.title || t("chat_newChat");
+
+  const deleteConversation = async (e, conv) => {
+    e.stopPropagation(); // не открывать этот чат при клике на корзину
+    if (!window.confirm(t("chat_deleteConfirm") || "Delete this chat?")) return;
+    const { error } = await supabase.from("agent_conversations").delete().eq("id", conv.id);
+    if (error) return;
+    // agent_messages удалятся каскадно (ON DELETE CASCADE в схеме БД)
+    const remaining = conversations.filter((c) => c.id !== conv.id);
+    setConversations(remaining);
+    if (conversation?.id === conv.id) {
+      // Удалили открытый сейчас чат — переключаемся на следующий доступный или на пустой экран
+      const next = remaining[0] || null;
+      setConversation(next);
+      if (next) await loadMessages(next.id);
+      else setMessages([]);
+    }
+  };
 
   if (loadingConv) {
     return (
@@ -208,16 +225,25 @@ export default function CoachChat() {
               conversations.map((c) => {
                 const active = c.id === conversation?.id;
                 return (
-                  <button
+                  <div
                     key={c.id}
                     onClick={() => selectConversation(c)}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${active ? "border-primary bg-info/40" : "border-border bg-card hover:bg-muted"}`}
+                    className={`w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-xl border transition-colors cursor-pointer ${active ? "border-primary bg-info/40" : "border-border bg-card hover:bg-muted"}`}
                   >
-                    <p className="text-sm font-medium truncate">{convTitle(c)}</p>
-                    {c.created_at && (
-                      <p className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString()}</p>
-                    )}
-                  </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{convTitle(c)}</p>
+                      {c.created_at && (
+                        <p className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString()}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => deleteConversation(e, c)}
+                      className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 touch-target"
+                      aria-label={t("chat_deleteChat") || "Delete chat"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 );
               })
             )}

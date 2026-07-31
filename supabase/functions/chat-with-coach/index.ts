@@ -21,6 +21,22 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
 const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
 
+// Браузер шлёт preflight OPTIONS-запрос перед каждым fetch с фронтенда —
+// без этих заголовков в ответе он блокирует запрос ещё до того, как функция
+// успевает что-то сделать (это и было причиной "чат не отвечает").
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
 let cachedHttpClient: Deno.HttpClient | null = null;
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
@@ -129,8 +145,11 @@ function computeNutritionInsight(profile, todayMeals) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   try {
@@ -140,13 +159,13 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      return jsonResponse({ error: 'Unauthorized' }, 401);
     }
     const userId = userData.user.id;
 
     const { conversation_id, message, language = 'en' } = await req.json();
     if (!message || !message.trim()) {
-      return new Response(JSON.stringify({ error: 'message required' }), { status: 400 });
+      return jsonResponse({ error: 'message required' }, 400);
     }
 
     // 1. Разговор — берём существующий или создаём новый
@@ -232,7 +251,7 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
 
     if (!res.ok) {
       const errText = await res.text();
-      return new Response(JSON.stringify({ error: `LLM error: ${errText}` }), { status: 502 });
+      return jsonResponse({ error: `LLM error: ${errText}` }, 502);
     }
 
     const data = await res.json();
@@ -246,11 +265,8 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
       .insert({ conversation_id: conversationId, role: 'assistant', content: replyText });
     if (assistantMsgErr) throw assistantMsgErr;
 
-    return new Response(
-      JSON.stringify({ conversation_id: conversationId, reply: replyText }),
-      { headers: { 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ conversation_id: conversationId, reply: replyText });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return jsonResponse({ error: error.message }, 500);
   }
 });
