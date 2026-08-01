@@ -80,11 +80,16 @@ export default function Home() {
     };
     if (remaining.calories === 0) { setAiTip(t("home_hitTargets")); return; }
     setLoadingTip(true);
-    const res = await invokeLLM({
-      prompt: `You are a concise nutrition coach. The user has ${remaining.calories} cal, ${remaining.protein}g protein, ${remaining.carbs}g carbs, ${remaining.fat}g fat remaining today. Their goal is "${prof.goal}". In 1-2 short sentences, tell them what their priority macro is and one quick food suggestion. Be warm, not preachy. Respond in language code: ${lang}.`,
-    });
-    setAiTip(res);
-    setLoadingTip(false);
+    try {
+      const res = await invokeLLM({
+        prompt: `You are a concise nutrition coach. The user has ${remaining.calories} cal, ${remaining.protein}g protein, ${remaining.carbs}g carbs, ${remaining.fat}g fat remaining today. Their goal is "${prof.goal}". In 1-2 short sentences, tell them what their priority macro is and one quick food suggestion. Be warm, not preachy. Respond in language code: ${lang}.`,
+      });
+      setAiTip(res.text);
+    } catch (err) {
+      console.error("fetchTip failed:", err);
+    } finally {
+      setLoadingTip(false);
+    }
   }, []);
 
   useEffect(() => {
