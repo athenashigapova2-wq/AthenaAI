@@ -9,8 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useLang, LANG_NAME } from "@/lib/i18n";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
-// TODO: замени на финальный лого/аватар бренда, когда будет дизайн
-const ATHENA_IMG = "/athena-avatar.svg";
+const ATHENA_IMG = "/athena-avatar.png";
 
 const today = () => new Date().toISOString().split("T")[0];
 
