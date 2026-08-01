@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, User } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { useLang } from "@/lib/i18n";
 
@@ -13,6 +13,7 @@ import { useLang } from "@/lib/i18n";
 export default function Register() {
   const { t } = useLang();
   const { register } = useAuth();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,7 +26,7 @@ export default function Register() {
     if (password !== confirmPassword) { setError(t("auth_passwordsNoMatch")); return; }
     setLoading(true);
     try {
-      await register(email, password);
+      await register(email, password, fullName);
       window.location.href = "/";
     } catch (err) {
       setError(err.message || t("auth_regFail"));
@@ -50,10 +51,17 @@ export default function Register() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
+          <Label htmlFor="fullName">{t("auth_name") || "Имя"}</Label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Input id="fullName" type="text" autoComplete="name" autoFocus placeholder="Амина" value={fullName} onChange={(e) => setFullName(e.target.value)} className="pl-10 h-12" required />
+          </div>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="email">{t("auth_email")}</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input id="email" type="email" autoComplete="email" autoFocus placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required />
+            <Input id="email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required />
           </div>
         </div>
         <div className="space-y-2">

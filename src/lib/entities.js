@@ -113,6 +113,7 @@ export function createEntity(table) {
 
 // Соответствие старым именам сущностей Base44 -> таблицам Supabase
 export const entities = {
+  Profile: createEntity('profiles'),
   MealLog: createEntity('meal_logs'),
   ShoppingItem: createEntity('shopping_items'),
   UserProfile: createEntity('user_profiles'),

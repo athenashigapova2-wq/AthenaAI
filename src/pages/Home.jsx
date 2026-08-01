@@ -36,22 +36,31 @@ export default function Home() {
   const [habitInsight, setHabitInsight] = useState(null); // { suggestion, insufficient_data }
   const [loadingHabit, setLoadingHabit] = useState(false);
 
+  const [loadError, setLoadError] = useState(false);
+
   const loadData = useCallback(async () => {
+    if (!user?.id) return; // ждём, пока авторизация точно готова — иначе запросы уйдут с пустым user_id
     setLoading(true);
-    const [profiles, todayMeals, allWeights] = await Promise.all([
-      entities.UserProfile.filter({ created_by_id: user?.id }),
-      entities.MealLog.filter({ date: today(), created_by_id: user?.id }),
-      entities.WeightLog.filter({ created_by_id: user?.id }, "-date", 14),
-    ]);
-    if (!profiles.length || !profiles[0].onboarding_complete) {
-      setShowOnboarding(true);
+    setLoadError(false);
+    try {
+      const [profiles, todayMeals, allWeights] = await Promise.all([
+        entities.UserProfile.filter({ created_by_id: user.id }),
+        entities.MealLog.filter({ date: today(), created_by_id: user.id }),
+        entities.WeightLog.filter({ created_by_id: user.id }, "-date", 14),
+      ]);
+      if (!profiles.length || !profiles[0].onboarding_complete) {
+        setShowOnboarding(true);
+        return;
+      }
+      setProfile(profiles[0]);
+      setMeals(todayMeals);
+      setWeights(allWeights.reverse());
+    } catch (err) {
+      console.error("Home loadData failed:", err);
+      setLoadError(true);
+    } finally {
       setLoading(false);
-      return;
     }
-    setProfile(profiles[0]);
-    setMeals(todayMeals);
-    setWeights(allWeights.reverse());
-    setLoading(false);
   }, [user]);
 
   const { pullDistance, refreshing: pullRefreshing } = usePullToRefresh(loadData);
@@ -141,6 +150,15 @@ export default function Home() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-3 px-6 text-center">
+        <p className="text-sm text-muted-foreground">{t("home_loadError") || "Не получилось загрузить данные. Проверь соединение."}</p>
+        <Button size="sm" onClick={loadData}>{t("home_retry") || "Попробовать снова"}</Button>
+      </div>
+    );
+  }
+
   if (showOnboarding) return <Onboarding onComplete={onOnboardingComplete} />;
 
   const consumed = meals.reduce(
@@ -174,7 +192,7 @@ export default function Home() {
               {new Date().toLocaleDateString(lang, { weekday: "long" })} · Olympus
             </p>
             <h1 className="text-2xl font-heading mt-1">
-              {t("home_greeting", { name: user?.full_name?.split(" ")[0] || t("home_hero") })}
+              {t("home_greeting", { name: user?.user_metadata?.full_name?.split(" ")[0] || t("home_hero") })}
             </h1>
           </div>
         </div>

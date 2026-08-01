@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, Suspense } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AnimatedOutlet from "@/components/AnimatedOutlet";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -90,7 +90,15 @@ export default function AppLayout() {
           paddingBottom: "calc(5rem + var(--sa-bottom))",
         }}
       >
-        <AnimatedOutlet />
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-24">
+              <div className="w-6 h-6 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin" />
+            </div>
+          }
+        >
+          <AnimatedOutlet />
+        </Suspense>
       </main>
 
       {location.pathname !== "/coach" && (

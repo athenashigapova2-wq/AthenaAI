@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.workers.aminashigapova2.macrocoach.twa",
+        "sha256_cert_fingerprints": ["10:DF:C7:71:99:80:A0:99:E9:68:BE:4F:19:B7:20:1E:14:73:6B:7E:27:7C:B7:D4:86:7A:14:7D:8F:71:AC:3F"]
+      }
+    }]

@@ -145,7 +145,9 @@ export default function Profile() {
     <div className="px-4 pt-6 pb-4 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold font-heading">{t("prof_title")}</h1>
+          <h1 className="text-xl font-bold font-heading">
+            {user?.user_metadata?.full_name || t("prof_title")}
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">{user?.email}</p>
         </div>
         <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => logout()}>
