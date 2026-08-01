@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { entities } from '@/lib/entities';
 import { invokeLLM } from '@/lib/invokeLLM';
+import { supabase } from '@/api/supabaseClient';
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Plus, Sparkles, TrendingDown, TrendingUp, Minus, Loader2, Calculator } from "lucide-react";
@@ -32,6 +33,8 @@ export default function Home() {
   const [showLogMeal, setShowLogMeal] = useState(false);
   const [aiTip, setAiTip] = useState(null);
   const [loadingTip, setLoadingTip] = useState(false);
+  const [habitInsight, setHabitInsight] = useState(null); // { suggestion, insufficient_data }
+  const [loadingHabit, setLoadingHabit] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -77,6 +80,35 @@ export default function Home() {
 
   useEffect(() => {
     if (profile && !loading) fetchTip(profile, meals);
+  }, [profile, loading]);
+
+  // Проактивный анализ привычек: читаем закэшированный результат, и если он
+  // старше суток (или его вообще ещё нет) — просим Edge Function пересчитать.
+  const loadHabitInsight = useCallback(async (forceRefresh = false) => {
+    if (!user?.id) return;
+    try {
+      const { data } = await supabase.from('agent_memory').select('*').eq('user_id', user.id).limit(1);
+      const mem = data?.[0];
+      const isStale = !mem?.suggestion_generated_at ||
+        Date.now() - new Date(mem.suggestion_generated_at).getTime() > 24 * 60 * 60 * 1000;
+
+      if (mem?.suggestion && !isStale && !forceRefresh) {
+        setHabitInsight({ suggestion: mem.suggestion, frequent_foods: mem.frequent_foods });
+        return;
+      }
+
+      setLoadingHabit(true);
+      const { data: res, error } = await supabase.functions.invoke('analyze-habits', { body: { language: lang } });
+      if (!error && res) setHabitInsight(res);
+    } catch {
+      // тихо игнорируем — это дополнительная, не критичная фича
+    } finally {
+      setLoadingHabit(false);
+    }
+  }, [user?.id, lang]);
+
+  useEffect(() => {
+    if (profile && !loading) loadHabitInsight();
   }, [profile, loading]);
 
   const handleDeleteMeal = async (id) => {
@@ -201,6 +233,25 @@ export default function Home() {
           {t("home_getMealIdeas")}
         </Button>
       </div>
+
+      {/* Проактивный анализ привычек — не ждёт вопроса от пользователя */}
+      {(loadingHabit || habitInsight?.suggestion) && (
+        <div className="rounded-2xl border-2 border-accent/20 bg-gradient-to-br from-accent/5 to-transparent p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-accent" />
+            <span className="text-[11px] font-semibold text-accent uppercase tracking-[0.2em] font-display">
+              {t("home_noticed") || "Заметила"}
+            </span>
+          </div>
+          {loadingHabit ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t("home_analyzing") || "Анализирую привычки..."}
+            </div>
+          ) : (
+            <p className="text-sm font-heading leading-relaxed">{habitInsight.suggestion}</p>
+          )}
+        </div>
+      )}
 
       {/* Weight trend */}
       {weights.length > 1 && (
