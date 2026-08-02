@@ -20,9 +20,10 @@ export default function WeekHistory({ profile }) {
       try {
         // Тянем с запасом по обе стороны от текущей недели, чтобы пролистывание
         // не требовало нового похода в БД каждый раз
-        const [meals, workouts] = await Promise.all([
+        const [meals, workouts, healthLogs] = await Promise.all([
           entities.MealLog.filter({ created_by_id: user?.id }, "-date", 400),
           entities.WorkoutLog.filter({ created_by_id: user?.id }, "-date", 200),
+          entities.user_health_logs.filter({ created_by_id: user?.id }, "-date", 200),
         ]);
         const mealByDate = {};
         meals.forEach((m) => {
@@ -38,8 +39,16 @@ export default function WeekHistory({ profile }) {
           workoutByDate[w.date].burned += w.calories_burned || 0;
           workoutByDate[w.date].count += 1;
         });
-        dataRef.current = { mealByDate, workoutByDate };
-        setDays(buildWeek(weekOffset, mealByDate, workoutByDate));
+        // Если чек-ин заполнялся несколько раз за день — берём последний по времени создания
+        const healthByDate = {};
+        healthLogs.forEach((h) => {
+          const existing = healthByDate[h.date];
+          if (!existing || new Date(h.created_at) > new Date(existing.created_at)) {
+            healthByDate[h.date] = h;
+          }
+        });
+        dataRef.current = { mealByDate, workoutByDate, healthByDate };
+        setDays(buildWeek(weekOffset, mealByDate, workoutByDate, healthByDate));
       } catch {
         setDays([]);
       }
@@ -49,10 +58,10 @@ export default function WeekHistory({ profile }) {
   }, [user?.id]);
 
   useEffect(() => {
-    if (dataRef.current) setDays(buildWeek(weekOffset, dataRef.current.mealByDate, dataRef.current.workoutByDate));
+    if (dataRef.current) setDays(buildWeek(weekOffset, dataRef.current.mealByDate, dataRef.current.workoutByDate, dataRef.current.healthByDate));
   }, [weekOffset]);
 
-  function buildWeek(offset, mealByDate, workoutByDate) {
+  function buildWeek(offset, mealByDate, workoutByDate, healthByDate) {
     const today = dateStr(new Date());
     const now = new Date();
     const monday = new Date(now);
@@ -64,11 +73,12 @@ export default function WeekHistory({ profile }) {
       const ds = dateStr(dt);
       const meal = mealByDate[ds] || null;
       const workout = workoutByDate[ds] || null;
+      const health = healthByDate?.[ds] || null;
       arr.push({
         date: dt, ds,
         isToday: ds === today,
         isPast: ds < today,
-        meal, workout,
+        meal, workout, health,
         hasRecords: !!(meal || workout),
       });
     }
@@ -77,6 +87,40 @@ export default function WeekHistory({ profile }) {
 
   const target = profile?.calorie_target || 0;
   const selectedDay = days.find((d) => d.ds === selectedDs) || null;
+
+  const isRu = lang === "ru";
+
+  function calorieVerdict(cal) {
+    if (!target) return null;
+    const diff = cal - target;
+    const pct = diff / target;
+    if (Math.abs(pct) <= 0.05) return isRu ? "уложилась в норму" : "right on target";
+    if (diff > 0) return isRu ? `превысила норму на ${Math.round(diff)} ккал` : `over target by ${Math.round(diff)} kcal`;
+    return isRu ? `недобрала ${Math.round(-diff)} ккал до нормы` : `under target by ${Math.round(-diff)} kcal`;
+  }
+
+  function daySummary(day) {
+    const parts = [];
+    if (day.meal) {
+      const verdict = calorieVerdict(day.meal.cal);
+      parts.push(
+        isRu
+          ? `Съедено ${Math.round(day.meal.cal)} ккал${verdict ? ` — ${verdict}` : ""}.`
+          : `Ate ${Math.round(day.meal.cal)} kcal${verdict ? ` — ${verdict}` : ""}.`
+      );
+    }
+    if (day.health) {
+      const bits = [];
+      if (day.health.mood != null) bits.push(isRu ? `настроение ${day.health.mood}/10` : `mood ${day.health.mood}/10`);
+      if (day.health.sleep_hours != null) bits.push(isRu ? `сон ${day.health.sleep_hours}ч` : `sleep ${day.health.sleep_hours}h`);
+      if (day.health.energy_level != null) bits.push(isRu ? `энергия ${day.health.energy_level}/10` : `energy ${day.health.energy_level}/10`);
+      const symptoms = (day.health.symptoms || []).filter((s) => s && s !== "None");
+      let sentence = (isRu ? "Самочувствие: " : "Wellbeing: ") + bits.join(", ") + ".";
+      if (symptoms.length) sentence += isRu ? ` Симптомы: ${symptoms.join(", ")}.` : ` Symptoms: ${symptoms.join(", ")}.`;
+      parts.push(sentence);
+    }
+    return parts.join(" ");
+  }
 
   const weekLabel = () => {
     if (!days.length) return "";
@@ -154,6 +198,9 @@ export default function WeekHistory({ profile }) {
       {selectedDay && (
         <div className="mt-2 bg-card rounded-2xl border border-border p-3 text-sm">
           <p className="font-medium mb-1">{selectedDay.date.toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" })}</p>
+          {(selectedDay.meal || selectedDay.health) && (
+            <p className="text-sm mb-2 leading-relaxed">{daySummary(selectedDay)}</p>
+          )}
           {selectedDay.meal ? (
             <p className="text-muted-foreground">
               {Math.round(selectedDay.meal.cal)} {t("week_cal")} · {t("coach_protein")[0]}{Math.round(selectedDay.meal.p)}g {t("coach_carbs")[0]}{Math.round(selectedDay.meal.c)}g {t("coach_fat")[0]}{Math.round(selectedDay.meal.f)}g

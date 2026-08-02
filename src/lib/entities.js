@@ -92,6 +92,17 @@ export function createEntity(table) {
       return data;
     },
 
+    async upsert(payload, conflictColumns = 'user_id,date') {
+      const userId = await currentUserId();
+      const { data, error } = await supabase
+        .from(table)
+        .upsert({ ...payload, user_id: userId }, { onConflict: conflictColumns })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+
     async delete(id) {
       const { error } = await supabase.from(table).delete().eq('id', id);
       if (error) throw error;
@@ -114,6 +125,7 @@ export function createEntity(table) {
 // Соответствие старым именам сущностей Base44 -> таблицам Supabase
 export const entities = {
   Profile: createEntity('profiles'),
+  CycleLog: createEntity('cycle_logs'),
   MealLog: createEntity('meal_logs'),
   ShoppingItem: createEntity('shopping_items'),
   UserProfile: createEntity('user_profiles'),

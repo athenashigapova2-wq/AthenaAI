@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { useLang } from "@/lib/i18n";
 import WeightChart from "@/components/WeightChart";
 import RecalcMacrosDialog from "@/components/RecalcMacrosDialog";
+import CycleTracker from "@/components/CycleTracker";
 
 const GOALS = [
   { key: "lose_weight", labelKey: "goal_lose", subKey: "goal_lose_sub" },
@@ -165,6 +166,10 @@ export default function Profile() {
           </div>
           <WeightChart data={weightData} />
         </div>
+      )}
+
+      {profile?.sex === "female" && (
+        <CycleTracker profile={profile} onProfileUpdate={setProfile} />
       )}
 
       <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
