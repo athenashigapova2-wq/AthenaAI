@@ -13,6 +13,7 @@ import { useLang } from "@/lib/i18n";
 import WeightChart from "@/components/WeightChart";
 import RecalcMacrosDialog from "@/components/RecalcMacrosDialog";
 import CycleTracker from "@/components/CycleTracker";
+import PersonalInfoCard from "@/components/PersonalInfoCard";
 
 const GOALS = [
   { key: "lose_weight", labelKey: "goal_lose", subKey: "goal_lose_sub" },
@@ -145,16 +146,13 @@ export default function Profile() {
   return (
     <div className="px-4 pt-6 pb-4 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold font-heading">
-            {user?.user_metadata?.full_name || t("prof_title")}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{user?.email}</p>
-        </div>
+        <h1 className="text-xl font-bold font-heading">{t("prof_title")}</h1>
         <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => logout()}>
           <LogOut className="w-3.5 h-3.5 mr-1" /> {t("prof_signOut")}
         </Button>
       </div>
+
+      <PersonalInfoCard user={user} profile={profile} onUpdate={setProfile} />
 
       {(
         <div className="bg-card rounded-2xl border border-border p-4">

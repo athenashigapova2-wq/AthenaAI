@@ -99,6 +99,23 @@ export default function WeekHistory({ profile }) {
     return isRu ? `недобрала ${Math.round(-diff)} ккал до нормы` : `under target by ${Math.round(-diff)} kcal`;
   }
 
+  // Ключи симптомов из HealthCheckIn.jsx -> живая фраза для саммари.
+  // "Вы могли чувствовать X" звучит естественно для любого симптома отсюда.
+  const SYMPTOM_PHRASES = {
+    Headache: isRu ? "головную боль" : "a headache",
+    Bloating: isRu ? "вздутие живота" : "bloating",
+    Fatigue: isRu ? "усталость" : "fatigue",
+    Insomnia: isRu ? "бессонницу" : "insomnia",
+    "Joint pain": isRu ? "боль в суставах" : "joint pain",
+    "Skin issues": isRu ? "проблемы с кожей" : "skin issues",
+    "Digestive issues": isRu ? "проблемы с пищеварением" : "digestive issues",
+  };
+
+  function joinNaturally(items) {
+    if (items.length <= 1) return items[0] || "";
+    return `${items.slice(0, -1).join(", ")} ${isRu ? "и" : "and"} ${items[items.length - 1]}`;
+  }
+
   function daySummary(day) {
     const parts = [];
     if (day.meal) {
@@ -114,9 +131,14 @@ export default function WeekHistory({ profile }) {
       if (day.health.mood != null) bits.push(isRu ? `настроение ${day.health.mood}/10` : `mood ${day.health.mood}/10`);
       if (day.health.sleep_hours != null) bits.push(isRu ? `сон ${day.health.sleep_hours}ч` : `sleep ${day.health.sleep_hours}h`);
       if (day.health.energy_level != null) bits.push(isRu ? `энергия ${day.health.energy_level}/10` : `energy ${day.health.energy_level}/10`);
-      const symptoms = (day.health.symptoms || []).filter((s) => s && s !== "None");
+      const symptomKeys = (day.health.symptoms || []).filter((s) => s && s !== "None");
       let sentence = (isRu ? "Самочувствие: " : "Wellbeing: ") + bits.join(", ") + ".";
-      if (symptoms.length) sentence += isRu ? ` Симптомы: ${symptoms.join(", ")}.` : ` Symptoms: ${symptoms.join(", ")}.`;
+      if (symptomKeys.length) {
+        const phrases = symptomKeys.map((s) => SYMPTOM_PHRASES[s] || s.toLowerCase());
+        sentence += isRu
+          ? ` Вы могли чувствовать ${joinNaturally(phrases)}.`
+          : ` You may have experienced ${joinNaturally(phrases)}.`;
+      }
       parts.push(sentence);
     }
     return parts.join(" ");

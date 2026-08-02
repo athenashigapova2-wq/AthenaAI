@@ -3,21 +3,15 @@ import { entities } from '@/lib/entities';
 import { Button } from '@/components/ui/button';
 import { Droplet, X } from 'lucide-react';
 
-const FLOW_OPTIONS = [
-  { value: 'none', label: 'Нет' },
-  { value: 'spotting', label: 'Мажущие' },
-  { value: 'light', label: 'Лёгкие' },
-  { value: 'medium', label: 'Средние' },
-  { value: 'heavy', label: 'Обильные' },
-];
-
 const SYMPTOM_OPTIONS = ['Спазмы', 'Головная боль', 'Перепады настроения', 'Вздутие', 'Чувствительность груди', 'Усталость', 'Акне'];
 
 // Полностью opt-in: сначала спрашиваем явное согласие, ничего не собираем
 // без него. Можно отключить в любой момент кнопкой внизу трекера.
+// Обращение на "Вы" — тема деликатная, формальный уважительный тон уместнее
+// тёплого "ты", которым говорит остальное приложение.
 export default function CycleTracker({ profile, onProfileUpdate }) {
   const [saving, setSaving] = useState(false);
-  const [flow, setFlow] = useState('none');
+  const [flow, setFlow] = useState(0); // 0-4 капли
   const [symptoms, setSymptoms] = useState([]);
   const [intimacy, setIntimacy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -61,7 +55,7 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
     }
   };
 
-  // Ещё не спрашивали и не предлагали — показываем карточку согласия
+  // Ещё не спрашивали — показываем карточку согласия
   if (!profile.cycle_tracking_offered) {
     return (
       <div className="p-4 bg-card rounded-2xl border space-y-3">
@@ -70,8 +64,8 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
           <h3 className="font-heading text-lg">Трекер цикла</h3>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Хочешь добавить отслеживание менструального цикла (включая интимную близость)?
-          Это полностью приватные данные, видны только тебе, и функцию можно
+          Хотите добавить отслеживание менструального цикла (включая интимную близость)?
+          Это полностью приватные данные — будет видно только Вам, и функцию можно
           в любой момент отключить в настройках профиля.
         </p>
         <div className="flex gap-2">
@@ -82,7 +76,7 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
     );
   }
 
-  // Предлагали, но отказалась — молчим, не навязываем повторно
+  // Предлагали, но отказались — молчим, не навязываем повторно
   if (!profile.cycle_tracking_enabled) return null;
 
   return (
@@ -98,17 +92,18 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
       </div>
 
       <div>
-        <label className="text-sm text-muted-foreground">Выделения сегодня</label>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {FLOW_OPTIONS.map((f) => (
+        <label className="text-sm text-muted-foreground">Интенсивность выделений сегодня</label>
+        <div className="flex items-center gap-2 mt-2">
+          {[1, 2, 3, 4].map((n) => (
             <button
-              key={f.value}
-              onClick={() => setFlow(f.value)}
-              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                flow === f.value ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-              }`}
+              key={n}
+              onClick={() => setFlow(flow === n ? n - 1 : n)}
+              aria-label={`${n} из 4`}
+              className="touch-target"
             >
-              {f.label}
+              <Droplet
+                className={`w-7 h-7 transition-colors ${n <= flow ? 'text-rose-500 fill-rose-500' : 'text-muted-foreground/30'}`}
+              />
             </button>
           ))}
         </div>
