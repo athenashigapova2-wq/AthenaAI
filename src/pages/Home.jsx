@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { toLocalDateString } from "@/lib/utils";
+import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeLLM } from '@/lib/invokeLLM';
 import { supabase } from '@/api/supabaseClient';
@@ -20,7 +20,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useLang } from "@/lib/i18n";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
-const today = () => toLocalDateString();
+const today = () => toLocalDateStr();
 
 export default function Home() {
   const { user } = useAuth();

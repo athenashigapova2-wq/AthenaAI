@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { toLocalDateString } from "@/lib/utils";
+import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,7 @@ export default function Onboarding({ onComplete }) {
     };
     await entities.UserProfile.create(payload);
     if (data.weight_kg) {
-      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: toLocalDateString());
+      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: toLocalDateStr()});
     }
     setSaving(false);
     onComplete();
