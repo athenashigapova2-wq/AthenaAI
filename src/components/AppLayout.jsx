@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, Suspense } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AnimatedOutlet from "@/components/AnimatedOutlet";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/i18n";
 import { ChevronLeft, LayoutDashboard, Sparkles, MessageSquare, ShoppingCart, User, Dumbbell } from "lucide-react";
 
@@ -100,12 +99,6 @@ export default function AppLayout() {
           <AnimatedOutlet />
         </Suspense>
       </main>
-
-      {location.pathname !== "/coach" && (
-        <div className="fixed right-3 z-50" style={{ bottom: "calc(4rem + var(--sa-bottom) + 0.5rem)" }}>
-          <LanguageSwitcher compact />
-        </div>
-      )}
 
       <nav
         className="fixed bottom-0 inset-x-0 bg-card/80 backdrop-blur-xl border-t border-border z-50"

@@ -7,7 +7,6 @@ import { Loader2, Sparkles, RefreshCw } from "lucide-react";
 import RecommendationCard from "@/components/RecommendationCard";
 import { useNavigate } from "react-router-dom";
 import { useLang, LANG_NAME } from "@/lib/i18n";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const ATHENA_IMG = "/athena-avatar.png";
 
@@ -172,9 +171,6 @@ Return JSON with "meals" array. Each meal: name, description (1 sentence), calor
 
   return (
     <div className="px-4 pt-6 pb-4 space-y-5">
-      <div className="flex justify-end">
-        <LanguageSwitcher compact />
-      </div>
       <div className="flex items-center gap-3">
         <img
           src={ATHENA_IMG}

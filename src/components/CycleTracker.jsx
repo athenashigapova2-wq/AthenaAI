@@ -1,8 +1,3 @@
-bash
-
-cat /home/claude/AthenaAi/src/components/CycleTracker.jsx
-Output
-
 import { useState, useEffect, useCallback } from 'react';
 import { entities } from '@/lib/entities';
 import { Button } from '@/components/ui/button';

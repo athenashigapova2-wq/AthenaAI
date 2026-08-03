@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/api/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Loader2, Send, Sparkles, MessageCirclePlus, History, Trash2 } from "lucide-react";
 import MessageBubble from "@/components/agent/MessageBubble";
 import {
@@ -25,6 +24,7 @@ export default function CoachChat() {
   const [conversations, setConversations] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const scrollRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const loadMessages = async (conversationId) => {
     const { data } = await supabase
@@ -64,6 +64,7 @@ export default function CoachChat() {
     const trimmed = (text ?? input).trim();
     if (!trimmed || sending) return;
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setSending(true);
     // Оптимистично показываем сообщение пользователя сразу
     setMessages((prev) => [...prev, { role: "user", content: trimmed, id: `tmp-${Date.now()}` }]);
@@ -199,12 +200,18 @@ export default function CoachChat() {
 
       <div className="px-4 py-3 border-t border-border bg-card/80 backdrop-blur-sm">
         <div className="flex gap-2 items-end">
-          <Input
+          <textarea
+            ref={textareaRef}
             placeholder={t("chat_placeholder")}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            className="h-11 rounded-xl"
+            rows={1}
+            className="flex-1 min-h-[44px] max-h-[120px] rounded-xl border border-input bg-background px-3 py-2.5 text-sm resize-none leading-relaxed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             disabled={sending}
           />
           <Button className="h-11 w-11 p-0 rounded-xl shrink-0" onClick={handleSend} disabled={!input.trim() || sending}>

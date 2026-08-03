@@ -14,6 +14,7 @@ import WeightChart from "@/components/WeightChart";
 import RecalcMacrosDialog from "@/components/RecalcMacrosDialog";
 import CycleTracker from "@/components/CycleTracker";
 import PersonalInfoCard from "@/components/PersonalInfoCard";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const GOALS = [
   { key: "lose_weight", labelKey: "goal_lose", subKey: "goal_lose_sub" },
@@ -153,6 +154,11 @@ export default function Profile() {
       </div>
 
       <PersonalInfoCard user={user} profile={profile} onUpdate={setProfile} />
+
+      <div className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between">
+        <span className="text-sm font-semibold font-heading">{t("prof_language") || "Язык приложения"}</span>
+        <LanguageSwitcher />
+      </div>
 
       {(
         <div className="bg-card rounded-2xl border border-border p-4">
