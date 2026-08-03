@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {toLocalDateString} from '@/lib/utils';
+import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { Button } from '@/components/ui/button';
 import { Droplet, ChevronLeft, ChevronRight } from 'lucide-react';

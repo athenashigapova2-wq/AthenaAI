@@ -87,7 +87,7 @@ export default function Profile() {
 
   const handleLogWeight = async () => {
     if (!newWeight) return;
-    const entry = await entities.WeightLog.create({ weight_kg: Number(newWeight), date: toLocalDateStr()});
+    const entry = await entities.WeightLog.create({ weight_kg: Number(newWeight), date: toLocalDateStr() });
     setWeights((w) => [...w, entry]);
     setNewWeight("");
     setShowWeightDialog(false);

@@ -73,7 +73,7 @@ export default function Onboarding({ onComplete }) {
     };
     await entities.UserProfile.create(payload);
     if (data.weight_kg) {
-      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: toLocalDateStr()});
+      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: toLocalDateStr() });
     }
     setSaving(false);
     onComplete();
