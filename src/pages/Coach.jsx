@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { toLocalDateString } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeLLM } from '@/lib/invokeLLM';
 import { useAuth } from "@/lib/AuthContext";
@@ -10,7 +11,7 @@ import { useLang, LANG_NAME } from "@/lib/i18n";
 
 const ATHENA_IMG = "/athena-avatar.png";
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => toLocalDateString();
 
 export default function Coach() {
   const { user } = useAuth();

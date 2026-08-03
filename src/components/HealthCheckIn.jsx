@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toLocalDateString } from '@/lib/utils';
 import { entities } from '@/lib/entities';
 import { useQueryClient } from '@tanstack/react-query';
 import { Heart, Smile, Zap, Moon } from 'lucide-react';
@@ -22,7 +23,7 @@ export function HealthCheckIn() {
 
   const submit = async () => {
     await entities.user_health_logs.create({
-      date: new Date().toISOString().split('T')[0],
+      date: toLocalDateString(),
       symptoms: symptoms.includes('None') ? [] : symptoms,
       mood,
       sleep_hours: sleep,

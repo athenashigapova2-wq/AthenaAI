@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
+import { toLocalDateString } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { useLang } from "@/lib/i18n";
 import { Flame, ChevronLeft, ChevronRight } from "lucide-react";
 
-const dateStr = (d) => d.toISOString().split("T")[0];
+const dateStr = (d) => toLocalDateString(d);
 
 export default function WeekHistory({ profile }) {
   const { user } = useAuth();

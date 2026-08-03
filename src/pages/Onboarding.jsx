@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { toLocalDateString } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +73,7 @@ export default function Onboarding({ onComplete }) {
     };
     await entities.UserProfile.create(payload);
     if (data.weight_kg) {
-      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: new Date().toISOString().split("T")[0] });
+      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: toLocalDateString());
     }
     setSaving(false);
     onComplete();
@@ -164,18 +165,18 @@ export default function Onboarding({ onComplete }) {
                   <Button
                     type="button"
                     size="sm"
-                    variant={data.cycle_tracking_enabled ? "default" : "outline"}
+                    variant="default"
                     onClick={() => update("cycle_tracking_enabled", true)}
                   >
-                    Да
+                    {data.cycle_tracking_enabled && "✓ "}Да
                   </Button>
                   <Button
                     type="button"
                     size="sm"
-                    variant={!data.cycle_tracking_enabled ? "default" : "outline"}
+                    variant="outline"
                     onClick={() => update("cycle_tracking_enabled", false)}
                   >
-                    Нет
+                    {!data.cycle_tracking_enabled && "✓ "}Нет
                   </Button>
                 </div>
               </div>

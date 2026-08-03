@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import {toLocalDateString} from '@/lib/utils';
 import { entities } from '@/lib/entities';
 import { Button } from '@/components/ui/button';
 import { Droplet, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -7,7 +8,7 @@ const SYMPTOM_OPTIONS = ['Спазмы', 'Головная боль', 'Пере�
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const WEEKDAY_LETTERS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-const ds = (d) => d.toISOString().split('T')[0];
+const ds = (d) => toLocalDateString(d);
 
 // Полностью opt-in: сначала спрашиваем явное согласие, ничего не собираем
 // без него. Переключатель отслеживания виден постоянно и явно, можно

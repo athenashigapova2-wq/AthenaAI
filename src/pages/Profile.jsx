@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { toLocalDateString } from "@/lib/utils";
 import { entities } from "@/lib/entities";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ export default function Profile() {
 
   const handleLogWeight = async () => {
     if (!newWeight) return;
-    const entry = await entities.WeightLog.create({ weight_kg: Number(newWeight), date: new Date().toISOString().split("T")[0] });
+    const entry = await entities.WeightLog.create({ weight_kg: Number(newWeight), date: toLocalDateString());
     setWeights((w) => [...w, entry]);
     setNewWeight("");
     setShowWeightDialog(false);

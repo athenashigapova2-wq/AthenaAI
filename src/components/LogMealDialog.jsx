@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { toLocalDateString } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeLLM } from '@/lib/invokeLLM';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,7 +10,7 @@ import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { Loader2, Sparkles } from "lucide-react";
 import { useLang, LANG_NAME } from "@/lib/i18n";
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => toLocalDateString();
 
 export default function LogMealDialog({ open, onOpenChange, onLogged }) {
   const { t, lang } = useLang();

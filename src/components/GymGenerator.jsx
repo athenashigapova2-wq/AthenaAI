@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { toLocalDateString } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeLLM } from '@/lib/invokeLLM';
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { useLang } from "@/lib/i18n";
 import { WHAT_OPTIONS, INTENSITY_OPTIONS, WHERE_OPTIONS, WHAT_TO_WORKOUT_TYPE } from "@/lib/workoutData";
 import { toast } from "@/components/ui/use-toast";
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => toLocalDateString();
 
 export default function GymGenerator() {
   const { t, lang } = useLang();
