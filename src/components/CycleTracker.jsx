@@ -131,7 +131,7 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
           aria-label="Отслеживание цикла"
         >
           <span
-            className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${profile.cycle_tracking_enabled ? 'translate-x-5' : 'translate-x-0.5'}`}
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${profile.cycle_tracking_enabled ? 'translate-x-5' : 'translate-x-0'}`}
           />
         </button>
       </div>

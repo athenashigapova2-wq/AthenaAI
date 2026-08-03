@@ -39,6 +39,7 @@ export default function Onboarding({ onComplete }) {
     goal: "", sex: "male", age: "", height_cm: "", weight_kg: "",
     calorie_target: "", protein_target_g: "", carb_target_g: "", fat_target_g: "",
     budget: "medium", cooking_skill: "basic", allergies: [], disliked_foods: [], favorite_foods: [],
+    cycle_tracking_enabled: false,
   });
 
   const update = (field, value) => setData((d) => ({ ...d, [field]: value }));
@@ -67,6 +68,7 @@ export default function Onboarding({ onComplete }) {
       calorie_target: Number(data.calorie_target), protein_target_g: Number(data.protein_target_g),
       carb_target_g: Number(data.carb_target_g), fat_target_g: Number(data.fat_target_g),
       onboarding_complete: true,
+      cycle_tracking_offered: data.sex === "female", // уже спросили здесь — не дублируем вопрос в профиле
     };
     await entities.UserProfile.create(payload);
     if (data.weight_kg) {
@@ -151,10 +153,35 @@ export default function Onboarding({ onComplete }) {
                 <Input type="number" placeholder="75" value={data.weight_kg} onChange={(e) => update("weight_kg", e.target.value)} />
               </div>
             </div>
+
+            {data.sex === "female" && (
+              <div className="p-3 bg-secondary rounded-xl space-y-2">
+                <Label>Хотите включить отслеживание менструального цикла?</Label>
+                <p className="text-xs text-muted-foreground">
+                  Полностью приватно — видно только Вам. Можно включить или отключить позже в профиле.
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={data.cycle_tracking_enabled ? "default" : "outline"}
+                    onClick={() => update("cycle_tracking_enabled", true)}
+                  >
+                    Да
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={!data.cycle_tracking_enabled ? "default" : "outline"}
+                    onClick={() => update("cycle_tracking_enabled", false)}
+                  >
+                    Нет
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
-
-        {step === 2 && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>{t("onb_calories")}</Label>
