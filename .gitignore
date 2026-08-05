@@ -29,3 +29,10 @@ dist-ssr
 
 .env
 .vite
+# ключи и секреты - никогда не коммитить
+*.jks
+*.keystore
+athena-release-key
+.env
+.env.local
+backend/.env
