@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
 
     app_env: str = "dev"
+    test_user_id: str = "4c58346d-801f-4241-a349-02a2736361f0"
 
     @property
     def is_dev(self) -> bool:
