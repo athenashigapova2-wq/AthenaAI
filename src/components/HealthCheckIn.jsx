@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { useQueryClient } from '@tanstack/react-query';
+import { useLang } from '@/lib/i18n';
 import { Heart, Smile, Zap, Moon } from 'lucide-react';
 
 export function HealthCheckIn() {
+  const { t } = useLang();
   const queryClient = useQueryClient();
   const [symptoms, setSymptoms] = useState([]);
   const [mood, setMood] = useState(5);
@@ -12,9 +14,17 @@ export function HealthCheckIn() {
   const [energy, setEnergy] = useState(5);
   const [submitted, setSubmitted] = useState(false);
 
+  // value — канонический английский ключ (хранится в БД и используется для
+  // перевода в саммари дня в WeekHistory.jsx), label — то, что видит пользователь
   const symptomOptions = [
-    'Headache', 'Bloating', 'Fatigue', 'Insomnia',
-    'Joint pain', 'Skin issues', 'Digestive issues', 'None'
+    { value: 'Headache', label: t('health_sym_headache') },
+    { value: 'Bloating', label: t('health_sym_bloating') },
+    { value: 'Fatigue', label: t('health_sym_fatigue') },
+    { value: 'Insomnia', label: t('health_sym_insomnia') },
+    { value: 'Joint pain', label: t('health_sym_jointpain') },
+    { value: 'Skin issues', label: t('health_sym_skin') },
+    { value: 'Digestive issues', label: t('health_sym_digestive') },
+    { value: 'None', label: t('health_sym_none') },
   ];
 
   const toggleSymptom = (s) => {
@@ -38,23 +48,23 @@ export function HealthCheckIn() {
     <div className="p-4 bg-card rounded-2xl border space-y-4">
       <div className="flex items-center gap-2">
         <Heart className="w-5 h-5 text-rose-500" />
-        <h3 className="font-heading text-lg">Daily Check-in</h3>
+        <h3 className="font-heading text-lg">{t('health_title')}</h3>
       </div>
 
       <div>
-        <label className="text-sm text-muted-foreground">Symptoms today</label>
+        <label className="text-sm text-muted-foreground">{t('health_symptomsToday')}</label>
         <div className="flex flex-wrap gap-2 mt-2">
-          {symptomOptions.map(s => (
+          {symptomOptions.map(({ value, label }) => (
             <button
-              key={s}
-              onClick={() => toggleSymptom(s)}
+              key={value}
+              onClick={() => toggleSymptom(value)}
               className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                symptoms.includes(s)
+                symptoms.includes(value)
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
               }`}
             >
-              {s}
+              {label}
             </button>
           ))}
         </div>
@@ -63,7 +73,7 @@ export function HealthCheckIn() {
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Smile className="w-4 h-4" /> Mood {mood}/10
+            <Smile className="w-4 h-4" /> {t('health_mood')} {mood}/10
           </div>
           <input type="range" min="1" max="10" value={mood}
                  onChange={e => setMood(Number(e.target.value))}
@@ -71,7 +81,7 @@ export function HealthCheckIn() {
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Moon className="w-4 h-4" /> Sleep {sleep}h
+            <Moon className="w-4 h-4" /> {t('health_sleep')} {sleep}h
           </div>
           <input type="range" min="0" max="12" step="0.5" value={sleep}
                  onChange={e => setSleep(Number(e.target.value))}
@@ -79,7 +89,7 @@ export function HealthCheckIn() {
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Zap className="w-4 h-4" /> Energy {energy}/10
+            <Zap className="w-4 h-4" /> {t('health_energy')} {energy}/10
           </div>
           <input type="range" min="1" max="10" value={energy}
                  onChange={e => setEnergy(Number(e.target.value))}
@@ -92,7 +102,7 @@ export function HealthCheckIn() {
         disabled={submitted}
         className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl font-medium disabled:opacity-50"
       >
-        {submitted ? 'Saved!' : 'Save Check-in'}
+        {submitted ? t('health_saved') : t('health_save')}
       </button>
     </div>
   );

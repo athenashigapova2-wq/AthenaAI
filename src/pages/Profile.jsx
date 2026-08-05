@@ -165,9 +165,24 @@ export default function Profile() {
         <div className="bg-card rounded-2xl border border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-semibold font-heading">{t("prof_weightHistory")}</span>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowWeightDialog(true)}>
-              <Scale className="w-3 h-3 mr-1" /> {t("prof_log")}
-            </Button>
+            <div className="flex items-center gap-1">
+              {weights.length > 0 && (
+                <Button
+                  size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={async () => {
+                    if (!window.confirm(t("prof_deleteAllWeightsConfirm"))) return;
+                    await entities.WeightLog.deleteMany({ created_by_id: user.id });
+                    setWeights([]);
+                  }}
+                  aria-label={t("prof_deleteAllWeights")}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowWeightDialog(true)}>
+                <Scale className="w-3 h-3 mr-1" /> {t("prof_log")}
+              </Button>
+            </div>
           </div>
           <WeightChart data={weightData} />
         </div>
