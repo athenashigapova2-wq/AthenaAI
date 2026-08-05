@@ -7,13 +7,18 @@ from app.services.supabase import get_supabase
 
 
 def search_food(query: str, limit: int = 5) -> dict[str, Any]:
-    """Поиск продукта в справочнике по части названия."""
+    """Поиск продукта в справочнике по части названия.
+
+    Ранжирование: точное совпадение → начинается с запроса → содержит.
+    Внутри группы короткие названия выше — они обычно базовые продукты,
+    а не составные блюда.
+    """
     sb = get_supabase()
     result = (
         sb.table("food_nutrients")
         .select("food_name, category, calories_per_100g, protein_g, carbs_g, fat_g")
         .ilike("food_name", f"%{query}%")
-        .limit(limit)
+        .limit(50)
         .execute()
     )
 
@@ -22,7 +27,21 @@ def search_food(query: str, limit: int = 5) -> dict[str, Any]:
             "status": "not_found",
             "message": f"Продукт '{query}' не найден в справочнике",
         }
-    return {"status": "ok", "count": len(result.data), "foods": result.data}
+
+    q = query.lower().strip()
+
+    def rank(item: dict) -> tuple[int, int]:
+        name = (item.get("food_name") or "").lower()
+        if name == q:
+            group = 0
+        elif name.startswith(q):
+            group = 1
+        else:
+            group = 2
+        return (group, len(name))
+
+    ranked = sorted(result.data, key=rank)[:limit]
+    return {"status": "ok", "count": len(ranked), "foods": ranked}
 
 
 def get_daily_intake(user_id: str, day: str | None = None) -> dict[str, Any]:
