@@ -36,3 +36,10 @@ athena-release-key
 .env
 .env.local
 backend/.env
+# python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+!.env.example
