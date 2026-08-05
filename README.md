@@ -1,77 +1,251 @@
-# Base44 Project
+# Athena AI
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+Мобильное приложение для управления питанием и тренировками с AI-агентом.
+Android (Capacitor + React), Python-бэкенд с агентной архитектурой, Supabase (PostgreSQL).
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+Поддерживаемые языки интерфейса и запросов: русский, английский, французский,
+испанский, китайский.
 
-## Prerequisites
+---
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
+## Возможности
 
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
+| Раздел | Функциональность |
+|---|---|
+| Онбординг | Расчёт базовой калорийности и БЖУ по параметрам тела, уровню активности и цели (мягкое/резкое похудение, рекомпозиция, поддержание, набор массы) |
+| Дневник питания | Запись приёмов пищи со справочником на 2210 продуктов, суммы КБЖУ за день |
+| Тренировки | Генерация программ по группам мышц и уровню сложности; комплексы для зала, дома и улицы |
+| Чат с агентом | Консультации с доступом к данным пользователя через tool calling |
+| Список покупок | Формирование списка продуктов под предложенные блюда |
+| Личный кабинет | Профиль, динамика веса, отслеживание цикла |
 
-## Run Locally
+---
 
-Run the full local development environment from the project root:
+## Архитектура
+
+```
+Android (React + Capacitor)
+        |  HTTPS + Supabase JWT
+        v
+Python-бэкенд (FastAPI)
+        |
+        +-- LangGraph: маршрутизация и цикл вызова инструментов
+        +-- Инструменты -> Supabase (scoped по user_id из токена)
+        +-- LLM-провайдер (GigaChat): диалог, tool calling, перевод запросов
+        +-- Локальная модель эмбеддингов: семантический поиск по справочнику
+```
+
+**Клиент:** React, Vite, Capacitor, Tailwind
+**Бэкенд:** Python 3.11, FastAPI, LangChain, LangGraph, pydantic-settings
+**Данные:** Supabase (PostgreSQL, pgvector, Row Level Security)
+**Модели:** GigaChat, multilingual-e5-base (эмбеддинги, локально)
+
+---
+
+## Инженерные решения
+
+### user_id недоступен модели
+
+Инструменты агента собираются фабрикой под конкретного пользователя. `user_id`
+замыкается внутри функции и не попадает в JSON Schema, которую видит модель:
+
+```python
+def build_tools(user_id: str) -> list[StructuredTool]:
+    def get_my_profile() -> dict:
+        return profile_tools.get_profile(user_id)
+    ...
+```
+
+У инструмента нет параметра, в который можно подставить чужой идентификатор.
+Наивная сигнатура `get_profile(user_id: str)` открывала бы доступ к чужому
+дневнику через prompt injection в тексте запроса.
+
+Бэкенд работает под `service_role`, который обходит Row Level Security, поэтому
+каждый запрос обязан фильтровать по `user_id` явно — это зафиксировано в
+docstring модуля доступа к базе.
+
+### Расчёты — детерминированные функции, не LLM
+
+BMR, TDEE, распределение макронутриентов и суммирование дневного рациона
+считаются в Python. Модель вызывает эти функции и объясняет результат, но не
+вычисляет сама. Приложение работает с калориями — цифры должны быть
+воспроизводимыми.
+
+### Сменные провайдеры
+
+Слой доступа к модели возвращает абстракцию `BaseChatModel`, слой эмбеддингов —
+`Embeddings`. Благодаря этому переход с облачных эмбеддингов на локальные (после
+того, как выяснилось, что эндпоинт `/embeddings` не входит в используемый тариф)
+затронул один файл и не коснулся инструментов и агентов.
+
+---
+
+## Качество данных
+
+Справочник построен на Food Nutrition Dataset (Kaggle). При первичном импорте
+257 записей из 2395 содержали физически невозможные значения — до 6077 ккал
+на 100 г при теоретическом максимуме 900 (чистый жир, 9 ккал/г).
+
+**Причина.** Документация датасета утверждает, что значения даны на 100 г. Данные
+это опровергают: лишь 1.6% строк имеют сумму состава (жир + углеводы + белок +
+вода + клетчатка) около 100 г. Фактически значения приведены **на порцию**,
+размер которой у каждого продукта свой и в файле не указан.
+
+**Восстановление.** Вес порции вычисляется как сумма массовых колонок. Проверка
+на продуктах с известной калорийностью:
+
+| Продукт | В файле | Вес порции | После пересчёта | Справочное значение |
+|---|---|---|---|---|
+| olive oil | 119 | 13.5 г | 881 | 884 |
+| banana | 134 | 152.7 г | 88 | 89 |
+| white rice raw | 675 | 186.2 г | 363 | 365 |
+| goose meat raw | 6077 | 1624 г | 374 | 371 |
+
+`backend/scripts/import_food_data.py` выполняет пересчёт, отбраковывает 185
+невосстановимых записей (отсутствует состав), печатает контрольные значения
+перед записью и поддерживает режим `--dry-run`.
+
+Результат: 2210 корректных записей, ноль физически невозможных значений.
+
+---
+
+## Семантический поиск
+
+Приложение принимает запросы на пяти языках, справочник — англоязычный.
+Подстрочный и триграммный поиск эту задачу не решают: «курица» не находит
+`chicken` ни при каких настройках.
+
+### Измерение
+
+Набор из 30 размеченных вручную запросов на пяти языках
+(`backend/evals/search_cases.json`). Метрика — **Recall@5**: доля запросов, для
+которых корректный продукт попал в топ-5.
+
+Выбор @5, а не @1, продиктован архитектурой: инструмент возвращает агенту пять
+кандидатов, финальный выбор по названию делает LLM.
+
+| Подход | Recall@1 | Recall@5 |
+|---|---|---|
+| pg_trgm (поиск по буквенным фрагментам) | 13% | 13% |
+| multilingual-e5-small (384d) | 23% | 30% |
+| multilingual-e5-base (768d) | 13% | 37% |
+| + перевод запроса на английский | 40% | 77% |
+| + приоритет базовых продуктов | **63%** | **93%** |
+
+### Что показали измерения
+
+**Триграммы дают Recall@1 = Recall@5.** Если правильный ответ не оказался первым,
+его нет и в пятёрке: поиск по буквам либо угадывает написание, либо нет.
+
+**Увеличение модели эмбеддингов не решило задачу.** Переход с 384 на 768
+измерений поднял Recall@5 с 30% до 37%, но Recall@1 при этом упал. Анализ
+промахов показал причину: на кириллице и иероглифах модель сопоставляла
+созвучие начала слова, а не смысл — «творог» → `witloof chicory`, «лосось» →
+`couscous dry`, «гречка» → `greek yogurt`. Латиница обрабатывалась корректно.
+
+**Узким местом была межъязыковая связка, а не сам поиск.** Предварительный
+перевод запроса на английский поднял Recall@5 с 37% до 77% без смены модели
+эмбеддингов. Перевод выполняется тем же LLM, что и диалог; при недоступности
+модели поиск откатывается на исходный запрос.
+
+**Ранжирование потребовало доменного знания.** Оставшиеся промахи были
+однотипны: на запрос «курица» выдавались `chicken spread`, `chicken stock`,
+`chicken broth` — переработанные продукты вместо ингредиента. Небольшой бонус
+к близости для названий с признаками базового продукта (`raw`, `cooked`, `meat`)
+поднял Recall@5 до 93% и Recall@1 с 40% до 63%.
+
+**Известное ограничение.** Единственный оставшийся промах — китайский запрос
+三文鱼 (лосось), который LLM переводит как `Shellfish`. Ограничение
+переводческих способностей модели на китайском.
+
+### Об индексах
+
+Индекс `ivfflat` на 2210 векторах удалён: приближённый поиск просматривает по
+умолчанию один кластер из 47 и пропускает релевантные результаты, тогда как
+полный перебор при 768 измерениях занимает единицы миллисекунд. Индекс
+(предпочтительно `hnsw`) имеет смысл при росте справочника на порядки.
+
+### Ограничения методики
+
+Приоритет базовых продуктов настраивался по промахам на том же наборе, на
+котором измерялось качество. Валидация на отложенной выборке запросов —
+в планах.
+
+---
+
+## Безопасность
+
+- Ключи LLM-провайдера и `service_role` Supabase существуют только на сервере.
+  Переменные с префиксом `VITE_` попадают в JS-бандл и внутрь APK, поэтому
+  клиенту доступны исключительно публичный `anon`-ключ и адрес бэкенда.
+- Row Level Security включён на всех пользовательских таблицах; политики
+  построены на `auth.uid() = user_id`.
+- Ассистентские сообщения в `agent_messages` пишет только `service_role`;
+  пользователь ограничен вставкой собственных сообщений с `role = 'user'`.
+- Keystore для подписи APK хранится вне репозитория; на GitHub включены
+  secret scanning и push protection.
+
+---
+
+## Запуск
+
+### Бэкенд
 
 ```bash
-base44 dev
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1        # Windows
+pip install -r requirements.txt
+cp .env.example .env               # заполнить значениями
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
+Список переменных окружения — в `backend/.env.example`.
 
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
-
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
-```
-
-In a Base44 project this lives in `base44/config.jsonc`.
-
-## Run Only The Frontend
-
-If you only want to work on the frontend against the hosted Base44 backend, run:
+Проверка связи с моделью и базой:
 
 ```bash
-npm run dev
+python scripts/smoke_test.py
+python scripts/test_profile.py
+python scripts/test_agent_tools.py
 ```
 
-Open the local URL printed by Vite.
+### Справочник продуктов
 
-## Use The Hosted Backend
-
-For frontend-only development, create or update `.env.local` in the project root:
+Датасет в репозитории не хранится. Скачать
+[Food Nutrition Dataset](https://www.kaggle.com/datasets/utsavdey1410/food-nutrition-dataset),
+распаковать `FOOD-DATA-GROUP*.csv` в `backend/data/kaggle/`, затем:
 
 ```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
+python scripts/import_food_data.py --csv-dir data/kaggle --dry-run
+python scripts/import_food_data.py --csv-dir data/kaggle
+python scripts/build_embeddings.py
 ```
 
-`VITE_BASE44_APP_ID` identifies the Base44 app.
-
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
-
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
-
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+### Замер качества поиска
 
 ```bash
-base44 dashboard open
+python scripts/eval_search.py trigram
+python scripts/eval_search.py vector
+python scripts/eval_search.py translate
 ```
 
-## Docs & Support
+### Клиент
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+```bash
+npm install
+npm run build
+npx cap sync android
+```
 
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
+---
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+## Статус
+
+**Готово:** tool calling с GigaChat, инструменты профиля и питания, семантический
+поиск (Recall@5 = 93%), пайплайн импорта с валидацией данных, набор для замера
+качества поиска.
+
+**В работе:** маршрутизация между специализированными агентами (Nutrition,
+Workout, Recovery), HTTP-слой на FastAPI, деплой.
+
+**Далее:** MCP, Vision AI для распознавания блюд по фото, аналитическая панель.

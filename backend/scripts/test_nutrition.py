@@ -18,5 +18,5 @@ def show(title: str, data: dict) -> None:
 
 
 if __name__ == "__main__":
-    show("search_food('chicken')", nutrition.search_food("chicken"))
+    show("search_food('куриная грудка')", nutrition.search_food("куриная грудка"))
     show("get_daily_intake()", nutrition.get_daily_intake(USER_ID))

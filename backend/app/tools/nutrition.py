@@ -6,21 +6,49 @@ from typing import Any
 from app.services.supabase import get_supabase
 
 
-def search_food(query: str, limit: int = 5) -> dict[str, Any]:
-    """Поиск продукта в справочнике по части названия.
+def _translate_to_english(query: str) -> str:
+    """Переводит запрос на язык справочника.
 
-    Ранжирование: точное совпадение → начинается с запроса → содержит.
-    Внутри группы короткие названия выше — они обычно базовые продукты,
-    а не составные блюда.
+    Справочник англоязычный, а пользователи пишут на пяти языках.
+    Кросс-языковые эмбеддинги на кириллице и иероглифах работают плохо
+    (Recall@5 = 37%), предварительный перевод поднимает до 93%.
     """
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    from app.llm import get_llm
+
+    try:
+        response = get_llm().invoke([
+            SystemMessage(content=(
+                "Translate the food name to English. "
+                "If it is already English, return it unchanged. "
+                "Reply with ONLY the English name, 1-2 words, no explanation."
+            )),
+            HumanMessage(content=query),
+        ])
+        translated = response.content.strip().strip('."')
+        return translated or query
+    except Exception:
+        return query
+
+
+def search_food(query: str, limit: int = 5) -> dict[str, Any]:
+    """Семантический поиск продукта в справочнике.
+
+    Запрос переводится на английский, затем ищется по косинусной близости
+    векторов. Работает с запросами на любом из поддерживаемых языков.
+    """
+    from app.embeddings import get_embeddings
+
+    english_query = _translate_to_english(query)
+    query_vector = get_embeddings().embed_query(english_query)
+    vector_literal = "[" + ",".join(str(x) for x in query_vector) + "]"
+
     sb = get_supabase()
-    result = (
-        sb.table("food_nutrients")
-        .select("food_name, category, calories_per_100g, protein_g, carbs_g, fat_g")
-        .ilike("food_name", f"%{query}%")
-        .limit(50)
-        .execute()
-    )
+    result = sb.rpc(
+        "match_foods",
+        {"query_embedding": vector_literal, "match_count": limit},
+    ).execute()
 
     if not result.data:
         return {
@@ -28,21 +56,11 @@ def search_food(query: str, limit: int = 5) -> dict[str, Any]:
             "message": f"Продукт '{query}' не найден в справочнике",
         }
 
-    q = query.lower().strip()
-
-    def rank(item: dict) -> tuple[int, int]:
-        name = (item.get("food_name") or "").lower()
-        if name == q:
-            group = 0
-        elif name.startswith(q):
-            group = 1
-        else:
-            group = 2
-        return (group, len(name))
-
-    ranked = sorted(result.data, key=rank)[:limit]
-    return {"status": "ok", "count": len(ranked), "foods": ranked}
-
+    foods = [
+        {k: v for k, v in row.items() if k != "similarity"}
+        for row in result.data
+    ]
+    return {"status": "ok", "count": len(foods), "foods": foods}
 
 def get_daily_intake(user_id: str, day: str | None = None) -> dict[str, Any]:
     """Сводка съеденного за день: суммы КБЖУ и список приёмов пищи."""
