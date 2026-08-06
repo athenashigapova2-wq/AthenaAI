@@ -5,14 +5,27 @@
 чужие данные — у неё нет такого параметра.
 """
 
+from collections.abc import Iterable
+
 from langchain_core.tools import StructuredTool
 
+from app.tools import calendar as calendar_tools
 from app.tools import nutrition as nutrition_tools
 from app.tools import profile as profile_tools
+from app.tools import recovery as recovery_tools
+from app.tools import workout as workout_tools
+
+ToolDomain = str
 
 
-def build_tools(user_id: str) -> list[StructuredTool]:
-    """Возвращает инструменты, привязанные к одному пользователю."""
+def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> list[StructuredTool]:
+    """Возвращает инструменты, привязанные к одному пользователю.
+
+    domains позволяет специалистам получать только свои инструменты:
+    Nutrition Agent не видит запись тренировок, Recovery Agent не пишет еду.
+    """
+    enabled = set(domains or ("profile", "nutrition"))
+    tools: list[StructuredTool] = []
 
     def get_my_profile() -> dict:
         return profile_tools.get_profile(user_id)
@@ -36,43 +49,106 @@ def build_tools(user_id: str) -> list[StructuredTool]:
             user_id, name, calories, protein_g, carbs_g, fat_g, meal_type, day
         )
 
-    return [
-        StructuredTool.from_function(
+    def get_workout_history(days: int = 14) -> dict:
+        return workout_tools.get_workout_history(user_id, days)
+
+    def log_workout(
+        workout_type: str,
+        duration_min: float | None = None,
+        exercises: list[dict] | None = None,
+        calories_burned: float | None = None,
+        notes: str | None = None,
+        day: str | None = None,
+    ) -> dict:
+        return workout_tools.log_workout(
+            user_id, workout_type, duration_min, exercises, calories_burned, notes, day
+        )
+
+    def get_recovery_logs(days: int = 14) -> dict:
+        return recovery_tools.get_recovery_logs(user_id, days)
+
+    def get_weight_trend(days: int = 30) -> dict:
+        return recovery_tools.get_weight_trend(user_id, days)
+
+    def get_cycle_logs(days: int = 45) -> dict:
+        return calendar_tools.get_cycle_logs(user_id, days)
+
+    if "profile" in enabled:
+        tools.append(StructuredTool.from_function(
             func=get_my_profile,
             name="get_my_profile",
             description=(
                 "Профиль пользователя: возраст, пол, рост, вес, цель, "
                 "целевые калории и БЖУ, аллергии, предпочтения. "
-                "Вызывай перед персональным советом по питанию."
+                "Вызывай перед персональным советом."
             ),
-        ),
-        StructuredTool.from_function(
-            func=search_food,
-            name="search_food",
-            description=(
-                "Ищет продукт в справочнике и возвращает его КБЖУ на 100 г. "
-                "Вызывай, когда нужна пищевая ценность продукта. "
-                "Аргумент query — название продукта, например 'куриная грудка'."
+        ))
+
+    if "nutrition" in enabled:
+        tools.extend([
+            StructuredTool.from_function(
+                func=search_food,
+                name="search_food",
+                description=(
+                    "Ищет продукт в справочнике и возвращает его КБЖУ на 100 г. "
+                    "Аргумент query — название продукта, например 'куриная грудка'."
+                ),
             ),
-        ),
-        StructuredTool.from_function(
-            func=get_daily_intake,
-            name="get_daily_intake",
-            description=(
-                "Показывает, что пользователь УЖЕ съел за день: суммы КБЖУ "
-                "и список приёмов пищи. Вызывай на вопросы вида "
-                "'сколько я съела', 'сколько осталось калорий'. "
-                "Аргумент day в формате ГГГГ-ММ-ДД, по умолчанию сегодня."
+            StructuredTool.from_function(
+                func=get_daily_intake,
+                name="get_daily_intake",
+                description=(
+                    "Показывает, что пользователь УЖЕ съел за день: суммы КБЖУ "
+                    "и список приёмов пищи. day — ГГГГ-ММ-ДД, по умолчанию сегодня."
+                ),
             ),
-        ),
-        StructuredTool.from_function(
-            func=log_meal,
-            name="log_meal",
-            description=(
-                "ЗАПИСЫВАЕТ приём пищи в дневник. Вызывай только когда "
-                "пользователь явно просит записать съеденное. "
-                "Перед вызовом узнай КБЖУ через search_food. "
-                "meal_type: breakfast, lunch, dinner или snack."
+            StructuredTool.from_function(
+                func=log_meal,
+                name="log_meal",
+                description=(
+                    "ЗАПИСЫВАЕТ приём пищи в дневник. Вызывай только когда "
+                    "пользователь явно просит записать съеденное. "
+                    "meal_type: breakfast, lunch, dinner или snack."
+                ),
             ),
-        ),
-    ]
+        ])
+
+    if "workout" in enabled:
+        tools.extend([
+            StructuredTool.from_function(
+                func=get_workout_history,
+                name="get_workout_history",
+                description="История тренировок пользователя за последние days дней для прогрессии и нагрузки.",
+            ),
+            StructuredTool.from_function(
+                func=log_workout,
+                name="log_workout",
+                description=(
+                    "ЗАПИСЫВАЕТ тренировку. Вызывай только после явной просьбы пользователя. "
+                    "workout_type: upper_body, lower_body, full_body, functional, crossfit, cardio или rest."
+                ),
+            ),
+        ])
+
+    if "recovery" in enabled:
+        tools.extend([
+            StructuredTool.from_function(
+                func=get_recovery_logs,
+                name="get_recovery_logs",
+                description="Сон, энергия, настроение и симптомы за последние days дней.",
+            ),
+            StructuredTool.from_function(
+                func=get_weight_trend,
+                name="get_weight_trend",
+                description="Записи веса за последние days дней и изменение веса за период.",
+            ),
+        ])
+
+    if "calendar" in enabled:
+        tools.append(StructuredTool.from_function(
+            func=get_cycle_logs,
+            name="get_cycle_logs",
+            description="Opt-in записи цикла за последние days дней для recovery/cycle-aware советов.",
+        ))
+
+    return tools
