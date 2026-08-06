@@ -38,7 +38,32 @@ Python-бэкенд (FastAPI)
 **Клиент:** React, Vite, Capacitor, Tailwind
 **Бэкенд:** Python 3.11, FastAPI, LangChain, LangGraph, pydantic-settings
 **Данные:** Supabase (PostgreSQL, pgvector, Row Level Security)
-**Модели:** GigaChat, multilingual-e5-base (эмбеддинги, локально)
+**Модели:** GigaChat или Anthropic Claude через LangChain, multilingual-e5-base (эмбеддинги, локально)
+
+### Agent architecture v1
+
+Бэкенд перешёл от одного AI-чата к первому LangGraph-графу:
+
+```
+User message
+    -> Router Agent
+        -> Nutrition Agent: профиль, поиск продуктов, дневник, запись еды
+        -> Workout Agent: профиль, история тренировок, запись тренировки
+        -> Recovery Agent: профиль, сон/энергия/симптомы, вес, цикл
+        -> General Agent: общие ответы и уточнения
+```
+
+Каждый specialist-agent получает только свой набор инструментов. Например,
+Nutrition Agent не видит `log_workout`, а Workout Agent не видит `log_meal`.
+Это уменьшает риск ошибочного tool calling и делает поведение проще измерять.
+`Router Agent` сначала пробует LLM-классификацию, а при недоступности модели
+откатывается на детерминированные ключевые слова, поэтому локальные offline-тесты
+проверяют маршрутизацию без внешних API.
+
+Следующий слой production-наблюдаемости хранится в Supabase: `agent_runs`
+фиксирует каждый ответ агента, `agent_tool_calls` — вызовы инструментов внутри
+run, `agent_feedback` — пользовательскую оценку ответа. Эти таблицы нужны для
+отладки, evaluation и будущего admin analytics dashboard.
 
 ---
 
