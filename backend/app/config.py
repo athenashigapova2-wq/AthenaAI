@@ -10,10 +10,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # LLM provider
+    llm_provider: str = "gigachat"
+
     # GigaChat
-    gigachat_auth_key: str
+    gigachat_auth_key: str = ""
     gigachat_scope: str = "GIGACHAT_API_PERS"
     gigachat_model: str = "GigaChat-2"
+
+    # Anthropic
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-3-5-sonnet-latest"
 
     # Supabase
     supabase_url: str = ""
