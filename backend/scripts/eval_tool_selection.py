@@ -14,6 +14,7 @@ from app.agents.prompts import (  # noqa: E402
     NUTRITION_SYSTEM,
     RECOVERY_SYSTEM,
     WORKOUT_SYSTEM,
+    localized_system_prompt,
 )
 from app.llm import get_llm  # noqa: E402
 from app.tools.registry import build_tools  # noqa: E402
@@ -79,7 +80,8 @@ def select_tools(case: dict, *, stop_on_expected: bool = True) -> list[str]:
     system_prompt, _ = ROUTE_CONFIG[case["route"]]
     tools = route_tools(case["route"])
     llm = get_llm().bind_tools(tools, tool_choice="auto")
-    messages = [SystemMessage(content=system_prompt), HumanMessage(content=case["query"])]
+    prompt = localized_system_prompt(system_prompt, case["locale"])
+    messages = [SystemMessage(content=prompt), HumanMessage(content=case["query"])]
     selected: list[str] = []
     expected = set(case["expected_tools"])
     forbidden = set(case["forbidden_tools"])

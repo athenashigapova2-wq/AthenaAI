@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.router import route_with_keywords  # noqa: E402
+from app.agents.prompts import localized_system_prompt  # noqa: E402
 from app.tools.registry import build_tools  # noqa: E402
 from langchain_core.utils.function_calling import convert_to_openai_tool  # noqa: E402
 
@@ -52,6 +53,9 @@ def assert_tool_boundaries() -> None:
     assert {"name", "sets", "reps", "weight_kg", "notes"} <= set(
         exercise_items["properties"]
     )
+
+    english_prompt = localized_system_prompt("System rules", "en")
+    assert english_prompt.endswith("The user's language is English. Reply only in English.")
 
 
 if __name__ == "__main__":

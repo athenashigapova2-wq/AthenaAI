@@ -6,7 +6,13 @@ from typing import Any
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
-from app.agents.prompts import GENERAL_SYSTEM, NUTRITION_SYSTEM, RECOVERY_SYSTEM, WORKOUT_SYSTEM
+from app.agents.prompts import (
+    GENERAL_SYSTEM,
+    NUTRITION_SYSTEM,
+    RECOVERY_SYSTEM,
+    WORKOUT_SYSTEM,
+    localized_system_prompt,
+)
 from app.agents.state import AgentState
 from app.llm import get_llm
 from app.services import agent_traces
@@ -71,7 +77,8 @@ def _invoke_tool(
 def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTool]) -> dict:
     tools_by_name = {tool.name: tool for tool in tools}
     llm = get_llm().bind_tools(tools, tool_choice="auto") if tools else get_llm()
-    messages = [SystemMessage(content=system_prompt), *state["messages"]]
+    localized_prompt = localized_system_prompt(system_prompt, state["locale"])
+    messages = [SystemMessage(content=localized_prompt), *state["messages"]]
 
     for _ in range(MAX_TOOL_STEPS):
         ai_msg = llm.invoke(messages)
@@ -99,5 +106,6 @@ def recovery_node(state: AgentState) -> dict:
 
 
 def general_node(state: AgentState) -> dict:
-    response = get_llm().invoke([SystemMessage(content=GENERAL_SYSTEM), *state["messages"]])
+    prompt = localized_system_prompt(GENERAL_SYSTEM, state["locale"])
+    response = get_llm().invoke([SystemMessage(content=prompt), *state["messages"]])
     return {"messages": [response]}

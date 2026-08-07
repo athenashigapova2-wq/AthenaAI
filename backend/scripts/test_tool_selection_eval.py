@@ -45,6 +45,7 @@ def main() -> None:
         selected = eval_tool_selection.select_tools(
             {
                 "route": "workout",
+                "locale": "ru",
                 "query": "Запиши тренировку",
                 "expected_tools": ["log_workout"],
                 "forbidden_tools": [],

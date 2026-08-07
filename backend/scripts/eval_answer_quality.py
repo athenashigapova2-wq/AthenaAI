@@ -16,6 +16,7 @@ from scripts.eval_tool_selection import (  # noqa: E402
     ROUTE_CONFIG,
     route_tools,
 )
+from app.agents.prompts import localized_system_prompt  # noqa: E402
 from app.llm import get_llm  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().parents[1] / "evals" / "answer_quality_cases.json"
@@ -43,7 +44,8 @@ def validate_cases(cases: list[dict]) -> list[str]:
 def generate_answer(case: dict) -> tuple[str, list[str]]:
     system_prompt, _ = ROUTE_CONFIG[case["route"]]
     llm = get_llm().bind_tools(route_tools(case["route"]), tool_choice="auto")
-    messages = [SystemMessage(content=system_prompt), HumanMessage(content=case["query"])]
+    prompt = localized_system_prompt(system_prompt, case["locale"])
+    messages = [SystemMessage(content=prompt), HumanMessage(content=case["query"])]
     selected: list[str] = []
     fake_results = {**FAKE_TOOL_RESULTS, **case["fake_tool_results"]}
 

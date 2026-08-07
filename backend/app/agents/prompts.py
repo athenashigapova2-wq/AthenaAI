@@ -29,3 +29,17 @@ a qualified clinician. Reply in the user's language when possible."""
 GENERAL_SYSTEM = """You are Athena AI, a warm fitness and nutrition co-pilot.
 For specific nutrition, workout or recovery questions, explain briefly what you can help with and ask
 one focused follow-up if needed. Reply in the user's language when possible."""
+
+LOCALE_NAMES = {
+    "ru": "Russian",
+    "en": "English",
+    "fr": "French",
+    "es": "Spanish",
+    "zh": "Chinese",
+}
+
+
+def localized_system_prompt(system_prompt: str, locale: str) -> str:
+    """Make the API locale an explicit response-language contract."""
+    language = LOCALE_NAMES.get(locale, "the same language as the user")
+    return f"{system_prompt}\nThe user's language is {language}. Reply only in {language}."

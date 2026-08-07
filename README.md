@@ -138,6 +138,9 @@ python backend/scripts/eval_answer_quality.py --live
 ```
 
 Оба live-eval используют только фиктивные результаты инструментов и не изменяют БД.
+Write-safety оценивает только разрешение на запись; выбор read-tool отдельно
+измеряется tool-selection eval. Язык ответа задаётся API locale как явный system
+contract, а не определяется моделью только по тексту сообщения.
 
 ---
 
