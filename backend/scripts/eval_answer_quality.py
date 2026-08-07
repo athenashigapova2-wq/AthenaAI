@@ -73,6 +73,9 @@ def score_case(case: dict, answer: str, selected: list[str]) -> tuple[bool, list
     missing_tools = set(case["required_tools"]) - set(selected)
     if missing_tools:
         reasons.append(f"missing tools {sorted(missing_tools)}")
+    forbidden_tools = set(case.get("forbidden_tools", [])) & set(selected)
+    if forbidden_tools:
+        reasons.append(f"forbidden tools {sorted(forbidden_tools)}")
     for value in case["required_substrings"]:
         if value.lower() not in answer_lower:
             reasons.append(f"missing {value!r}")

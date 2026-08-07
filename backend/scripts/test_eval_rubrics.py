@@ -11,6 +11,7 @@ from scripts import eval_answer_quality, eval_write_safety  # noqa: E402
 def main() -> None:
     quality_case = {
         "required_tools": ["get_daily_intake"],
+        "forbidden_tools": [],
         "required_substrings": ["1450"],
         "required_any": [],
         "forbidden_substrings": ["user_id"],
