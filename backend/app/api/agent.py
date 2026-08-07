@@ -36,6 +36,7 @@ def chat_with_agent(
             user_id=user.user_id,
             message=request.message,
             locale=request.locale,
+            run_id=run_id,
         )
     except Exception as exc:
         agent_traces.fail_agent_run(

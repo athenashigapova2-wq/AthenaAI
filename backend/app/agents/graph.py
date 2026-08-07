@@ -40,15 +40,23 @@ def build_agent_graph():
     return graph.compile()
 
 
-def run_agent_turn_details(user_id: str, message: str, locale: str = "ru") -> AgentTurnResult:
+def run_agent_turn_details(
+    user_id: str,
+    message: str,
+    locale: str = "ru",
+    run_id: str | None = None,
+) -> AgentTurnResult:
     """Run one graph turn and return the answer plus the selected specialist."""
     app = build_agent_graph()
-    result = app.invoke({
+    initial_state: AgentState = {
         "user_id": user_id,
         "locale": locale,
         "messages": [HumanMessage(content=message)],
         "route": "general",
-    })
+    }
+    if run_id is not None:
+        initial_state["run_id"] = run_id
+    result = app.invoke(initial_state)
     return {
         "answer": str(result["messages"][-1].content),
         "route": result.get("route", "general"),

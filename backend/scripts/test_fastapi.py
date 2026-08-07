@@ -58,6 +58,7 @@ def main() -> None:
         user_id="test-user-id",
         message="Запиши завтрак",
         locale="ru",
+        run_id="run-id",
     )
     succeed_run.assert_called_once()
     assert succeed_run.call_args.kwargs["run_id"] == "run-id"
