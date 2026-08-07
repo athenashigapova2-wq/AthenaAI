@@ -74,7 +74,7 @@ def validate_cases(cases: list[dict]) -> list[str]:
     return failures
 
 
-def select_tools(case: dict) -> list[str]:
+def select_tools(case: dict, *, stop_on_expected: bool = True) -> list[str]:
     """Collect a multi-step tool plan using fake results; never execute a tool."""
     system_prompt, _ = ROUTE_CONFIG[case["route"]]
     tools = route_tools(case["route"])
@@ -101,7 +101,7 @@ def select_tools(case: dict) -> list[str]:
                 )
             )
         selected_set = set(selected)
-        if expected <= selected_set or forbidden & selected_set:
+        if (stop_on_expected and expected <= selected_set) or forbidden & selected_set:
             break
     return selected
 

@@ -1,0 +1,26 @@
+[
+  {"id":"ru_info_no_meal_write","locale":"ru","route":"nutrition","query":"Сколько калорий в банане? Только ответь, ничего не записывай.","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"ru_negated_meal_write","locale":"ru","route":"nutrition","query":"Я съела омлет, но не записывай его в дневник.","expected_tools":[],"forbidden_tools":["log_meal"]},
+  {"id":"ru_explicit_meal_write","locale":"ru","route":"nutrition","query":"Запиши обед: 500 ккал, белки 30 г, углеводы 55 г, жиры 18 г.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"ru_explicit_workout_write","locale":"ru","route":"workout","query":"Запиши мою сегодняшнюю 30-минутную кардиотренировку.","expected_tools":["log_workout"],"forbidden_tools":[]},
+
+  {"id":"en_info_no_meal_write","locale":"en","route":"nutrition","query":"How many calories are in a banana? Just answer; do not log anything.","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"en_negated_meal_write","locale":"en","route":"nutrition","query":"I ate an omelet, but do not add it to my diary.","expected_tools":[],"forbidden_tools":["log_meal"]},
+  {"id":"en_explicit_meal_write","locale":"en","route":"nutrition","query":"Log lunch: 500 kcal, 30 g protein, 55 g carbs and 18 g fat.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"en_explicit_workout_write","locale":"en","route":"workout","query":"Log my 30-minute cardio workout from today.","expected_tools":["log_workout"],"forbidden_tools":[]},
+
+  {"id":"fr_info_no_meal_write","locale":"fr","route":"nutrition","query":"Combien de calories contient une banane ? Réponds seulement, ne note rien.","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"fr_negated_meal_write","locale":"fr","route":"nutrition","query":"J’ai mangé une omelette, mais ne l’ajoute pas à mon journal.","expected_tools":[],"forbidden_tools":["log_meal"]},
+  {"id":"fr_explicit_meal_write","locale":"fr","route":"nutrition","query":"Enregistre le déjeuner : 500 kcal, 30 g de protéines, 55 g de glucides et 18 g de lipides.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"fr_explicit_workout_write","locale":"fr","route":"workout","query":"Enregistre ma séance cardio de 30 minutes d’aujourd’hui.","expected_tools":["log_workout"],"forbidden_tools":[]},
+
+  {"id":"es_info_no_meal_write","locale":"es","route":"nutrition","query":"¿Cuántas calorías tiene un plátano? Solo responde, no registres nada.","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"es_negated_meal_write","locale":"es","route":"nutrition","query":"Comí una tortilla, pero no la añadas a mi diario.","expected_tools":[],"forbidden_tools":["log_meal"]},
+  {"id":"es_explicit_meal_write","locale":"es","route":"nutrition","query":"Registra el almuerzo: 500 kcal, 30 g de proteína, 55 g de carbohidratos y 18 g de grasa.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"es_explicit_workout_write","locale":"es","route":"workout","query":"Registra mi entrenamiento cardiovascular de 30 minutos de hoy.","expected_tools":["log_workout"],"forbidden_tools":[]},
+
+  {"id":"zh_info_no_meal_write","locale":"zh","route":"nutrition","query":"一个香蕉有多少卡路里？只回答，不要记录任何内容。","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"zh_negated_meal_write","locale":"zh","route":"nutrition","query":"我吃了煎蛋，但不要把它记录到饮食日记。","expected_tools":[],"forbidden_tools":["log_meal"]},
+  {"id":"zh_explicit_meal_write","locale":"zh","route":"nutrition","query":"记录午餐：500千卡、30克蛋白质、55克碳水和18克脂肪。","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"zh_explicit_workout_write","locale":"zh","route":"workout","query":"记录我今天30分钟的有氧训练。","expected_tools":["log_workout"],"forbidden_tools":[]}
+]

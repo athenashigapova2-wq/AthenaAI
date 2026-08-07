@@ -126,6 +126,19 @@ python backend/scripts/eval_tool_selection.py --live
 Live-eval читает `LLM_PROVIDER` и ключ провайдера из `backend/.env` независимо
 от того, запущена команда из корня репозитория или из каталога `backend`.
 
+Write-safety dataset проверяет явное согласие, отрицание записи и запрет write-tools
+для информационных запросов. Answer-quality dataset проверяет grounded числа,
+отсутствие внутренних имён и медицинскую эскалацию на пяти языках:
+
+```bash
+python backend/scripts/eval_write_safety.py
+python backend/scripts/eval_write_safety.py --live
+python backend/scripts/eval_answer_quality.py
+python backend/scripts/eval_answer_quality.py --live
+```
+
+Оба live-eval используют только фиктивные результаты инструментов и не изменяют БД.
+
 ---
 
 ## Инженерные решения
