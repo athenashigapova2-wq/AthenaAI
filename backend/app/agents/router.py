@@ -9,9 +9,27 @@ from app.llm import get_router_llm
 _ALLOWED: set[AgentName] = {"nutrition", "workout", "recovery", "general"}
 
 _KEYWORDS: dict[AgentName, tuple[str, ...]] = {
-    "nutrition": ("калор", "кбжу", "бел", "жир", "углев", "еда", "съел", "meal", "food", "protein", "calorie"),
-    "workout": ("трен", "зал", "упраж", "подход", "workout", "gym", "exercise", "sets", "reps"),
-    "recovery": ("сон", "спал", "спала", "устал", "цикл", "вес", "болит", "болят", "sleep", "fatigue", "cycle", "sore", "weight"),
+    "nutrition": (
+        "калор", "кбжу", "бел", "жир", "углев", "еда", "съел",
+        "meal", "food", "protein", "calorie", " ate ",
+        "repas", "aliment", "protéin", "calorie",
+        "comida", "alimento", "proteína", "caloría",
+        "食物", "吃", "卡路里", "蛋白质", "碳水", "脂肪",
+    ),
+    "workout": (
+        "трен", "зал", "упраж", "подход", "присед", "выпад",
+        "workout", "gym", "exercise", "sets", "reps",
+        "entraînement", "exercice", "salle", "série",
+        "entrenamiento", "ejercicio", "gimnasio", "serie",
+        "训练", "健身房", "运动", "组数", "重复",
+    ),
+    "recovery": (
+        "сон", "спал", "спала", "устал", "цикл", "вес", "болит", "болят",
+        "sleep", "fatigue", "cycle", "sore", "weight",
+        "sommeil", "fatigu", "poids", "douleur", "récupération",
+        "sueño", "fatiga", "ciclo", "peso", "dolor", "recuperación",
+        "睡眠", "疲劳", "月经", "周期", "体重", "疼", "恢复",
+    ),
 }
 
 
