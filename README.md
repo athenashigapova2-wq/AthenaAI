@@ -108,6 +108,20 @@ python backend/scripts/eval_agents.py
 может незаметно сломать уже размеченные сценарии. Этот eval не оценивает качество
 текста LLM; для него будет отдельный live-набор с зафиксированным judge rubric.
 
+Tool-selection dataset отдельно проверяет read/write-инструменты на пяти языках.
+По умолчанию скрипт только валидирует разметку и границы, не обращаясь к модели:
+
+```bash
+python backend/scripts/eval_tool_selection.py
+```
+
+Live-режим делает один LLM-вызов на case, читает только предложенные tool calls и
+**не выполняет инструменты**, поэтому не пишет тестовую еду или тренировки в БД:
+
+```bash
+python backend/scripts/eval_tool_selection.py --live
+```
+
 ---
 
 ## Инженерные решения
