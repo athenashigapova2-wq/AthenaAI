@@ -183,6 +183,8 @@ export default function Onboarding({ onComplete }) {
             )}
           </div>
         )}
+
+        {step === 2 && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>{t("onb_calories")}</Label>
