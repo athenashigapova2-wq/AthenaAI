@@ -115,8 +115,9 @@ Tool-selection dataset отдельно проверяет read/write-инстр
 python backend/scripts/eval_tool_selection.py
 ```
 
-Live-режим делает один LLM-вызов на case, читает только предложенные tool calls и
-**не выполняет инструменты**, поэтому не пишет тестовую еду или тренировки в БД:
+Live-режим проверяет до четырёх последовательных решений модели на case. Read-tools
+получают фиктивные результаты, а **реальные инструменты не выполняются**, поэтому
+eval не пишет тестовую еду или тренировки в БД:
 
 ```bash
 python backend/scripts/eval_tool_selection.py --live

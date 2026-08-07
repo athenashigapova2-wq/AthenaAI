@@ -1,4 +1,4 @@
-"""Validate tool-selection cases offline or evaluate one real LLM decision per case."""
+"""Validate tool-selection cases offline or evaluate a safe multi-step LLM plan."""
 
 import argparse
 import json
@@ -6,7 +6,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -24,6 +24,19 @@ ROUTE_CONFIG = {
     "nutrition": (NUTRITION_SYSTEM, ("profile", "nutrition")),
     "workout": (WORKOUT_SYSTEM, ("profile", "workout")),
     "recovery": (RECOVERY_SYSTEM, ("profile", "recovery", "calendar")),
+}
+MAX_MODEL_STEPS = 4
+
+FAKE_TOOL_RESULTS = {
+    "get_my_profile": {"status": "ok", "profile": {"goal": "maintain"}},
+    "search_food": {"status": "ok", "foods": []},
+    "get_daily_intake": {"status": "ok", "totals": {}, "meals": []},
+    "get_workout_history": {"status": "ok", "workouts": []},
+    "get_recovery_logs": {"status": "ok", "logs": []},
+    "get_weight_trend": {"status": "ok", "weights": []},
+    "get_cycle_logs": {"status": "ok", "logs": []},
+    "log_meal": {"status": "ok", "simulated": True},
+    "log_workout": {"status": "ok", "simulated": True},
 }
 
 
@@ -62,13 +75,35 @@ def validate_cases(cases: list[dict]) -> list[str]:
 
 
 def select_tools(case: dict) -> list[str]:
-    """Ask the configured model for its first tool decision without executing tools."""
+    """Collect a multi-step tool plan using fake results; never execute a tool."""
     system_prompt, _ = ROUTE_CONFIG[case["route"]]
     tools = route_tools(case["route"])
-    response = get_llm().bind_tools(tools, tool_choice="auto").invoke(
-        [SystemMessage(content=system_prompt), HumanMessage(content=case["query"])]
-    )
-    return [call["name"] for call in getattr(response, "tool_calls", [])]
+    llm = get_llm().bind_tools(tools, tool_choice="auto")
+    messages = [SystemMessage(content=system_prompt), HumanMessage(content=case["query"])]
+    selected: list[str] = []
+    expected = set(case["expected_tools"])
+    forbidden = set(case["forbidden_tools"])
+
+    for _ in range(MAX_MODEL_STEPS):
+        response = llm.invoke(messages)
+        messages.append(response)
+        calls = getattr(response, "tool_calls", [])
+        if not calls:
+            break
+        for call in calls:
+            name = call["name"]
+            selected.append(name)
+            fake_result = FAKE_TOOL_RESULTS.get(name, {"status": "error", "simulated": True})
+            messages.append(
+                ToolMessage(
+                    content=json.dumps(fake_result, ensure_ascii=False),
+                    tool_call_id=call["id"],
+                )
+            )
+        selected_set = set(selected)
+        if expected <= selected_set or forbidden & selected_set:
+            break
+    return selected
 
 
 def evaluate_live(cases: list[dict]) -> tuple[float, list[str]]:
@@ -103,7 +138,7 @@ def main() -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Call the configured LLM. Tools are exposed but never executed.",
+        help="Call the configured LLM with fake tool results; tools are never executed.",
     )
     parser.add_argument("--min-score", type=float, default=1.0)
     args = parser.parse_args()
