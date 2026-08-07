@@ -42,5 +42,6 @@
   {"id":"zh_recovery_01","locale":"zh","query":"我睡眠不好而且很疲劳","expected_route":"recovery","required_tool":"get_recovery_logs"},
   {"id":"zh_recovery_02","locale":"zh","query":"显示我这个月的体重变化","expected_route":"recovery","required_tool":"get_weight_trend"},
   {"id":"zh_general_01","locale":"zh","query":"你好，你能做什么？","expected_route":"general","required_tool":null},
-  {"id":"zh_general_02","locale":"zh","query":"谢谢你的帮助","expected_route":"general","required_tool":null}
+  {"id":"zh_general_02","locale":"zh","query":"谢谢你的帮助","expected_route":"general","required_tool":null},
+  {"id":"ru_recovery_03","locale": "ru","query": "Покажи мои записи цикла","expected_route": "recovery","required_tool": "get_cycle_logs"  }
 ]
