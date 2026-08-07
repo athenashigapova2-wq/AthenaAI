@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.router import route_with_keywords  # noqa: E402
 from app.tools.registry import build_tools  # noqa: E402
+from langchain_core.utils.function_calling import convert_to_openai_tool  # noqa: E402
 
 USER_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -42,6 +43,15 @@ def assert_tool_boundaries() -> None:
         for tool in tools.values():
             properties = tool.args_schema.model_json_schema().get("properties", {})
             assert "user_id" not in properties, f"{tool.name} exposes user_id"
+
+    provider_schema = convert_to_openai_tool(workout["log_workout"])
+    exercise_items = provider_schema["function"]["parameters"]["properties"][
+        "exercises"
+    ]["anyOf"][0]["items"]
+    assert "properties" in exercise_items, "provider schema needs exercise properties"
+    assert {"name", "sets", "reps", "weight_kg", "notes"} <= set(
+        exercise_items["properties"]
+    )
 
 
 if __name__ == "__main__":

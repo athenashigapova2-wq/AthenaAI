@@ -8,6 +8,7 @@
 from collections.abc import Iterable
 
 from langchain_core.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 from app.tools import calendar as calendar_tools
 from app.tools import nutrition as nutrition_tools
@@ -16,6 +17,19 @@ from app.tools import recovery as recovery_tools
 from app.tools import workout as workout_tools
 
 ToolDomain = str
+
+
+class WorkoutExerciseInput(BaseModel):
+    """Concrete JSON schema for one exercise accepted by GigaChat tool calling."""
+
+    name: str = Field(description="Exercise name")
+    sets: int | None = Field(default=None, ge=1, description="Number of sets")
+    reps: str | None = Field(
+        default=None,
+        description="Repetitions, for example '10' or '8-12'",
+    )
+    weight_kg: float | None = Field(default=None, ge=0, description="Used weight in kg")
+    notes: str | None = Field(default=None, description="Optional exercise notes")
 
 
 def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> list[StructuredTool]:
@@ -55,13 +69,20 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
     def log_workout(
         workout_type: str,
         duration_min: float | None = None,
-        exercises: list[dict] | None = None,
+        exercises: list[WorkoutExerciseInput] | None = None,
         calories_burned: float | None = None,
         notes: str | None = None,
         day: str | None = None,
     ) -> dict:
+        exercise_rows = [exercise.model_dump(exclude_none=True) for exercise in exercises or []]
         return workout_tools.log_workout(
-            user_id, workout_type, duration_min, exercises, calories_burned, notes, day
+            user_id,
+            workout_type,
+            duration_min,
+            exercise_rows,
+            calories_burned,
+            notes,
+            day,
         )
 
     def get_recovery_logs(days: int = 14) -> dict:

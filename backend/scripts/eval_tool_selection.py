@@ -122,10 +122,10 @@ def main() -> None:
 
     try:
         score, live_failures = evaluate_live(cases)
-    except RuntimeError as exc:
+    except Exception as exc:
         raise SystemExit(
-            f"Live eval configuration error: {exc}\n"
-            "Check LLM_PROVIDER and its API key in backend/.env"
+            f"Live eval provider error: {type(exc).__name__}: {exc}\n"
+            "Check backend/.env and the tool schema named in the provider response"
         ) from exc
     for failure in live_failures:
         print(f"FAIL: {failure}")
