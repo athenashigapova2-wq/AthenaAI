@@ -122,6 +122,9 @@ Live-режим делает один LLM-вызов на case, читает т�
 python backend/scripts/eval_tool_selection.py --live
 ```
 
+Live-eval читает `LLM_PROVIDER` и ключ провайдера из `backend/.env` независимо
+от того, запущена команда из корня репозитория или из каталога `backend`.
+
 ---
 
 ## Инженерные решения
