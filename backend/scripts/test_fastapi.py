@@ -40,7 +40,11 @@ def main() -> None:
     missing_token = client.post("/api/v1/agent/chat", json={"message": "Привет"})
     assert missing_token.status_code == 401
 
-    with patch("app.api.agent.agent_graph.run_agent_turn_details") as run_turn:
+    with (
+        patch("app.api.agent.agent_graph.run_agent_turn_details") as run_turn,
+        patch("app.api.agent.agent_traces.create_agent_run", return_value="run-id"),
+        patch("app.api.agent.agent_traces.succeed_agent_run") as succeed_run,
+    ):
         run_turn.return_value = {"answer": "Добавила завтрак", "route": "nutrition"}
         response = client.post(
             "/api/v1/agent/chat",
@@ -55,6 +59,33 @@ def main() -> None:
         message="Запиши завтрак",
         locale="ru",
     )
+    succeed_run.assert_called_once()
+    assert succeed_run.call_args.kwargs["run_id"] == "run-id"
+    assert succeed_run.call_args.kwargs["user_id"] == "test-user-id"
+    assert succeed_run.call_args.kwargs["route"] == "nutrition"
+
+    with (
+        patch(
+            "app.api.agent.agent_graph.run_agent_turn_details",
+            side_effect=RuntimeError("LLM unavailable"),
+        ),
+        patch(
+            "app.api.agent.agent_traces.create_agent_run",
+            return_value="failed-run-id",
+        ),
+        patch("app.api.agent.agent_traces.fail_agent_run") as fail_run,
+    ):
+        failed_response = client.post(
+            "/api/v1/agent/chat",
+            headers={"Authorization": f"Bearer {make_token()}"},
+            json={"message": "Привет"},
+        )
+
+    assert failed_response.status_code == 503
+    assert failed_response.json() == {"detail": "Агент временно недоступен"}
+    fail_run.assert_called_once()
+    assert fail_run.call_args.kwargs["run_id"] == "failed-run-id"
+    assert fail_run.call_args.kwargs["user_id"] == "test-user-id"
     print("FastAPI checks passed")
 
 

@@ -85,6 +85,11 @@ python scripts/test_fastapi.py
 run, `agent_feedback` — пользовательскую оценку ответа. Эти таблицы нужны для
 отладки, evaluation и будущего admin analytics dashboard.
 
+FastAPI создаёт `agent_runs` перед запуском графа и завершает запись статусом
+`succeeded` или `failed`. В run сохраняются выбранный specialist, модель и
+latency. Обновления всегда фильтруются одновременно по `id` и `user_id`, потому
+что серверный Supabase-клиент использует `service_role` и обходит RLS.
+
 ---
 
 ## Инженерные решения
