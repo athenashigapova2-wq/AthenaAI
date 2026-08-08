@@ -15,9 +15,11 @@ CANDIDATES_PATH = Path(__file__).resolve().parents[1] / "knowledge" / "document_
 
 
 def main() -> None:
-    candidate = DocumentCandidate.model_validate(
-        json.loads(CANDIDATES_PATH.read_text(encoding="utf-8"))[0]
-    )
+    candidates = [
+        DocumentCandidate.model_validate(item)
+        for item in json.loads(CANDIDATES_PATH.read_text(encoding="utf-8"))
+    ]
+    candidate = candidates[0]
     response = httpx.Response(
         200,
         content=b"<html><title>Official fact sheet</title></html>",
@@ -31,6 +33,10 @@ def main() -> None:
     assert len(evidence.content_sha256) == 64
     assert official_host_matches(candidate.source_slug, str(candidate.canonical_url))
     assert not official_host_matches(candidate.source_slug, "https://example.com/fake")
+    who = next(item for item in candidates if item.source_slug == "who-physical-activity-guidelines")
+    assert official_host_matches(who.source_slug, str(who.canonical_url))
+    assert official_host_matches(who.source_slug, "https://iris.who.int/example.pdf")
+    assert not official_host_matches(who.source_slug, "https://who.int.example.com/fake")
     print("Source verification checks passed")
 
 

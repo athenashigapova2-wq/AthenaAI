@@ -66,3 +66,13 @@ python backend/scripts/verify_knowledge_source.py nih-ods-exercise-athletic-perf
 ```
 
 Passing the network identity check does **not** approve ingestion rights.
+
+NIH ODS returned HTTP 403 during the first network check, so it remains disabled. The next candidate
+is the WHO physical activity guideline publication page:
+
+```bash
+python backend/scripts/verify_knowledge_source.py who-physical-activity-guidelines-2020 --write-report
+```
+
+An HTML `200` verifies only the WHO landing page. Before parsing, record and separately verify the
+exact PDF URL (including an allowed `iris.who.int` redirect), publication date and licence notice.

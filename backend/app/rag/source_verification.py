@@ -10,6 +10,7 @@ from app.rag.contracts import DocumentCandidate, VerificationEvidence
 
 OFFICIAL_HOSTS = {
     "nih-ods-fact-sheets": {"ods.od.nih.gov"},
+    "who-physical-activity-guidelines": {"www.who.int", "who.int", "iris.who.int"},
 }
 
 
@@ -49,4 +50,3 @@ def build_evidence(
         rights_status="review_required",
         notes=notes,
     )
-
