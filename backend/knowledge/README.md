@@ -76,3 +76,5 @@ python backend/scripts/verify_knowledge_source.py who-physical-activity-guidelin
 
 An HTML `200` verifies only the WHO landing page. Before parsing, record and separately verify the
 exact PDF URL (including an allowed `iris.who.int` redirect), publication date and licence notice.
+The evidence report lists official PDF/bitstream links discovered in the landing-page HTML and
+license-related marker words. These are review hints, not an automatic legal approval.

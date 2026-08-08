@@ -22,7 +22,10 @@ def main() -> None:
     candidate = candidates[0]
     response = httpx.Response(
         200,
-        content=b"<html><title>Official fact sheet</title></html>",
+        content=(
+            b"<html><title>Official fact sheet</title>Copyright "
+            b"<a href='/document.pdf'>PDF</a></html>"
+        ),
         headers={"content-type": "text/html; charset=utf-8", "etag": "test-etag"},
         request=httpx.Request("GET", str(candidate.canonical_url)),
     )
@@ -31,12 +34,27 @@ def main() -> None:
     assert evidence.official_host_match
     assert evidence.rights_status == "review_required"
     assert len(evidence.content_sha256) == 64
+    assert evidence.license_markers == ["copyright"]
     assert official_host_matches(candidate.source_slug, str(candidate.canonical_url))
     assert not official_host_matches(candidate.source_slug, "https://example.com/fake")
     who = next(item for item in candidates if item.source_slug == "who-physical-activity-guidelines")
     assert official_host_matches(who.source_slug, str(who.canonical_url))
     assert official_host_matches(who.source_slug, "https://iris.who.int/example.pdf")
     assert not official_host_matches(who.source_slug, "https://who.int.example.com/fake")
+
+    who_response = httpx.Response(
+        200,
+        content=(
+            b"<html>Creative Commons "
+            b"<a href='https://iris.who.int/server/api/core/bitstreams/test/content'>"
+            b"Download</a></html>"
+        ),
+        headers={"content-type": "text/html"},
+        request=httpx.Request("GET", str(who.canonical_url)),
+    )
+    who_evidence = build_evidence(who, who_response)
+    assert len(who_evidence.discovered_document_urls) == 1
+    assert "creative commons" in who_evidence.license_markers
     print("Source verification checks passed")
 
 

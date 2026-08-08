@@ -56,6 +56,8 @@ class VerificationEvidence(BaseModel):
     etag: str | None = None
     last_modified: str | None = None
     official_host_match: bool
+    discovered_document_urls: list[HttpUrl] = Field(default_factory=list)
+    license_markers: list[str] = Field(default_factory=list)
     rights_status: RightsStatus = "review_required"
     notes: list[str] = Field(default_factory=list)
 
