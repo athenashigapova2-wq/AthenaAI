@@ -23,7 +23,11 @@ def load_candidate(external_id: str) -> DocumentCandidate:
     ]
     matches = [item for item in candidates if item.external_id == external_id]
     if len(matches) != 1:
-        raise ValueError(f"Expected exactly one candidate for {external_id!r}")
+        available = ", ".join(sorted(item.external_id for item in candidates))
+        raise ValueError(
+            f"Unknown or duplicate document candidate {external_id!r}. "
+            f"Available candidates: {available}"
+        )
     return matches[0]
 
 
@@ -33,7 +37,10 @@ def main() -> None:
     parser.add_argument("--write-report", action="store_true")
     args = parser.parse_args()
 
-    candidate = load_candidate(args.external_id)
+    try:
+        candidate = load_candidate(args.external_id)
+    except ValueError as exc:
+        raise SystemExit(f"Candidate configuration error: {exc}") from exc
     headers = {"User-Agent": "AthenaAI-RAG-source-verification/0.1 (manual review)"}
     try:
         response = httpx.get(
