@@ -1,0 +1,11 @@
+[
+  {
+    "external_id": "nih-ods-exercise-athletic-performance-hp",
+    "source_slug": "nih-ods-fact-sheets",
+    "title": "Dietary Supplements for Exercise and Athletic Performance — Health Professional Fact Sheet",
+    "canonical_url": "https://ods.od.nih.gov/factsheets/ExerciseAndAthleticPerformance-HealthProfessional/",
+    "language": "en",
+    "domains": ["nutrition", "workout", "safety"],
+    "selection_notes": "First small RAG slice: performance supplement evidence, adverse effects, interactions and safety boundaries. Keep distinct from food nutrient data."
+  }
+]
