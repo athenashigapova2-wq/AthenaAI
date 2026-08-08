@@ -51,3 +51,18 @@ The ingestion implementation must produce three frames defined in `app/rag/dataf
 The Pydantic models in `app/rag/contracts.py` validate rows before they enter a DataFrame. A batch
 containing documents is rejected unless its source is both rights-approved and ingestion-enabled.
 
+## First verification slice
+
+The first document candidate is the NIH ODS health-professional fact sheet on exercise and athletic
+performance supplements (`document_candidates.json`). Verification is deliberately split in two:
+
+1. `verify_knowledge_source.py` collects HTTP status, final official host, content type, update
+   headers and SHA-256 without storing page content.
+2. A human reviews the current page, robots policy, copyright/reuse notice and update date. Only
+   then may the manifest be changed to `rights_status=approved` and `ingestion_enabled=true`.
+
+```bash
+python backend/scripts/verify_knowledge_source.py nih-ods-exercise-athletic-performance-hp
+```
+
+Passing the network identity check does **not** approve ingestion rights.

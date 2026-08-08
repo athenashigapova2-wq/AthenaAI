@@ -33,6 +33,33 @@ class SourceManifestEntry(BaseModel):
         return value
 
 
+class DocumentCandidate(BaseModel):
+    external_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    source_slug: str
+    title: str
+    canonical_url: HttpUrl
+    language: str = "en"
+    domains: list[KnowledgeDomain]
+    selection_notes: str
+
+
+class VerificationEvidence(BaseModel):
+    source_slug: str
+    external_id: str
+    requested_url: HttpUrl
+    final_url: HttpUrl
+    verified_at: datetime
+    status_code: int
+    content_type: str
+    content_length: int = Field(ge=0)
+    content_sha256: str = Field(min_length=64, max_length=64)
+    etag: str | None = None
+    last_modified: str | None = None
+    official_host_match: bool
+    rights_status: RightsStatus = "review_required"
+    notes: list[str] = Field(default_factory=list)
+
+
 class DocumentInput(BaseModel):
     source_slug: str
     external_id: str
