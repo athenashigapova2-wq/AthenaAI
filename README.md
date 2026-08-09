@@ -363,6 +363,33 @@ npm run build
 npx cap sync android
 ```
 
+### Если чат возвращает `GIGACHAT_AUTH_ERROR`
+
+Web Chat сейчас вызывает Supabase Edge Function `chat-with-coach`. Ответ GigaChat
+`credentials doesn't match db data` означает, что сохранённый в Supabase secret
+не совпадает с активным authorization key в кабинете GigaChat. Это не CORS и не
+ошибка кнопки отправки. Сгенерируйте новый ключ авторизации в том же API-проекте
+и сохраните **только Base64-значение**, без `Basic `, кавычек и имени переменной:
+
+```powershell
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+npx supabase secrets set GIGACHAT_AUTH_KEY="<authorization-key>"
+npx supabase functions deploy chat-with-coach
+```
+
+Проверить наличие имени секрета (значение команда не показывает):
+
+```powershell
+npx supabase secrets list
+```
+
+Логи откройте в Supabase Dashboard: **Edge Functions → chat-with-coach → Logs**.
+
+Если этот ключ используют `estimate-meal`, `analyze-habits` и `invoke-llm`, после
+замены секрета повторно задеплойте и эти функции. Никогда не вставляйте ключ в
+frontend, скриншот, Git или сообщение об ошибке.
+
 ---
 
 ## Статус
