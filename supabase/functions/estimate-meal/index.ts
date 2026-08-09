@@ -13,6 +13,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
+const GIGACHAT_MODEL = Deno.env.get('GIGACHAT_MODEL') || 'GigaChat-2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
@@ -70,11 +71,11 @@ async function askGigaChat(client: Deno.HttpClient, token: string, prompt: strin
   const finalPrompt = schema
     ? `${prompt}\n\nRespond with ONLY valid JSON matching this schema, no other text, no markdown fences:\n${JSON.stringify(schema)}`
     : prompt;
-  const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+  const res = await fetch('https://api.giga.chat/v1/chat/completions', {
     method: 'POST',
     client,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ model: 'GigaChat', messages: [{ role: 'user', content: finalPrompt }] }),
+    body: JSON.stringify({ model: GIGACHAT_MODEL, messages: [{ role: 'user', content: finalPrompt }] }),
   });
   if (!res.ok) throw new Error(`LLM error: ${await res.text()}`);
   const data = await res.json();
