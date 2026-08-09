@@ -143,7 +143,7 @@ Average daily macros: ${Math.round(avg.cal)} kcal, protein ${Math.round(avg.p)}g
 ${macroGap ? `Detected gap: ${macroGap}.` : 'No major macro gap detected.'}
 Write ONE short, warm, specific, actionable suggestion (max 2 sentences) in ${language === 'ru' ? 'Russian' : 'English'}. Reference one of their frequent foods by name if possible. No generic advice, be concrete.`;
 
-    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+    const res = await fetch('https://api.giga.chat/v1/chat/completions', {
       method: 'POST',
       client,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

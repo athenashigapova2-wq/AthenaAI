@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       ? `${prompt}\n\nRespond with ONLY valid JSON matching this schema, no other text, no markdown fences:\n${JSON.stringify(response_json_schema)}`
       : prompt;
 
-    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+    const res = await fetch('https://api.giga.chat/v1/chat/completions', {
       method: 'POST',
       client,
       headers: {
