@@ -413,6 +413,25 @@ key в нужном GigaChat API-проекте и проверьте, что о
 замены секрета повторно задеплойте и эти функции. Никогда не вставляйте ключ в
 frontend, скриншот, Git или сообщение об ошибке.
 
+Ошибка `No such model` означает, что OAuth уже прошёл, но отправленный model ID
+недоступен этому API-проекту. Получите список через `GET /v1/models`, скопируйте
+точный `id` и сохраните его в Supabase secret `GIGACHAT_MODEL`. Edge Functions
+используют этот secret; если он отсутствует, применяется `GigaChat-2`.
+
+В Windows PowerShell 5.1 нет `Invoke-RestMethod -SkipCertificateCheck`. Вместо
+него используйте диагностический Python-скрипт: он скрыто запрашивает
+Authorization key, получает временный Access token, выводит доступные model ids
+и отправляет один тестовый запрос. При локальной ошибке российского TLS-root
+допустим `--insecure` только для этой диагностики:
+
+```powershell
+python backend/scripts/check_gigachat_api.py --insecure
+```
+
+Ключ и Access token скрипт не печатает и не записывает. После успешного ответа
+скопируйте показанный model id в `GIGACHAT_MODEL`; не используйте `--insecure` в
+Edge Function или production backend.
+
 ---
 
 ## Статус

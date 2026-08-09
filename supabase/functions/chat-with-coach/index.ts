@@ -19,6 +19,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
+const GIGACHAT_MODEL = Deno.env.get('GIGACHAT_MODEL') || 'GigaChat-2';
 const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
 
 // Браузер шлёт preflight OPTIONS-запрос перед каждым fetch с фронтенда —
@@ -287,7 +288,7 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        model: 'GigaChat',
+        model: GIGACHAT_MODEL,
         messages: chatMessages,
       }),
     });
