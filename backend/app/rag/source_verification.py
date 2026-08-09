@@ -79,6 +79,11 @@ def build_evidence(
         notes.append("HTTP response is not 200; source identity is not verified")
     if content_type not in {"text/html", "application/pdf"}:
         notes.append(f"Unexpected content type: {content_type or 'missing'}")
+    pdf_magic_valid = None
+    if content_type == "application/pdf":
+        pdf_magic_valid = response.content.startswith(b"%PDF-")
+        if not pdf_magic_valid:
+            notes.append("Content type is PDF but the PDF magic header is missing")
     if not official_host_matches(candidate.source_slug, final_url):
         notes.append("Redirect left the allowlisted official host")
     notes.append("Copyright/licence and robots review must be completed manually")
@@ -96,6 +101,7 @@ def build_evidence(
         etag=response.headers.get("etag"),
         last_modified=response.headers.get("last-modified"),
         official_host_match=official_host_matches(candidate.source_slug, final_url),
+        pdf_magic_valid=pdf_magic_valid,
         discovered_document_urls=discovered_urls,
         license_markers=license_markers,
         rights_status="review_required",

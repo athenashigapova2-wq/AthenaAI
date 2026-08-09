@@ -69,6 +69,7 @@ def main() -> None:
         request=httpx.Request("GET", str(who_pdf.canonical_url)),
     )
     pdf_evidence = build_evidence(who_pdf, pdf_response)
+    assert pdf_evidence.pdf_magic_valid is True
     assert [str(url) for url in pdf_evidence.discovered_document_urls] == [
         str(who_pdf.canonical_url)
     ]

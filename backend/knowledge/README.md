@@ -88,3 +88,14 @@ python backend/scripts/verify_knowledge_source.py who-physical-activity-guidelin
 
 Do not infer the exact licence from landing-page marker words. Read the licence statement inside the
 PDF and record whether commercial use, adaptations, attribution and share-alike obligations apply.
+
+The PDF licence inspector reads only the first five and last three pages, records the PDF hash and a
+short licence notice, and does not persist the PDF itself:
+
+```bash
+python backend/scripts/inspect_pdf_license.py who-physical-activity-guidelines-2020-pdf --write-report
+```
+
+If automated download is blocked, download the exact verified bitstream manually and pass
+`--pdf-file path/to/file.pdf`. A detected licence still remains `review_required` until its
+commercial-use and attribution obligations are accepted for Athena's intended distribution.

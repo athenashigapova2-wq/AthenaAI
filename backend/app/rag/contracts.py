@@ -56,8 +56,26 @@ class VerificationEvidence(BaseModel):
     etag: str | None = None
     last_modified: str | None = None
     official_host_match: bool
+    pdf_magic_valid: bool | None = None
     discovered_document_urls: list[HttpUrl] = Field(default_factory=list)
     license_markers: list[str] = Field(default_factory=list)
+    rights_status: RightsStatus = "review_required"
+    notes: list[str] = Field(default_factory=list)
+
+
+class LicenseEvidence(BaseModel):
+    source_slug: str
+    external_id: str
+    document_sha256: str = Field(min_length=64, max_length=64)
+    page_count: int = Field(gt=0)
+    inspected_pages: list[int]
+    matched_page: int | None = Field(default=None, gt=0)
+    detected_license_id: str | None = None
+    exact_notice: str | None = None
+    attribution_required: bool | None = None
+    commercial_use_allowed: bool | None = None
+    adaptations_allowed: bool | None = None
+    share_alike_required: bool | None = None
     rights_status: RightsStatus = "review_required"
     notes: list[str] = Field(default_factory=list)
 
