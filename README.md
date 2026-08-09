@@ -94,6 +94,19 @@ latency. Обновления всегда фильтруются одновре
 сохраняются имя, аргументы, структурированный результат, status и latency;
 ошибочные и даже неизвестные вызовы модели получают статус `failed`.
 
+Миграция `0013_agent_efficiency_metrics.sql` добавляет отдельный trace каждого
+вызова модели в `agent_llm_calls`: node/purpose, small или main model tier,
+input/output/cache tokens, total tokens, status и latency. Триггеры агрегируют
+LLM calls, tokens, tool calls и tool steps в `agent_runs`. `resolution_mode`
+различает `zero_llm`, `small_llm`, `main_llm` и `fallback`, а
+`AGENT_BASELINE_VERSION` связывает production-метрики с одной зафиксированной
+версией baseline. Значение нужно менять только при сознательном создании нового
+baseline после полного regression-eval, а не при каждом deploy.
+`LLM_ROUTER_MODEL` может указывать отдельную small-модель; пустое значение
+сохраняет текущую основную модель и не считается выполнением small-model KPI.
+`token_accounted_call_count` позволяет отличить настоящий нулевой расход от
+вызова, для которого провайдер не вернул token usage.
+
 ### Agent evals
 
 Первый regression dataset содержит 40 размеченных запросов на пяти языках.

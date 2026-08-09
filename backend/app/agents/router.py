@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.agents.prompts import ROUTER_SYSTEM
 from app.agents.state import AgentName, AgentState
 from app.llm import get_router_llm
+from app.services import agent_traces
 
 _ALLOWED: set[AgentName] = {"nutrition", "workout", "recovery", "general"}
 
@@ -55,10 +56,14 @@ def router_node(state: AgentState) -> dict[str, AgentName]:
     """LangGraph node that writes `route` into the state."""
     text = _last_user_text(state)
     try:
-        response = get_router_llm().invoke([
-            SystemMessage(content=ROUTER_SYSTEM),
-            HumanMessage(content=text),
-        ])
+        response = agent_traces.invoke_llm(
+            get_router_llm(),
+            [SystemMessage(content=ROUTER_SYSTEM), HumanMessage(content=text)],
+            run_id=state.get("run_id"),
+            node_name="router",
+            purpose="route_classification",
+            model_tier="small",
+        )
         route = str(response.content).strip().lower().split()[0]
         if route in _ALLOWED:
             return {"route": route}  # type: ignore[return-value]

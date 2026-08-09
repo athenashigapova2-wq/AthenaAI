@@ -45,7 +45,11 @@ def main() -> None:
         patch("app.api.agent.agent_traces.create_agent_run", return_value="run-id"),
         patch("app.api.agent.agent_traces.succeed_agent_run") as succeed_run,
     ):
-        run_turn.return_value = {"answer": "Добавила завтрак", "route": "nutrition"}
+        run_turn.return_value = {
+            "answer": "Добавила завтрак",
+            "route": "nutrition",
+            "resolution_mode": "main_llm",
+        }
         response = client.post(
             "/api/v1/agent/chat",
             headers={"Authorization": f"Bearer {make_token()}"},
@@ -64,6 +68,7 @@ def main() -> None:
     assert succeed_run.call_args.kwargs["run_id"] == "run-id"
     assert succeed_run.call_args.kwargs["user_id"] == "test-user-id"
     assert succeed_run.call_args.kwargs["route"] == "nutrition"
+    assert succeed_run.call_args.kwargs["resolution_mode"] == "main_llm"
 
     with (
         patch(

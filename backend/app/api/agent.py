@@ -56,5 +56,6 @@ def chat_with_agent(
         route=result["route"],
         output_text=result["answer"],
         latency_ms=agent_traces.elapsed_ms(started_at),
+        resolution_mode=result["resolution_mode"],
     )
     return AgentChatResponse(**result)

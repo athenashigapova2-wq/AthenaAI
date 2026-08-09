@@ -6,6 +6,7 @@ from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
 AgentName = Literal["nutrition", "workout", "recovery", "general"]
+ResolutionMode = Literal["zero_llm", "small_llm", "main_llm", "fallback"]
 
 
 class AgentState(TypedDict):
@@ -16,3 +17,4 @@ class AgentState(TypedDict):
     locale: str
     messages: Annotated[list[BaseMessage], add_messages]
     route: AgentName
+    resolution_mode: ResolutionMode

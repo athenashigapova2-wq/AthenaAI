@@ -55,5 +55,7 @@ def get_llm() -> BaseChatModel:
 def get_router_llm() -> BaseChatModel:
     """Лёгкая модель для роутера: одна классификация, нужна скорость."""
     if settings.llm_provider == "anthropic":
-        return _get_anthropic(settings.anthropic_model, temperature=0.0)
-    return _get_gigachat("GigaChat-2", temperature=0.0)
+        model = settings.llm_router_model or settings.anthropic_model
+        return _get_anthropic(model, temperature=0.0)
+    model = settings.llm_router_model or settings.gigachat_model
+    return _get_gigachat(model, temperature=0.0)

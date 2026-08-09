@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     # LLM provider
     llm_provider: str = "gigachat"
+    llm_router_model: str = ""
+    agent_baseline_version: str = "baseline-v1"
 
     # GigaChat
     gigachat_auth_key: str = ""

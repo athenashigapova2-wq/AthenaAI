@@ -7,7 +7,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agents.router import router_node
 from app.agents.specialists import general_node, nutrition_node, recovery_node, workout_node
-from app.agents.state import AgentName, AgentState
+from app.agents.state import AgentName, AgentState, ResolutionMode
 
 
 class AgentTurnResult(TypedDict):
@@ -15,6 +15,7 @@ class AgentTurnResult(TypedDict):
 
     answer: str
     route: AgentName
+    resolution_mode: ResolutionMode
 
 
 def _select_route(state: AgentState) -> str:
@@ -53,6 +54,7 @@ def run_agent_turn_details(
         "locale": locale,
         "messages": [HumanMessage(content=message)],
         "route": "general",
+        "resolution_mode": "main_llm",
     }
     if run_id is not None:
         initial_state["run_id"] = run_id
@@ -60,6 +62,7 @@ def run_agent_turn_details(
     return {
         "answer": str(result["messages"][-1].content),
         "route": result.get("route", "general"),
+        "resolution_mode": result.get("resolution_mode", "main_llm"),
     }
 
 

@@ -25,6 +25,7 @@ def _invoke_tool(
     state: AgentState,
     call: dict[str, Any],
     tools_by_name: dict[str, BaseTool],
+    tool_step: int = 1,
 ) -> Any:
     """Invoke one tool and trace it when this graph turn has a run id."""
     tool = tools_by_name.get(call["name"])
@@ -36,6 +37,7 @@ def _invoke_tool(
                 run_id=run_id,
                 tool_name=call["name"],
                 tool_args=call["args"],
+                tool_step=tool_step,
             )
             agent_traces.fail_tool_call(
                 tool_call_id=tool_call_id,
@@ -52,6 +54,7 @@ def _invoke_tool(
         run_id=run_id,
         tool_name=call["name"],
         tool_args=call["args"],
+        tool_step=tool_step,
     )
     started_at = perf_counter()
     try:
@@ -80,17 +83,27 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
     localized_prompt = localized_system_prompt(system_prompt, state["locale"])
     messages = [SystemMessage(content=localized_prompt), *state["messages"]]
 
-    for _ in range(MAX_TOOL_STEPS):
-        ai_msg = llm.invoke(messages)
+    for tool_step in range(1, MAX_TOOL_STEPS + 1):
+        ai_msg = agent_traces.invoke_llm(
+            llm,
+            messages,
+            run_id=state.get("run_id"),
+            node_name=state["route"],
+            purpose="tool_planning_or_answer",
+            model_tier="main",
+        )
         messages.append(ai_msg)
         if not getattr(ai_msg, "tool_calls", None):
-            return {"messages": [ai_msg]}
+            return {"messages": [ai_msg], "resolution_mode": "main_llm"}
 
         for call in ai_msg.tool_calls:
-            result = _invoke_tool(state, call, tools_by_name)
+            result = _invoke_tool(state, call, tools_by_name, tool_step=tool_step)
             messages.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
 
-    return {"messages": [AIMessage(content="Я остановилась, чтобы не зациклиться на инструментах. Попробуй уточнить запрос.")]}
+    return {
+        "messages": [AIMessage(content="Я остановилась, чтобы не зациклиться на инструментах. Попробуй уточнить запрос.")],
+        "resolution_mode": "fallback",
+    }
 
 
 def nutrition_node(state: AgentState) -> dict:
@@ -107,5 +120,12 @@ def recovery_node(state: AgentState) -> dict:
 
 def general_node(state: AgentState) -> dict:
     prompt = localized_system_prompt(GENERAL_SYSTEM, state["locale"])
-    response = get_llm().invoke([SystemMessage(content=prompt), *state["messages"]])
-    return {"messages": [response]}
+    response = agent_traces.invoke_llm(
+        get_llm(),
+        [SystemMessage(content=prompt), *state["messages"]],
+        run_id=state.get("run_id"),
+        node_name="general",
+        purpose="answer",
+        model_tier="main",
+    )
+    return {"messages": [response], "resolution_mode": "main_llm"}
