@@ -437,6 +437,20 @@ Authorization key или не всё его значение. В кабинет�
 Authorization key; не вводите лицевой счёт, короткий ID, Access token или текст
 `Authorization: Basic`.
 
+`Read-Host -AsSecureString` намеренно показывает только звёздочки. Вставляйте
+ключ один раз и нажимайте Enter: повторный `Ctrl+V` дублирует ключ. Для Supabase
+CLI в Windows PowerShell 5.1 надёжнее один раз скопировать ключ в буфер и выполнить:
+
+```powershell
+$authKey = ([string](Get-Clipboard -Raw)).Trim()
+npx supabase secrets set "GIGACHAT_AUTH_KEY=$authKey" --project-ref <your-project-ref>
+Remove-Variable authKey
+Set-Clipboard -Value ""
+```
+
+Колонка `digest` в `supabase secrets list` содержит необратимый хеш, а не сам
+secret, поэтому она никогда не должна совпадать с Authorization key из кабинета.
+
 ---
 
 ## Статус
