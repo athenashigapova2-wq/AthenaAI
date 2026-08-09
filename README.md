@@ -38,11 +38,137 @@ Python-бэкенд (FastAPI)
 **Клиент:** React, Vite, Capacitor, Tailwind
 **Бэкенд:** Python 3.11, FastAPI, LangChain, LangGraph, pydantic-settings
 **Данные:** Supabase (PostgreSQL, pgvector, Row Level Security)
-**Модели:** GigaChat, multilingual-e5-base (эмбеддинги, локально)
+**Модели:** GigaChat или Anthropic Claude через LangChain, multilingual-e5-base (эмбеддинги, локально)
+
+### Agent architecture v1
+
+Бэкенд перешёл от одного AI-чата к первому LangGraph-графу:
+
+```
+User message
+    -> Router Agent
+        -> Nutrition Agent: профиль, поиск продуктов, дневник, запись еды
+        -> Workout Agent: профиль, история тренировок, запись тренировки
+        -> Recovery Agent: профиль, сон/энергия/симптомы, вес, цикл
+        -> General Agent: общие ответы и уточнения
+```
+
+Каждый specialist-agent получает только свой набор инструментов. Например,
+Nutrition Agent не видит `log_workout`, а Workout Agent не видит `log_meal`.
+Это уменьшает риск ошибочного tool calling и делает поведение проще измерять.
+`Router Agent` сначала пробует LLM-классификацию, а при недоступности модели
+откатывается на детерминированные ключевые слова, поэтому локальные offline-тесты
+проверяют маршрутизацию без внешних API.
+
+### FastAPI boundary
+
+Мобильный клиент не обращается к LangGraph или Supabase `service_role` напрямую.
+Он отправляет `POST /api/v1/agent/chat` с Supabase access token в заголовке
+`Authorization: Bearer ...`. FastAPI проверяет подпись и срок действия JWT,
+извлекает доверенный `user_id` из поля `sub` и только после этого запускает граф.
+Таким образом, `user_id` никогда не принимается из JSON-запроса клиента.
+
+Локальный запуск из каталога `backend`:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Проверка без реальных вызовов LLM и Supabase:
+
+```bash
+python scripts/test_fastapi.py
+```
+
+Следующий слой production-наблюдаемости хранится в Supabase: `agent_runs`
+фиксирует каждый ответ агента, `agent_tool_calls` — вызовы инструментов внутри
+run, `agent_feedback` — пользовательскую оценку ответа. Эти таблицы нужны для
+отладки, evaluation и будущего admin analytics dashboard.
+
+FastAPI создаёт `agent_runs` перед запуском графа и завершает запись статусом
+`succeeded` или `failed`. В run сохраняются выбранный specialist, модель и
+latency. Обновления всегда фильтруются одновременно по `id` и `user_id`, потому
+что серверный Supabase-клиент использует `service_role` и обходит RLS.
+
+Каждый вызов инструмента связан с родительским run через `run_id`. Для него
+сохраняются имя, аргументы, структурированный результат, status и latency;
+ошибочные и даже неизвестные вызовы модели получают статус `failed`.
+
+Миграция `0013_agent_efficiency_metrics.sql` добавляет отдельный trace каждого
+вызова модели в `agent_llm_calls`: node/purpose, small или main model tier,
+input/output/cache tokens, total tokens, status и latency. Триггеры агрегируют
+LLM calls, tokens, tool calls и tool steps в `agent_runs`. `resolution_mode`
+различает `zero_llm`, `small_llm`, `main_llm` и `fallback`, а
+`AGENT_BASELINE_VERSION` связывает production-метрики с одной зафиксированной
+версией baseline. Значение нужно менять только при сознательном создании нового
+baseline после полного regression-eval, а не при каждом deploy.
+`LLM_ROUTER_MODEL` может указывать отдельную small-модель; пустое значение
+сохраняет текущую основную модель и не считается выполнением small-model KPI.
+`token_accounted_call_count` позволяет отличить настоящий нулевой расход от
+вызова, для которого провайдер не вернул token usage.
+
+### Agent evals
+
+Первый regression dataset содержит 40 размеченных запросов на пяти языках.
+Offline-eval измеряет exact-match accuracy детерминированного Router fallback и
+проверяет, что выбранный specialist имеет доступ к требуемому инструменту:
+
+```bash
+python backend/scripts/eval_agents.py
+```
+
+Порог по умолчанию — 100%: изменение ключевых слов или границ инструментов не
+может незаметно сломать уже размеченные сценарии. Этот eval не оценивает качество
+текста LLM; для него будет отдельный live-набор с зафиксированным judge rubric.
+
+Tool-selection dataset отдельно проверяет read/write-инструменты на пяти языках.
+По умолчанию скрипт только валидирует разметку и границы, не обращаясь к модели:
+
+```bash
+python backend/scripts/eval_tool_selection.py
+```
+
+Live-режим проверяет до четырёх последовательных решений модели на case. Read-tools
+получают фиктивные результаты, а **реальные инструменты не выполняются**, поэтому
+eval не пишет тестовую еду или тренировки в БД:
+
+```bash
+python backend/scripts/eval_tool_selection.py --live
+```
+
+Live-eval читает `LLM_PROVIDER` и ключ провайдера из `backend/.env` независимо
+от того, запущена команда из корня репозитория или из каталога `backend`.
+
+Write-safety dataset проверяет явное согласие, отрицание записи и запрет write-tools
+для информационных запросов. Answer-quality dataset проверяет grounded числа,
+отсутствие внутренних имён и медицинскую эскалацию на пяти языках:
+
+```bash
+python backend/scripts/eval_write_safety.py
+python backend/scripts/eval_write_safety.py --live
+python backend/scripts/eval_answer_quality.py
+python backend/scripts/eval_answer_quality.py --live
+```
+
+Оба live-eval используют только фиктивные результаты инструментов и не изменяют БД.
+Write-safety оценивает только разрешение на запись; выбор read-tool отдельно
+измеряется tool-selection eval. Язык ответа задаётся API locale как явный system
+contract, а не определяется моделью только по тексту сообщения.
+Для экстренных симптомов Recovery Agent обязан отвечать немедленно и не задерживать
+рекомендацию вызовами профиля, истории, веса или календаря.
 
 ---
 
 ## Инженерные решения
+
+### RAG v1 ingestion boundary
+
+RAG хранит официальные документы отдельно от структурированного справочника еды:
+`knowledge_sources` управляет происхождением и правами, `knowledge_documents` —
+версиями документов, `knowledge_chunks` — citation-ready фрагментами и embeddings,
+`knowledge_ingestion_runs` — аудитом загрузок. Candidate sources по умолчанию
+запрещены к ingestion до ручной проверки URL, актуальности и условий повторного
+использования. Контракт и выборки описаны в `backend/knowledge/README.md`.
 
 ### user_id недоступен модели
 
@@ -237,6 +363,33 @@ npm run build
 npx cap sync android
 ```
 
+### Если чат возвращает `GIGACHAT_AUTH_ERROR`
+
+Web Chat сейчас вызывает Supabase Edge Function `chat-with-coach`. Ответ GigaChat
+`credentials doesn't match db data` означает, что сохранённый в Supabase secret
+не совпадает с активным authorization key в кабинете GigaChat. Это не CORS и не
+ошибка кнопки отправки. Сгенерируйте новый ключ авторизации в том же API-проекте
+и сохраните **только Base64-значение**, без `Basic `, кавычек и имени переменной:
+
+```powershell
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+npx supabase secrets set GIGACHAT_AUTH_KEY="<authorization-key>"
+npx supabase functions deploy chat-with-coach
+```
+
+Проверить наличие имени секрета (значение команда не показывает):
+
+```powershell
+npx supabase secrets list
+```
+
+Логи откройте в Supabase Dashboard: **Edge Functions → chat-with-coach → Logs**.
+
+Если этот ключ используют `estimate-meal`, `analyze-habits` и `invoke-llm`, после
+замены секрета повторно задеплойте и эти функции. Никогда не вставляйте ключ в
+frontend, скриншот, Git или сообщение об ошибке.
+
 ---
 
 ## Статус
@@ -245,7 +398,7 @@ npx cap sync android
 поиск (Recall@5 = 93%), пайплайн импорта с валидацией данных, набор для замера
 качества поиска.
 
-**В работе:** маршрутизация между специализированными агентами (Nutrition,
-Workout, Recovery), HTTP-слой на FastAPI, деплой.
+**В работе:** подключение мобильного клиента к FastAPI, сохранение agent traces,
+интеграционные тесты и деплой бэкенда.
 
 **Далее:** MCP, Vision AI для распознавания блюд по фото, аналитическая панель.
