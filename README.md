@@ -431,6 +431,11 @@ python backend/scripts/check_gigachat_api.py --insecure
 Ключ и Access token скрипт не печатает и не записывает. После успешного ответа
 скопируйте показанный model id в `GIGACHAT_MODEL`; не используйте `--insecure` в
 Edge Function или production backend.
+Ошибка OAuth `Can't decode 'Authorization' header` означает, что скопирован не
+Authorization key или не всё его значение. В кабинете откройте **Настроить API →
+Перейти к ключам**, создайте ключ и используйте кнопку копирования полного
+Authorization key; не вводите лицевой счёт, короткий ID, Access token или текст
+`Authorization: Basic`.
 
 ---
 

@@ -1,6 +1,7 @@
 """Offline checks for the manual GigaChat diagnostic script."""
 
 import json
+import base64
 import sys
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from scripts.check_gigachat_api import (  # noqa: E402
 
 def handler(request: httpx.Request) -> httpx.Response:
     if request.url.path.endswith("/oauth"):
-        assert request.headers["Authorization"] == "Basic test-key"
+        assert request.headers["Authorization"] == f"Basic {AUTHORIZATION_KEY}"
         assert b"scope=GIGACHAT_API_PERS" in request.content
         return httpx.Response(200, json={"access_token": "access-token"})
     if request.url.path.endswith("/models"):
@@ -32,14 +33,17 @@ def handler(request: httpx.Request) -> httpx.Response:
 
 
 def main() -> None:
-    assert normalize_authorization_key(" Basic  test-key \n") == "test-key"
+    assert normalize_authorization_key(f" Basic  {AUTHORIZATION_KEY} \n") == AUTHORIZATION_KEY
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        token = request_access_token(client, "test-key")
+        token = request_access_token(client, AUTHORIZATION_KEY)
         assert token == "access-token"
         models = list_models(client, token)
         assert models == ["available-model"]
         assert send_message(client, token, models[0], "Привет") == "Привет"
     print("GigaChat API diagnostic checks passed")
+
+
+AUTHORIZATION_KEY = base64.b64encode(b"client-id:client-secret").decode()
 
 
 if __name__ == "__main__":

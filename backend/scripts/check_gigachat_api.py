@@ -1,7 +1,10 @@
 """Manually verify GigaChat OAuth, available models, and one completion."""
 
 import argparse
+import base64
+import binascii
 import getpass
+import re
 import sys
 import uuid
 from typing import Any
@@ -14,9 +17,19 @@ CHAT_URL = "https://api.giga.chat/v1/chat/completions"
 
 
 def normalize_authorization_key(value: str) -> str:
-    normalized = "".join(value.strip().removeprefix("Basic ").split())
+    normalized = value.strip().strip('"\'')
+    normalized = re.sub(r"^Basic\s+", "", normalized, flags=re.IGNORECASE)
+    normalized = "".join(normalized.split())
     if not normalized:
         raise ValueError("Authorization key is empty")
+    try:
+        decoded = base64.b64decode(normalized, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("Authorization key is not valid Base64") from exc
+    if b":" not in decoded:
+        raise ValueError(
+            "Authorization key has the wrong structure; copy the full key from Configure API → Keys"
+        )
     return normalized
 
 
