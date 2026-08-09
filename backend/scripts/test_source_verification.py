@@ -41,6 +41,12 @@ def main() -> None:
     assert official_host_matches(who.source_slug, str(who.canonical_url))
     assert official_host_matches(who.source_slug, "https://iris.who.int/example.pdf")
     assert not official_host_matches(who.source_slug, "https://who.int.example.com/fake")
+    who_pdf = next(
+        item
+        for item in candidates
+        if item.external_id == "who-physical-activity-guidelines-2020-pdf"
+    )
+    assert official_host_matches(who_pdf.source_slug, str(who_pdf.canonical_url))
 
     who_response = httpx.Response(
         200,
@@ -55,6 +61,17 @@ def main() -> None:
     who_evidence = build_evidence(who, who_response)
     assert len(who_evidence.discovered_document_urls) == 1
     assert "creative commons" in who_evidence.license_markers
+
+    pdf_response = httpx.Response(
+        200,
+        content=b"%PDF-1.7 test bytes",
+        headers={"content-type": "application/pdf"},
+        request=httpx.Request("GET", str(who_pdf.canonical_url)),
+    )
+    pdf_evidence = build_evidence(who_pdf, pdf_response)
+    assert [str(url) for url in pdf_evidence.discovered_document_urls] == [
+        str(who_pdf.canonical_url)
+    ]
     print("Source verification checks passed")
 
 

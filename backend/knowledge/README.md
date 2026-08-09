@@ -78,3 +78,13 @@ An HTML `200` verifies only the WHO landing page. Before parsing, record and sep
 exact PDF URL (including an allowed `iris.who.int` redirect), publication date and licence notice.
 The evidence report lists official PDF/bitstream links discovered in the landing-page HTML and
 license-related marker words. These are review hints, not an automatic legal approval.
+
+The verified landing page exposed one official `iris.who.int` bitstream. It is tracked as a separate
+document candidate so the PDF bytes receive their own status, content type and SHA-256 evidence:
+
+```bash
+python backend/scripts/verify_knowledge_source.py who-physical-activity-guidelines-2020-pdf --write-report
+```
+
+Do not infer the exact licence from landing-page marker words. Read the licence statement inside the
+PDF and record whether commercial use, adaptations, attribution and share-alike obligations apply.
