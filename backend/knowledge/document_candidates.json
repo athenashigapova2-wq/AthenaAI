@@ -1,0 +1,29 @@
+[
+  {
+    "external_id": "nih-ods-exercise-athletic-performance-hp",
+    "source_slug": "nih-ods-fact-sheets",
+    "title": "Dietary Supplements for Exercise and Athletic Performance — Health Professional Fact Sheet",
+    "canonical_url": "https://ods.od.nih.gov/factsheets/ExerciseAndAthleticPerformance-HealthProfessional/",
+    "language": "en",
+    "domains": ["nutrition", "workout", "safety"],
+    "selection_notes": "First small RAG slice: performance supplement evidence, adverse effects, interactions and safety boundaries. Keep distinct from food nutrient data."
+  },
+  {
+    "external_id": "who-physical-activity-guidelines-2020",
+    "source_slug": "who-physical-activity-guidelines",
+    "title": "WHO guidelines on physical activity and sedentary behaviour",
+    "canonical_url": "https://www.who.int/publications/i/item/9789240015128",
+    "language": "en",
+    "domains": ["workout", "recovery", "safety"],
+    "selection_notes": "Second verification candidate after NIH ODS returned HTTP 403. Verify the publication landing page first, then record the exact official PDF URL and licence before ingestion."
+  },
+  {
+    "external_id": "who-physical-activity-guidelines-2020-pdf",
+    "source_slug": "who-physical-activity-guidelines",
+    "title": "WHO guidelines on physical activity and sedentary behaviour — official PDF",
+    "canonical_url": "https://iris.who.int/server/api/core/bitstreams/faa83413-d89e-4be9-bb01-b24671aef7ca/content",
+    "language": "en",
+    "domains": ["workout", "recovery", "safety"],
+    "selection_notes": "Exact official bitstream discovered from the verified WHO landing page. Verify PDF bytes and inspect its explicit licence before approval."
+  }
+]
