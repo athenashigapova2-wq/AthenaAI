@@ -279,7 +279,7 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
       ...(history || []).map((m) => ({ role: m.role, content: m.content })),
     ];
 
-    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+    const res = await fetch('https://api.giga.chat/v1/chat/completions', {
       method: 'POST',
       client,
       headers: {

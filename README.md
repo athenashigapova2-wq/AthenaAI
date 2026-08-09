@@ -386,6 +386,29 @@ npx supabase secrets list
 
 Логи откройте в Supabase Dashboard: **Edge Functions → chat-with-coach → Logs**.
 
+`GIGACHAT_AUTH_KEY` — это Authorization key из кабинета, а не 30-минутный
+Access token. Edge Function сама отправляет Authorization key по Basic-схеме на
+`POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth`, кэширует полученный
+Access token и использует его по Bearer-схеме для `https://api.giga.chat/v1/*`.
+Перед записью секрета Authorization key можно безопасно проверить локально,
+не добавляя его в файл или историю Git:
+
+```powershell
+$authKey = Read-Host "Paste GigaChat Authorization key"
+$token = Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://ngw.devices.sberbank.ru:9443/api/v2/oauth" `
+  -Headers @{ Accept = "application/json"; RqUID = [guid]::NewGuid().ToString(); Authorization = "Basic $authKey" } `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body "scope=GIGACHAT_API_PERS"
+$token.expires_at
+```
+
+Не копируйте `$token.access_token` в Supabase: он действует около 30 минут.
+Если локальная OAuth-проверка возвращает code 6, создайте новый Authorization
+key в нужном GigaChat API-проекте и проверьте, что он предназначен для
+`GIGACHAT_API_PERS`.
+
 Если этот ключ используют `estimate-meal`, `analyze-habits` и `invoke-llm`, после
 замены секрета повторно задеплойте и эти функции. Никогда не вставляйте ключ в
 frontend, скриншот, Git или сообщение об ошибке.

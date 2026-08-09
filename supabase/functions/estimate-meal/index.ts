@@ -70,7 +70,7 @@ async function askGigaChat(client: Deno.HttpClient, token: string, prompt: strin
   const finalPrompt = schema
     ? `${prompt}\n\nRespond with ONLY valid JSON matching this schema, no other text, no markdown fences:\n${JSON.stringify(schema)}`
     : prompt;
-  const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+  const res = await fetch('https://api.giga.chat/v1/chat/completions', {
     method: 'POST',
     client,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
