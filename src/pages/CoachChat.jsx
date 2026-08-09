@@ -20,6 +20,7 @@ export default function CoachChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [loadingConv, setLoadingConv] = useState(true);
   const [conversations, setConversations] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -66,13 +67,19 @@ export default function CoachChat() {
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setSending(true);
+    setSendError("");
     // Оптимистично показываем сообщение пользователя сразу
     setMessages((prev) => [...prev, { role: "user", content: trimmed, id: `tmp-${Date.now()}` }]);
     try {
       const { data, error } = await supabase.functions.invoke("chat-with-coach", {
         body: { conversation_id: conversation?.id, message: trimmed, language: lang },
       });
-      if (error) throw error;
+      if (error) {
+        const payload = error.context?.clone
+          ? await error.context.clone().json().catch(() => null)
+          : null;
+        throw new Error(payload?.error || error.message || "Chat request failed");
+      }
       if (!conversation) {
         // Edge Function создала новый разговор — подтягиваем его
         const convs = await loadConversations();
@@ -80,7 +87,8 @@ export default function CoachChat() {
         setConversation(conv);
       }
       await loadMessages(data.conversation_id);
-    } catch {
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Chat request failed");
       setInput(trimmed);
       setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
     } finally {
@@ -199,6 +207,11 @@ export default function CoachChat() {
       </div>
 
       <div className="px-4 py-3 border-t border-border bg-card/80 backdrop-blur-sm">
+        {sendError && (
+          <div role="alert" className="mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {sendError}
+          </div>
+        )}
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}
