@@ -376,7 +376,7 @@ VITE_AGENT_API_URL=https://api.example.com
 В backend environment добавьте frontend origin в CORS, например:
 
 ```env
-API_CORS_ORIGINS=https://macrocoach.example.com,http://localhost:5173
+API_CORS_ORIGINS=https://macrocoach.example.com,http://localhost:5173,http://127.0.0.1:5173
 ```
 
 Клиент берёт текущий Supabase access token и передаёт его как

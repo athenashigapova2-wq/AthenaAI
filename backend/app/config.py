@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
 
     # HTTP API
-    api_cors_origins: str = "http://localhost:5173"
+    api_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     app_env: str = "dev"
     test_user_id: str = "4c58346d-801f-4241-a349-02a2736361f0"
