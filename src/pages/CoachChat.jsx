@@ -9,9 +9,10 @@ import {
 } from "@/components/ui/drawer";
 import { useLang } from "@/lib/i18n";
 
-// Заменяет base44.agents.* — разговоры и сообщения теперь лежат в обычных
-// таблицах Supabase (agent_conversations / agent_messages), а ответ ассистента
-// приходит синхронно из Edge Function 'chat-with-coach' (без polling).
+const AGENT_API_URL = (import.meta.env.VITE_AGENT_API_URL || "").replace(/\/$/, "");
+
+// Разговоры и сообщения лежат в Supabase, а ответ формирует FastAPI
+// multi-agent backend. Supabase access token передаётся в Bearer-заголовке.
 
 export default function CoachChat() {
   const { t, lang } = useLang();
@@ -71,17 +72,29 @@ export default function CoachChat() {
     // Оптимистично показываем сообщение пользователя сразу
     setMessages((prev) => [...prev, { role: "user", content: trimmed, id: `tmp-${Date.now()}` }]);
     try {
-      const { data, error } = await supabase.functions.invoke("chat-with-coach", {
-        body: { conversation_id: conversation?.id, message: trimmed, language: lang },
+      if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error("Your session expired. Please sign in again.");
+      }
+      const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          conversation_id: conversation?.id || null,
+          message: trimmed,
+          locale: lang,
+        }),
       });
-      if (error) {
-        const payload = error.context?.clone
-          ? await error.context.clone().json().catch(() => null)
-          : null;
-        throw new Error(payload?.error || error.message || "Chat request failed");
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.error || `Chat request failed (${response.status})`);
       }
       if (!conversation) {
-        // Edge Function создала новый разговор — подтягиваем его
+        // FastAPI создал новый разговор — подтягиваем его.
         const convs = await loadConversations();
         const conv = convs.find((c) => c.id === data.conversation_id) || null;
         setConversation(conv);

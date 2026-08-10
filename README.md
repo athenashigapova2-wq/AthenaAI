@@ -363,9 +363,31 @@ npm run build
 npx cap sync android
 ```
 
+### Подключение Chat к FastAPI
+
+Страница Chat вызывает `POST /api/v1/agent/chat`, а не Supabase
+Edge Function `chat-with-coach`. В frontend build environment укажите публичный
+HTTPS-адрес развёрнутого FastAPI без завершающего `/`:
+
+```env
+VITE_AGENT_API_URL=https://api.example.com
+```
+
+В backend environment добавьте frontend origin в CORS, например:
+
+```env
+API_CORS_ORIGINS=https://macrocoach.example.com,http://localhost:5173
+```
+
+Клиент берёт текущий Supabase access token и передаёт его как
+`Authorization: Bearer <token>`. FastAPI проверяет JWT, получает `user_id`
+только из токена, запускает LangGraph и сохраняет оба сообщения в
+`agent_messages`. После изменения `VITE_AGENT_API_URL` frontend нужно
+собрать и развернуть заново.
+
 ### Если чат возвращает `GIGACHAT_AUTH_ERROR`
 
-Web Chat сейчас вызывает Supabase Edge Function `chat-with-coach`. Ответ GigaChat
+Legacy Edge Functions всё ещё могут использовать GigaChat. Ответ GigaChat
 `credentials doesn't match db data` означает, что сохранённый в Supabase secret
 не совпадает с активным authorization key в кабинете GigaChat. Это не CORS и не
 ошибка кнопки отправки. Сгенерируйте новый ключ авторизации в том же API-проекте

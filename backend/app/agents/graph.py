@@ -2,7 +2,7 @@
 
 from typing import TypedDict
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 
 from app.agents.router import router_node
@@ -46,13 +46,18 @@ def run_agent_turn_details(
     message: str,
     locale: str = "ru",
     run_id: str | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> AgentTurnResult:
     """Run one graph turn and return the answer plus the selected specialist."""
     app = build_agent_graph()
+    prior_messages: list[BaseMessage] = []
+    for item in history or []:
+        message_class = AIMessage if item.get("role") == "assistant" else HumanMessage
+        prior_messages.append(message_class(content=item.get("content", "")))
     initial_state: AgentState = {
         "user_id": user_id,
         "locale": locale,
-        "messages": [HumanMessage(content=message)],
+        "messages": [*prior_messages, HumanMessage(content=message)],
         "route": "general",
         "resolution_mode": "main_llm",
     }

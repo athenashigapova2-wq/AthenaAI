@@ -44,6 +44,11 @@ def main() -> None:
         patch("app.api.agent.agent_graph.run_agent_turn_details") as run_turn,
         patch("app.api.agent.agent_traces.create_agent_run", return_value="run-id"),
         patch("app.api.agent.agent_traces.succeed_agent_run") as succeed_run,
+        patch(
+            "app.api.agent.agent_conversations.prepare_conversation",
+            return_value=("conversation-id", []),
+        ),
+        patch("app.api.agent.agent_conversations.save_turn") as save_turn,
     ):
         run_turn.return_value = {
             "answer": "Добавила завтрак",
@@ -57,13 +62,19 @@ def main() -> None:
         )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"answer": "Добавила завтрак", "route": "nutrition"}
+    assert response.json() == {
+        "answer": "Добавила завтрак",
+        "route": "nutrition",
+        "conversation_id": "conversation-id",
+    }
     run_turn.assert_called_once_with(
         user_id="test-user-id",
         message="Запиши завтрак",
         locale="ru",
         run_id="run-id",
+        history=[],
     )
+    save_turn.assert_called_once_with("conversation-id", "Запиши завтрак", "Добавила завтрак")
     succeed_run.assert_called_once()
     assert succeed_run.call_args.kwargs["run_id"] == "run-id"
     assert succeed_run.call_args.kwargs["user_id"] == "test-user-id"
@@ -80,6 +91,11 @@ def main() -> None:
             return_value="failed-run-id",
         ),
         patch("app.api.agent.agent_traces.fail_agent_run") as fail_run,
+        patch(
+            "app.api.agent.agent_conversations.prepare_conversation",
+            return_value=("conversation-id", []),
+        ),
+        patch("app.api.agent.agent_conversations.save_turn"),
     ):
         failed_response = client.post(
             "/api/v1/agent/chat",

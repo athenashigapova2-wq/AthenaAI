@@ -25,7 +25,11 @@ def _completed_at() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def create_agent_run(user_id: str, input_text: str) -> str:
+def create_agent_run(
+    user_id: str,
+    input_text: str,
+    conversation_id: str | None = None,
+) -> str:
     """Create a started run and return its database id."""
     response = (
         get_supabase()
@@ -37,6 +41,7 @@ def create_agent_run(user_id: str, input_text: str) -> str:
                 "model_provider": settings.llm_provider,
                 "model_name": _model_name(),
                 "input_text": input_text,
+                "conversation_id": conversation_id,
                 "status": "started",
                 "resolution_mode": "main_llm",
                 "baseline_version": settings.agent_baseline_version,
