@@ -14,11 +14,12 @@
 //
 // Деплой:
 //   supabase functions deploy chat-with-coach
-//   supabase secrets set GIGACHAT_AUTH_KEY=<Base64(Client ID:Client Secret)>
+//   supabase secrets set GIGACHAT_AUTH_KEY=<authorization key from GigaChat cabinet>
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
+const GIGACHAT_MODEL = Deno.env.get('GIGACHAT_MODEL') || 'GigaChat-2';
 const CA_CERT_URL = 'https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt';
 
 // Браузер шлёт preflight OPTIONS-запрос перед каждым fetch с фронтенда —
@@ -40,6 +41,40 @@ function jsonResponse(body: unknown, status = 200) {
 let cachedHttpClient: Deno.HttpClient | null = null;
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
+class GigaChatConfigurationError extends Error {}
+class GigaChatAuthenticationError extends Error {}
+
+export function normalizeGigaChatCredentials(rawValue: string | undefined): string {
+  if (!rawValue) {
+    throw new GigaChatConfigurationError('GIGACHAT_AUTH_KEY is not configured');
+  }
+
+  let value = rawValue.trim();
+  if (
+    (value.startsWith('"') && value.endsWith('"'))
+    || (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  value = value.replace(/^Basic\s+/i, '').replace(/\s+/g, '');
+
+  if (!value || /^GIGACHAT_AUTH_KEY=/i.test(value)) {
+    throw new GigaChatConfigurationError('GIGACHAT_AUTH_KEY has an invalid secret value');
+  }
+
+  try {
+    const decoded = atob(value);
+    if (!decoded.includes(':')) {
+      throw new Error('missing separator');
+    }
+  } catch {
+    throw new GigaChatConfigurationError(
+      'GIGACHAT_AUTH_KEY must be the Base64 authorization key from the GigaChat API cabinet',
+    );
+  }
+  return value;
+}
+
 async function getGigaChatHttpClient(): Promise<Deno.HttpClient> {
   if (cachedHttpClient) return cachedHttpClient;
   const certRes = await fetch(CA_CERT_URL);
@@ -53,6 +88,7 @@ async function getGigaChatToken(): Promise<string> {
     return cachedToken.value;
   }
   const client = await getGigaChatHttpClient();
+  const credentials = normalizeGigaChatCredentials(GIGACHAT_AUTH_KEY);
   const res = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
     method: 'POST',
     client,
@@ -60,11 +96,16 @@ async function getGigaChatToken(): Promise<string> {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
       RqUID: crypto.randomUUID(),
-      Authorization: `Basic ${GIGACHAT_AUTH_KEY}`,
+      Authorization: `Basic ${credentials}`,
     },
     body: 'scope=GIGACHAT_API_PERS',
   });
-  if (!res.ok) throw new Error(`GigaChat auth failed: ${await res.text()}`);
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new GigaChatAuthenticationError(
+      'GigaChat rejected GIGACHAT_AUTH_KEY; replace the Supabase secret with a current authorization key',
+    );
+  }
   const data = await res.json();
   cachedToken = { value: data.access_token, expiresAt: data.expires_at };
   return cachedToken.value;
@@ -168,6 +209,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'message required' }, 400);
     }
 
+    // Validate the external dependency before creating a conversation or saving
+    // the user message, so an invalid server credential cannot leave orphaned
+    // messages that look unanswered after the page reloads.
+    const client = await getGigaChatHttpClient();
+    const token = await getGigaChatToken();
+
     // 1. Разговор — берём существующий или создаём новый
     let conversationId = conversation_id;
     if (!conversationId) {
@@ -233,10 +280,7 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
       ...(history || []).map((m) => ({ role: m.role, content: m.content })),
     ];
 
-    const client = await getGigaChatHttpClient();
-    const token = await getGigaChatToken();
-
-    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+    const res = await fetch('https://api.giga.chat/v1/chat/completions', {
       method: 'POST',
       client,
       headers: {
@@ -244,7 +288,7 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        model: 'GigaChat',
+        model: GIGACHAT_MODEL,
         messages: chatMessages,
       }),
     });
@@ -267,6 +311,19 @@ ${(shoppingItems || []).map((s) => s.name).join(', ') || 'empty'}
 
     return jsonResponse({ conversation_id: conversationId, reply: replyText });
   } catch (error) {
-    return jsonResponse({ error: error.message }, 500);
+    if (error instanceof GigaChatConfigurationError) {
+      return jsonResponse({
+        error: 'Chat service is not configured. Update the GIGACHAT_AUTH_KEY Supabase secret.',
+        code: 'GIGACHAT_CONFIG_ERROR',
+      }, 503);
+    }
+    if (error instanceof GigaChatAuthenticationError) {
+      return jsonResponse({
+        error: 'Chat authentication failed. The server GigaChat credential must be replaced.',
+        code: 'GIGACHAT_AUTH_ERROR',
+      }, 502);
+    }
+    console.error('chat-with-coach failed', error);
+    return jsonResponse({ error: 'Chat is temporarily unavailable', code: 'CHAT_UNAVAILABLE' }, 500);
   }
 });
