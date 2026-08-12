@@ -373,6 +373,21 @@ HTTPS-адрес развёрнутого FastAPI без завершающег�
 VITE_AGENT_API_URL=https://api.example.com
 ```
 
+При локальном `npm run dev` frontend обращается к same-origin пути `/agent-api`,
+а Vite проксирует его в FastAPI. По умолчанию используется порт `8001`; при
+необходимости задайте в корневом `.env` другой адрес и перезапустите Vite:
+
+```env
+AGENT_PROXY_TARGET=http://127.0.0.1:8001
+```
+
+Так локальный Chat не зависит от CORS и не использует значение production-переменной
+`VITE_AGENT_API_URL`. Проверить proxy можно при работающих Vite и Uvicorn:
+
+```text
+http://127.0.0.1:5173/agent-api/health
+```
+
 В backend environment добавьте frontend origin в CORS, например:
 
 ```env

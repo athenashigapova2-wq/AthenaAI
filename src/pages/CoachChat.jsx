@@ -9,7 +9,11 @@ import {
 } from "@/components/ui/drawer";
 import { useLang } from "@/lib/i18n";
 
-const AGENT_API_URL = (import.meta.env.VITE_AGENT_API_URL || "").replace(/\/$/, "");
+// Local Vite requests use a same-origin proxy, which avoids browser CORS failures.
+// Production builds still require the public HTTPS FastAPI URL.
+const AGENT_API_URL = import.meta.env.DEV
+  ? "/agent-api"
+  : (import.meta.env.VITE_AGENT_API_URL || "").replace(/\/$/, "");
 
 // Разговоры и сообщения лежат в Supabase, а ответ формирует FastAPI
 // multi-agent backend. Supabase access token передаётся в Bearer-заголовке.
@@ -101,7 +105,12 @@ export default function CoachChat() {
       }
       await loadMessages(data.conversation_id);
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : "Chat request failed");
+      const message = error instanceof Error ? error.message : "Chat request failed";
+      setSendError(
+        message === "Failed to fetch"
+          ? `FastAPI is unavailable at ${AGENT_API_URL}. Check that Uvicorn is running.`
+          : message,
+      );
       setInput(trimmed);
       setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
     } finally {
