@@ -9,9 +9,14 @@ import {
 } from "@/components/ui/drawer";
 import { useLang } from "@/lib/i18n";
 
-// Заменяет base44.agents.* — разговоры и сообщения теперь лежат в обычных
-// таблицах Supabase (agent_conversations / agent_messages), а ответ ассистента
-// приходит синхронно из Edge Function 'chat-with-coach' (без polling).
+// Local Vite requests use a same-origin proxy, which avoids browser CORS failures.
+// Production builds still require the public HTTPS FastAPI URL.
+const AGENT_API_URL = import.meta.env.DEV
+  ? "/agent-api"
+  : (import.meta.env.VITE_AGENT_API_URL || "").replace(/\/$/, "");
+
+// Разговоры и сообщения лежат в Supabase, а ответ формирует FastAPI
+// multi-agent backend. Supabase access token передаётся в Bearer-заголовке.
 
 export default function CoachChat() {
   const { t, lang } = useLang();
@@ -20,6 +25,7 @@ export default function CoachChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [loadingConv, setLoadingConv] = useState(true);
   const [conversations, setConversations] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -66,21 +72,45 @@ export default function CoachChat() {
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setSending(true);
+    setSendError("");
     // Оптимистично показываем сообщение пользователя сразу
     setMessages((prev) => [...prev, { role: "user", content: trimmed, id: `tmp-${Date.now()}` }]);
     try {
-      const { data, error } = await supabase.functions.invoke("chat-with-coach", {
-        body: { conversation_id: conversation?.id, message: trimmed, language: lang },
+      if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error("Your session expired. Please sign in again.");
+      }
+      const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          conversation_id: conversation?.id || null,
+          message: trimmed,
+          locale: lang,
+        }),
       });
-      if (error) throw error;
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.error || `Chat request failed (${response.status})`);
+      }
       if (!conversation) {
-        // Edge Function создала новый разговор — подтягиваем его
+        // FastAPI создал новый разговор — подтягиваем его.
         const convs = await loadConversations();
         const conv = convs.find((c) => c.id === data.conversation_id) || null;
         setConversation(conv);
       }
       await loadMessages(data.conversation_id);
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Chat request failed";
+      setSendError(
+        message === "Failed to fetch"
+          ? `FastAPI is unavailable at ${AGENT_API_URL}. Check that Uvicorn is running.`
+          : message,
+      );
       setInput(trimmed);
       setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
     } finally {
@@ -199,6 +229,11 @@ export default function CoachChat() {
       </div>
 
       <div className="px-4 py-3 border-t border-border bg-card/80 backdrop-blur-sm">
+        {sendError && (
+          <div role="alert" className="mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {sendError}
+          </div>
+        )}
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}
