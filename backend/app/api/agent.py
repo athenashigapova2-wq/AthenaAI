@@ -1,5 +1,6 @@
 """Authenticated HTTP endpoint for one Athena agent turn."""
 
+import logging
 from time import perf_counter
 from typing import Literal
 from uuid import UUID
@@ -13,6 +14,22 @@ from app.services import agent_traces
 from app.services import agent_conversations
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+logger = logging.getLogger(__name__)
+
+
+def _record_failed_run(run_id: str | None, user_id: str, error: Exception, started_at: float) -> None:
+    """Record a failure when tracing is available without masking the original error."""
+    if run_id is None:
+        return
+    try:
+        agent_traces.fail_agent_run(
+            run_id=run_id,
+            user_id=user_id,
+            error=error,
+            latency_ms=agent_traces.elapsed_ms(started_at),
+        )
+    except Exception:
+        logger.exception("Could not persist failed agent run %s", run_id)
 
 
 class AgentChatRequest(BaseModel):
@@ -43,11 +60,24 @@ def chat_with_agent(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    run_id = agent_traces.create_agent_run(
-        user.user_id,
-        request.message,
-        conversation_id=conversation_id,
-    )
+    except Exception as exc:
+        logger.exception("Could not prepare conversation for user %s", user.user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Supabase недоступен или backend/.env настроен неверно",
+        ) from exc
+
+    run_id: str | None = None
+    try:
+        run_id = agent_traces.create_agent_run(
+            user.user_id,
+            request.message,
+            conversation_id=conversation_id,
+        )
+    except Exception:
+        # Observability must not make the user-facing chat unavailable.
+        logger.exception("Could not create agent trace for user %s", user.user_id)
+
     try:
         result = agent_graph.run_agent_turn_details(
             user_id=user.user_id,
@@ -58,23 +88,23 @@ def chat_with_agent(
         )
         agent_conversations.save_turn(conversation_id, request.message, result["answer"])
     except Exception as exc:
-        agent_traces.fail_agent_run(
-            run_id=run_id,
-            user_id=user.user_id,
-            error=exc,
-            latency_ms=agent_traces.elapsed_ms(started_at),
-        )
+        logger.exception("Agent turn failed for user %s", user.user_id)
+        _record_failed_run(run_id, user.user_id, exc, started_at)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Агент временно недоступен",
         ) from exc
 
-    agent_traces.succeed_agent_run(
-        run_id=run_id,
-        user_id=user.user_id,
-        route=result["route"],
-        output_text=result["answer"],
-        latency_ms=agent_traces.elapsed_ms(started_at),
-        resolution_mode=result["resolution_mode"],
-    )
+    if run_id is not None:
+        try:
+            agent_traces.succeed_agent_run(
+                run_id=run_id,
+                user_id=user.user_id,
+                route=result["route"],
+                output_text=result["answer"],
+                latency_ms=agent_traces.elapsed_ms(started_at),
+                resolution_mode=result["resolution_mode"],
+            )
+        except Exception:
+            logger.exception("Could not complete agent trace %s", run_id)
     return AgentChatResponse(**result, conversation_id=conversation_id)

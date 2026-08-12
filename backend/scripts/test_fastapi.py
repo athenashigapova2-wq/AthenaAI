@@ -40,6 +40,20 @@ def main() -> None:
     missing_token = client.post("/api/v1/agent/chat", json={"message": "Привет"})
     assert missing_token.status_code == 401
 
+    with patch(
+        "app.api.agent.agent_conversations.prepare_conversation",
+        side_effect=RuntimeError("database unavailable"),
+    ):
+        setup_failure = client.post(
+            "/api/v1/agent/chat",
+            headers={"Authorization": f"Bearer {make_token()}"},
+            json={"message": "Привет"},
+        )
+    assert setup_failure.status_code == 503
+    assert setup_failure.json() == {
+        "detail": "Supabase недоступен или backend/.env настроен неверно"
+    }
+
     with (
         patch("app.api.agent.agent_graph.run_agent_turn_details") as run_turn,
         patch("app.api.agent.agent_traces.create_agent_run", return_value="run-id"),
@@ -108,6 +122,33 @@ def main() -> None:
     fail_run.assert_called_once()
     assert fail_run.call_args.kwargs["run_id"] == "failed-run-id"
     assert fail_run.call_args.kwargs["user_id"] == "test-user-id"
+
+    with (
+        patch("app.api.agent.agent_graph.run_agent_turn_details") as untraced_turn,
+        patch(
+            "app.api.agent.agent_traces.create_agent_run",
+            side_effect=RuntimeError("trace tables missing"),
+        ),
+        patch("app.api.agent.agent_traces.succeed_agent_run") as untraced_success,
+        patch(
+            "app.api.agent.agent_conversations.prepare_conversation",
+            return_value=("conversation-id", []),
+        ),
+        patch("app.api.agent.agent_conversations.save_turn"),
+    ):
+        untraced_turn.return_value = {
+            "answer": "Привет!",
+            "route": "general",
+            "resolution_mode": "main_llm",
+        }
+        untraced_response = client.post(
+            "/api/v1/agent/chat",
+            headers={"Authorization": f"Bearer {make_token()}"},
+            json={"message": "Привет"},
+        )
+    assert untraced_response.status_code == 200, untraced_response.text
+    assert untraced_response.json()["answer"] == "Привет!"
+    untraced_success.assert_not_called()
     print("FastAPI checks passed")
 
 
