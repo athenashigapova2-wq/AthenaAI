@@ -1,0 +1,26 @@
+[
+  {"id":"ru_food_read","locale":"ru","route":"nutrition","query":"Сколько калорий и белка в 100 г банана?","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"ru_meal_write","locale":"ru","route":"nutrition","query":"Запиши завтрак «Тестовый омлет»: 420 ккал, белки 30 г, углеводы 12 г, жиры 28 г.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"ru_workout_write","locale":"ru","route":"workout","query":"Запиши сегодняшнюю силовую тренировку на ноги длительностью 45 минут.","expected_tools":["log_workout"],"forbidden_tools":[]},
+  {"id":"ru_recovery_read","locale":"ru","route":"recovery","query":"Покажи мои записи менструального цикла за последние 45 дней.","expected_tools":["get_cycle_logs"],"forbidden_tools":[]},
+
+  {"id":"en_food_read","locale":"en","route":"nutrition","query":"How many calories and protein are in 100 g of banana?","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"en_meal_write","locale":"en","route":"nutrition","query":"Log breakfast named Test omelet: 420 kcal, 30 g protein, 12 g carbs, 28 g fat.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"en_workout_write","locale":"en","route":"workout","query":"Log today's 45-minute lower-body strength workout.","expected_tools":["log_workout"],"forbidden_tools":[]},
+  {"id":"en_recovery_read","locale":"en","route":"recovery","query":"Show my weight trend for the last 30 days.","expected_tools":["get_weight_trend"],"forbidden_tools":[]},
+
+  {"id":"fr_food_read","locale":"fr","route":"nutrition","query":"Combien de calories et de protéines contient 100 g de banane ?","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"fr_meal_write","locale":"fr","route":"nutrition","query":"Enregistre le petit-déjeuner Omelette test : 420 kcal, 30 g de protéines, 12 g de glucides et 28 g de lipides.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"fr_workout_write","locale":"fr","route":"workout","query":"Enregistre mon entraînement de musculation des jambes de 45 minutes aujourd’hui.","expected_tools":["log_workout"],"forbidden_tools":[]},
+  {"id":"fr_recovery_read","locale":"fr","route":"recovery","query":"Montre mes données de sommeil et d’énergie des 14 derniers jours.","expected_tools":["get_recovery_logs"],"forbidden_tools":[]},
+
+  {"id":"es_food_read","locale":"es","route":"nutrition","query":"¿Cuántas calorías y proteínas hay en 100 g de plátano?","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"es_meal_write","locale":"es","route":"nutrition","query":"Registra el desayuno Tortilla de prueba: 420 kcal, 30 g de proteína, 12 g de carbohidratos y 28 g de grasa.","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"es_workout_write","locale":"es","route":"workout","query":"Registra mi entrenamiento de fuerza de piernas de 45 minutos de hoy.","expected_tools":["log_workout"],"forbidden_tools":[]},
+  {"id":"es_recovery_read","locale":"es","route":"recovery","query":"Muéstrame la tendencia de mi peso durante los últimos 30 días.","expected_tools":["get_weight_trend"],"forbidden_tools":[]},
+
+  {"id":"zh_food_read","locale":"zh","route":"nutrition","query":"100克香蕉有多少卡路里和蛋白质？","expected_tools":["search_food"],"forbidden_tools":["log_meal"]},
+  {"id":"zh_meal_write","locale":"zh","route":"nutrition","query":"记录早餐“测试煎蛋”：420千卡、30克蛋白质、12克碳水和28克脂肪。","expected_tools":["log_meal"],"forbidden_tools":[]},
+  {"id":"zh_workout_write","locale":"zh","route":"workout","query":"记录我今天45分钟的腿部力量训练。","expected_tools":["log_workout"],"forbidden_tools":[]},
+  {"id":"zh_recovery_read","locale":"zh","route":"recovery","query":"显示我最近45天的月经周期记录。","expected_tools":["get_cycle_logs"],"forbidden_tools":[]}
+]
