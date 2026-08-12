@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("SUPABASE_JWT_SECRET", "offline-test-secret-at-least-32-bytes")
 
 from app.main import app  # noqa: E402
+from app.auth.supabase_jwt import decode_access_token  # noqa: E402
+from app.config import settings  # noqa: E402
 
 client = TestClient(app)
 
@@ -36,6 +38,15 @@ def main() -> None:
     health_response = client.get("/health")
     assert health_response.status_code == 200
     assert health_response.json() == {"status": "ok"}
+
+    with patch.object(settings, "supabase_jwt_secret", ""):
+        try:
+            decode_access_token("token")
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 503
+            assert "SUPABASE_JWT_SECRET" in str(getattr(exc, "detail", ""))
+        else:
+            raise AssertionError("Missing JWT configuration must return HTTP 503")
 
     missing_token = client.post("/api/v1/agent/chat", json={"message": "Привет"})
     assert missing_token.status_code == 401

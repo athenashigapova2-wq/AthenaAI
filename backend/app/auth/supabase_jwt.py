@@ -21,7 +21,10 @@ class AuthenticatedUser:
 def decode_access_token(token: str) -> AuthenticatedUser:
     """Decode a Supabase HS256 access token and extract its trusted user id."""
     if not settings.supabase_jwt_secret:
-        raise RuntimeError("SUPABASE_JWT_SECRET должен быть задан для запуска API")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Backend authentication is not configured: SUPABASE_JWT_SECRET is missing",
+        )
 
     try:
         payload = jwt.decode(

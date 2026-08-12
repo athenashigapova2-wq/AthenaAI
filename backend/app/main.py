@@ -27,3 +27,19 @@ app.include_router(agent_router, prefix="/api/v1")
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/health/ready", tags=["system"])
+def readiness() -> dict[str, str | list[str]]:
+    """Report missing server settings without exposing their values."""
+    required_settings = {
+        "SUPABASE_URL": settings.supabase_url,
+        "SUPABASE_SERVICE_ROLE_KEY": settings.supabase_service_role_key,
+        "SUPABASE_JWT_SECRET": settings.supabase_jwt_secret,
+    }
+    if settings.llm_provider.lower() == "anthropic":
+        required_settings["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
+    else:
+        required_settings["GIGACHAT_AUTH_KEY"] = settings.gigachat_auth_key
+    missing = [name for name, value in required_settings.items() if not value]
+    return {"status": "ready" if not missing else "not_ready", "missing": missing}

@@ -388,6 +388,15 @@ AGENT_PROXY_TARGET=http://127.0.0.1:8001
 http://127.0.0.1:5173/agent-api/health
 ```
 
+Для проверки обязательных backend-настроек без вывода значений секретов откройте:
+
+```text
+http://127.0.0.1:5173/agent-api/health/ready
+```
+
+Ответ `not_ready` перечислит только имена отсутствующих переменных. Все значения
+нужно заполнить в `backend/.env`, после чего перезапустить Uvicorn.
+
 В backend environment добавьте frontend origin в CORS, например:
 
 ```env
