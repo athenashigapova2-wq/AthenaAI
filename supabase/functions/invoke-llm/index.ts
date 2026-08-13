@@ -14,6 +14,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const GIGACHAT_AUTH_KEY = Deno.env.get('GIGACHAT_AUTH_KEY');
+const GIGACHAT_MODEL = Deno.env.get('GIGACHAT_MODEL') || 'GigaChat-2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
       ? `${prompt}\n\nRespond with ONLY valid JSON matching this schema, no other text, no markdown fences:\n${JSON.stringify(response_json_schema)}`
       : prompt;
 
-    const res = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+    const res = await fetch('https://api.giga.chat/v1/chat/completions', {
       method: 'POST',
       client,
       headers: {
@@ -112,7 +113,7 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        model: 'GigaChat',
+        model: GIGACHAT_MODEL,
         messages: [{ role: 'user', content: finalPrompt }],
       }),
     });
