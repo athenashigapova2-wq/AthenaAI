@@ -4,6 +4,7 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import jwt
@@ -39,7 +40,10 @@ def main() -> None:
     assert health_response.status_code == 200
     assert health_response.json() == {"status": "ok"}
 
-    with patch.object(settings, "supabase_jwt_secret", ""):
+    with (
+        patch.object(settings, "supabase_jwt_secret", ""),
+        patch("app.auth.supabase_jwt.jwt.get_unverified_header", return_value={"alg": "HS256"}),
+    ):
         try:
             decode_access_token("token")
         except Exception as exc:
@@ -47,6 +51,23 @@ def main() -> None:
             assert "SUPABASE_JWT_SECRET" in str(getattr(exc, "detail", ""))
         else:
             raise AssertionError("Missing JWT configuration must return HTTP 503")
+
+    with (
+        patch.object(settings, "supabase_url", "https://project.supabase.co"),
+        patch("app.auth.supabase_jwt.jwt.get_unverified_header", return_value={"alg": "ES256"}),
+        patch("app.auth.supabase_jwt._jwks_client") as jwks_client,
+        patch(
+            "app.auth.supabase_jwt.jwt.decode",
+            return_value={"sub": "jwks-user", "email": "user@example.com"},
+        ) as jwks_decode,
+    ):
+        jwks_client.return_value.get_signing_key_from_jwt.return_value = SimpleNamespace(
+            key="public-key"
+        )
+        jwks_user = decode_access_token("asymmetric-token")
+    assert jwks_user.user_id == "jwks-user"
+    assert jwks_decode.call_args.kwargs["algorithms"] == ["ES256"]
+    assert jwks_decode.call_args.kwargs["issuer"].endswith("/auth/v1")
 
     missing_token = client.post("/api/v1/agent/chat", json={"message": "Привет"})
     assert missing_token.status_code == 401

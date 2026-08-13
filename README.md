@@ -397,6 +397,11 @@ http://127.0.0.1:5173/agent-api/health/ready
 Ответ `not_ready` перечислит только имена отсутствующих переменных. Все значения
 нужно заполнить в `backend/.env`, после чего перезапустить Uvicorn.
 
+FastAPI принимает как legacy `HS256` access tokens, так и новые токены Supabase,
+подписанные `RS256`/`ES256`. Для asymmetric tokens публичный ключ автоматически
+берётся из `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`; `SUPABASE_JWT_SECRET`
+нужен только проектам, которые всё ещё выпускают legacy `HS256` tokens.
+
 В backend environment добавьте frontend origin в CORS, например:
 
 ```env

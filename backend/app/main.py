@@ -35,7 +35,6 @@ def readiness() -> dict[str, str | list[str]]:
     required_settings = {
         "SUPABASE_URL": settings.supabase_url,
         "SUPABASE_SERVICE_ROLE_KEY": settings.supabase_service_role_key,
-        "SUPABASE_JWT_SECRET": settings.supabase_jwt_secret,
     }
     if settings.llm_provider.lower() == "anthropic":
         required_settings["ANTHROPIC_API_KEY"] = settings.anthropic_api_key

@@ -1,11 +1,12 @@
 """Validate Supabase access tokens at the FastAPI boundary."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jwt import InvalidTokenError
+from jwt import InvalidTokenError, PyJWKClient
 
 from app.config import settings
 
@@ -18,22 +19,42 @@ class AuthenticatedUser:
     email: str | None = None
 
 
-def decode_access_token(token: str) -> AuthenticatedUser:
-    """Decode a Supabase HS256 access token and extract its trusted user id."""
-    if not settings.supabase_jwt_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Backend authentication is not configured: SUPABASE_JWT_SECRET is missing",
-        )
+@lru_cache(maxsize=1)
+def _jwks_client() -> PyJWKClient:
+    if not settings.supabase_url:
+        raise RuntimeError("SUPABASE_URL is required for asymmetric JWT verification")
+    return PyJWKClient(
+        f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json",
+        cache_keys=True,
+    )
 
+
+def decode_access_token(token: str) -> AuthenticatedUser:
+    """Verify a legacy HS256 or current JWKS-signed Supabase access token."""
     try:
+        algorithm = str(jwt.get_unverified_header(token).get("alg", ""))
+        if algorithm == "HS256":
+            if not settings.supabase_jwt_secret:
+                raise RuntimeError("SUPABASE_JWT_SECRET is required for HS256 tokens")
+            signing_key = settings.supabase_jwt_secret
+        elif algorithm in {"RS256", "ES256"}:
+            signing_key = _jwks_client().get_signing_key_from_jwt(token).key
+        else:
+            raise InvalidTokenError(f"Unsupported JWT algorithm: {algorithm}")
+
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            signing_key,
+            algorithms=[algorithm],
             audience=settings.supabase_jwt_audience,
+            issuer=f"{settings.supabase_url.rstrip('/')}/auth/v1" if settings.supabase_url else None,
             options={"require": ["exp", "sub"]},
         )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Backend authentication is not configured: {exc}",
+        ) from exc
     except InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
