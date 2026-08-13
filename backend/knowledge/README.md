@@ -51,6 +51,37 @@ The ingestion implementation must produce three frames defined in `app/rag/dataf
 The Pydantic models in `app/rag/contracts.py` validate rows before they enter a DataFrame. A batch
 containing documents is rejected unless its source is both rights-approved and ingestion-enabled.
 
+## Running ingestion
+
+Apply migrations through `0014_rag_ingestion_upsert.sql`, then prepare a UTF-8 JSON bundle with
+`source` and `documents` (see `ingestion_bundle.example.json`). The loader normalizes whitespace,
+computes SHA-256 hashes, and creates 450-token-estimate chunks with 70-token overlap when `chunks`
+is omitted.
+
+Validate without loading the embedding model or writing to Supabase:
+
+```bash
+python backend/scripts/ingest_knowledge.py \
+  backend/knowledge/ingestion_bundle.example.json --dry-run
+```
+
+Ingest an approved bundle:
+
+```bash
+python backend/scripts/ingest_knowledge.py path/to/approved-bundle.json
+```
+
+Both the bundle and the existing `knowledge_sources` database row must be `approved` and enabled.
+An unknown source is registered as `review_required` and disabled, then ingestion stops. Approval
+therefore remains a separate operator action and cannot be smuggled in through the content bundle.
+Each document and all its chunks are replaced in one PostgreSQL transaction. Identical document
+hashes, chunk hashes, and embedding model names return `unchanged`; use `--force` to rebuild them.
+
+At runtime LangGraph executes `router -> retriever -> specialist`. The retriever searches only
+approved/enabled sources, applies the routed domain filter and similarity threshold, and injects
+canonical citation metadata as an untrusted system context. Retrieval failure is fail-open for chat:
+the specialist continues without RAG context and the backend logs the retrieval error.
+
 ## First verification slice
 
 The first document candidate is the NIH ODS health-professional fact sheet on exercise and athletic

@@ -1,0 +1,31 @@
+{
+  "source": {
+    "slug": "athena-authored-example",
+    "title": "Athena authored example",
+    "publisher": "Athena AI",
+    "canonical_url": "https://example.com/athena/example",
+    "source_type": "manual",
+    "domains": ["product"],
+    "languages": ["en"],
+    "rights_status": "approved",
+    "ingestion_enabled": true,
+    "verification_status": "verified",
+    "license_notes": "Example only; replace with reviewed rights evidence.",
+    "selection_notes": "Demonstrates the ingestion bundle format.",
+    "metadata": {
+      "authority_level": "athena_authored"
+    }
+  },
+  "documents": [
+    {
+      "external_id": "athena-example-document",
+      "title": "Example help article",
+      "canonical_url": "https://example.com/athena/example/article",
+      "language": "en",
+      "normalized_text": "Athena can answer questions about nutrition, workouts, and recovery. This placeholder text is for a dry-run only and must not be loaded as production knowledge.",
+      "metadata": {
+        "section": "help"
+      }
+    }
+  ]
+}

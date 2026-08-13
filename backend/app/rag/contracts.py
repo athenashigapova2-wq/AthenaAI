@@ -1,9 +1,10 @@
 """Typed ingestion boundary between source acquisition and PostgreSQL."""
 
+import hashlib
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 KnowledgeDomain = Literal["nutrition", "workout", "recovery", "safety", "product"]
 SourceType = Literal["html", "pdf", "api", "manual"]
@@ -81,8 +82,8 @@ class LicenseEvidence(BaseModel):
 
 
 class DocumentInput(BaseModel):
-    source_slug: str
-    external_id: str
+    source_slug: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    external_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
     title: str
     canonical_url: HttpUrl
     language: str = "en"
@@ -92,9 +93,16 @@ class DocumentInput(BaseModel):
     content_hash: str = Field(min_length=64, max_length=64)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def content_hash_matches_text(self) -> "DocumentInput":
+        actual = hashlib.sha256(self.normalized_text.encode("utf-8")).hexdigest()
+        if self.content_hash != actual:
+            raise ValueError("document content_hash does not match normalized_text")
+        return self
+
 
 class ChunkInput(BaseModel):
-    document_external_id: str
+    document_external_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
     chunk_index: int = Field(ge=0)
     section_title: str | None = None
     content: str = Field(min_length=1)
@@ -103,11 +111,18 @@ class ChunkInput(BaseModel):
     embedding_model: str
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def content_hash_matches_text(self) -> "ChunkInput":
+        actual = hashlib.sha256(self.content.encode("utf-8")).hexdigest()
+        if self.content_hash != actual:
+            raise ValueError("chunk content_hash does not match content")
+        return self
+
 
 class IngestionBatch(BaseModel):
     source: SourceManifestEntry
-    documents: list[DocumentInput]
-    chunks: list[ChunkInput]
+    documents: list[DocumentInput] = Field(min_length=1)
+    chunks: list[ChunkInput] = Field(min_length=1)
 
     @field_validator("documents")
     @classmethod
@@ -122,3 +137,43 @@ class IngestionBatch(BaseModel):
         ):
             raise ValueError("documents require an approved and enabled source")
         return value
+
+    @model_validator(mode="after")
+    def require_consistent_document_chunk_keys(self) -> "IngestionBatch":
+        document_ids = [document.external_id for document in self.documents]
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("document external_id values must be unique within a batch")
+
+        known_documents = set(document_ids)
+        mismatched_sources = {
+            document.source_slug
+            for document in self.documents
+            if document.source_slug != self.source.slug
+        }
+        if mismatched_sources:
+            raise ValueError("every document source_slug must match the batch source slug")
+        chunk_keys: set[tuple[str, int]] = set()
+        for chunk in self.chunks:
+            if chunk.document_external_id not in known_documents:
+                raise ValueError(
+                    f"chunk references unknown document {chunk.document_external_id!r}"
+                )
+            key = (chunk.document_external_id, chunk.chunk_index)
+            if key in chunk_keys:
+                raise ValueError(f"duplicate chunk key: {key!r}")
+            chunk_keys.add(key)
+        return self
+
+
+class RetrievedChunk(BaseModel):
+    """Citation-ready result returned by the PostgreSQL vector search RPC."""
+
+    chunk_id: str
+    document_id: str
+    source_slug: str
+    document_title: str
+    canonical_url: HttpUrl
+    section_title: str | None = None
+    content: str
+    language: str
+    similarity: float

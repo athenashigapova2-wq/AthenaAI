@@ -21,6 +21,11 @@ from app.tools.registry import build_tools
 MAX_TOOL_STEPS = 6
 
 
+def _rag_messages(state: AgentState) -> list[SystemMessage]:
+    context = state.get("rag_context", "")
+    return [SystemMessage(content=context)] if context else []
+
+
 def _invoke_tool(
     state: AgentState,
     call: dict[str, Any],
@@ -81,7 +86,11 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
     tools_by_name = {tool.name: tool for tool in tools}
     llm = get_llm().bind_tools(tools, tool_choice="auto") if tools else get_llm()
     localized_prompt = localized_system_prompt(system_prompt, state["locale"])
-    messages = [SystemMessage(content=localized_prompt), *state["messages"]]
+    messages = [
+        SystemMessage(content=localized_prompt),
+        *_rag_messages(state),
+        *state["messages"],
+    ]
 
     for tool_step in range(1, MAX_TOOL_STEPS + 1):
         ai_msg = agent_traces.invoke_llm(
@@ -122,7 +131,7 @@ def general_node(state: AgentState) -> dict:
     prompt = localized_system_prompt(GENERAL_SYSTEM, state["locale"])
     response = agent_traces.invoke_llm(
         get_llm(),
-        [SystemMessage(content=prompt), *state["messages"]],
+        [SystemMessage(content=prompt), *_rag_messages(state), *state["messages"]],
         run_id=state.get("run_id"),
         node_name="general",
         purpose="answer",

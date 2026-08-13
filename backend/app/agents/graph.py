@@ -6,8 +6,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 
 from app.agents.router import router_node
+from app.agents.retrieval import retriever_node
 from app.agents.specialists import general_node, nutrition_node, recovery_node, workout_node
 from app.agents.state import AgentName, AgentState, ResolutionMode
+from app.config import settings
 
 
 class AgentTurnResult(TypedDict):
@@ -25,14 +27,16 @@ def _select_route(state: AgentState) -> str:
 def build_agent_graph():
     graph = StateGraph(AgentState)
     graph.add_node("router", router_node)
+    graph.add_node("retriever", retriever_node)
     graph.add_node("nutrition", nutrition_node)
     graph.add_node("workout", workout_node)
     graph.add_node("recovery", recovery_node)
     graph.add_node("general", general_node)
 
     graph.add_edge(START, "router")
+    graph.add_edge("router", "retriever")
     graph.add_conditional_edges(
-        "router",
+        "retriever",
         _select_route,
         {"nutrition": "nutrition", "workout": "workout", "recovery": "recovery", "general": "general"},
     )
@@ -56,13 +60,15 @@ def run_agent_turn_details(
         prior_messages.append(message_class(content=item.get("content", "")))
     initial_state: AgentState = {
         "user_id": user_id,
+        "run_id": run_id,
         "locale": locale,
         "messages": [*prior_messages, HumanMessage(content=message)],
         "route": "general",
         "resolution_mode": "main_llm",
+        "rag_enabled": settings.rag_enabled,
+        "rag_context": "",
+        "retrieved_chunks": [],
     }
-    if run_id is not None:
-        initial_state["run_id"] = run_id
     result = app.invoke(initial_state)
     return {
         "answer": str(result["messages"][-1].content),

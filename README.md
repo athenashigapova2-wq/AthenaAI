@@ -165,6 +165,11 @@ contract, а не определяется моделью только по те
 
 ### RAG v1 ingestion boundary
 
+The implemented runtime path is `router -> retriever -> specialist`. Approved knowledge is searched
+with multilingual E5 embeddings and injected with canonical citation URLs. Ingestion is available
+through `backend/scripts/ingest_knowledge.py`; the bundle format, idempotent upsert behavior and
+safety gates are documented in `backend/knowledge/README.md`.
+
 RAG хранит официальные документы отдельно от структурированного справочника еды:
 `knowledge_sources` управляет происхождением и правами, `knowledge_documents` —
 версиями документов, `knowledge_chunks` — citation-ready фрагментами и embeddings,
