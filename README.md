@@ -38,7 +38,9 @@ Python-бэкенд (FastAPI)
 **Клиент:** React, Vite, Capacitor, Tailwind
 **Бэкенд:** Python 3.11, FastAPI, LangChain, LangGraph, pydantic-settings
 **Данные:** Supabase (PostgreSQL, pgvector, Row Level Security)
-**Модели:** GigaChat или Anthropic Claude через LangChain, multilingual-e5-base (эмбеддинги, локально)
+**Модели:** GigaChat через LangChain, multilingual-e5-base (эмбеддинги, локально).
+Anthropic оставлен в коде только как необязательный альтернативный провайдер и
+для обычного запуска не требуется.
 
 ### Agent architecture v1
 
@@ -315,17 +317,63 @@ BMR, TDEE, распределение макронутриентов и сумм
 
 ## Запуск
 
-### Бэкенд
+### База данных Supabase
 
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\Activate.ps1        # Windows
-pip install -r requirements.txt
-cp .env.example .env               # заполнить значениями
+SQL-файлы в `supabase/migrations/` — это схема базы данных проекта. Они нужны и
+должны храниться в репозитории. Миграции применяются строго по порядку имени —
+с `0001_init.sql` по последнюю доступную миграцию.
+
+Предпочтительный способ через Supabase CLI:
+
+```powershell
+npx supabase login
+npx supabase link --project-ref <project-ref>
+npx supabase db push
 ```
 
-Список переменных окружения — в `backend/.env.example`.
+Если CLI не используется, выполните все файлы из `supabase/migrations/` по
+порядку в **Supabase Dashboard → SQL Editor**. Не ограничивайтесь файлами
+`0001`–`0003`: более поздние миграции добавляют поиск, RAG, наблюдаемость агента
+и другие части текущей схемы.
+
+`MIGRATION.md` — историческая памятка о переходе с Base44. Для запуска приложения
+она не требуется; актуальная инструкция находится в этом README.
+
+### Бэкенд
+
+Команды ниже выполняются из корня репозитория. Для первого запуска в PowerShell:
+
+```powershell
+python -m venv .venv
+& ".\.venv\Scripts\Activate.ps1"
+python -m pip install -r ".\backend\requirements.txt"
+Copy-Item ".\backend\.env.example" ".\backend\.env"
+```
+
+Заполните `backend/.env` своими значениями. Список переменных окружения и
+пояснения к ним находятся в `backend/.env.example`.
+
+По умолчанию используется `LLM_PROVIDER=gigachat`, поэтому нужен
+`GIGACHAT_AUTH_KEY`. `ANTHROPIC_API_KEY` оставьте пустым: он требуется только при
+явном переключении на `LLM_PROVIDER=anthropic`.
+
+Запустите API на порту `8001`:
+
+```powershell
+& ".\.venv\Scripts\Activate.ps1"
+python -m uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8001
+```
+
+После запуска проверьте:
+
+```text
+http://127.0.0.1:8001/health
+http://127.0.0.1:8001/health/ready
+```
+
+Readiness должен вернуть `{"status":"ready","missing":[]}`. Если статус
+`not_ready`, заполните перечисленные переменные в `backend/.env` и перезапустите
+Uvicorn.
 
 Проверка связи с моделью и базой:
 
@@ -357,8 +405,35 @@ python scripts/eval_search.py translate
 
 ### Клиент
 
-```bash
+Для первого запуска создайте корневой `.env` из примера и укажите данные того же
+Supabase-проекта, который задан в `backend/.env`:
+
+```powershell
+Copy-Item ".\.env.example" ".\.env"
 npm install
+```
+
+В отдельном окне PowerShell запустите Vite. В локальной конфигурации проекта
+используется порт `5175`:
+
+```powershell
+npm run dev -- --host 127.0.0.1 --port 5175
+```
+
+Откройте приложение и Chat:
+
+```text
+http://127.0.0.1:5175/
+http://127.0.0.1:5175/chat
+```
+
+Если `5175` занят, Vite может выбрать следующий свободный порт. В таком случае
+используйте адрес из строки `Local` в выводе Vite и подставьте этот порт во все
+локальные URL ниже.
+
+Production-сборка и синхронизация Android:
+
+```powershell
 npm run build
 npx cap sync android
 ```
@@ -374,8 +449,9 @@ VITE_AGENT_API_URL=https://api.example.com
 ```
 
 При локальном `npm run dev` frontend обращается к same-origin пути `/agent-api`,
-а Vite проксирует его в FastAPI. По умолчанию используется порт `8001`; при
-необходимости задайте в корневом `.env` другой адрес и перезапустите Vite:
+а Vite проксирует запросы в FastAPI на `127.0.0.1:8001`. Порт Vite (`5175` или
+другой свободный) на адрес backend не влияет. При необходимости задайте в
+корневом `.env` другой адрес API и перезапустите Vite:
 
 ```env
 AGENT_PROXY_TARGET=http://127.0.0.1:8001
@@ -385,13 +461,13 @@ AGENT_PROXY_TARGET=http://127.0.0.1:8001
 `VITE_AGENT_API_URL`. Проверить proxy можно при работающих Vite и Uvicorn:
 
 ```text
-http://127.0.0.1:5173/agent-api/health
+http://127.0.0.1:5175/agent-api/health
 ```
 
 Для проверки обязательных backend-настроек без вывода значений секретов откройте:
 
 ```text
-http://127.0.0.1:5173/agent-api/health/ready
+http://127.0.0.1:5175/agent-api/health/ready
 ```
 
 Ответ `not_ready` перечислит только имена отсутствующих переменных. Все значения
@@ -404,10 +480,12 @@ FastAPI принимает как legacy `HS256` access tokens, так и нов
 Если JWKS недоступен или в нём нет `kid` из заголовка токена, API возвращает
 JSON-ошибку `503`/`401`, а не безымянный `500`; сам access token в лог не пишется.
 
-В backend environment добавьте frontend origin в CORS, например:
+При работе через `/agent-api` запрос same-origin, поэтому CORS не участвует.
+Если frontend обращается к FastAPI напрямую, добавьте его origin в backend
+environment, например:
 
 ```env
-API_CORS_ORIGINS=https://macrocoach.example.com,http://localhost:5173,http://127.0.0.1:5173
+API_CORS_ORIGINS=https://macrocoach.example.com,http://localhost:5175,http://127.0.0.1:5175
 ```
 
 Клиент берёт текущий Supabase access token и передаёт его как
@@ -415,6 +493,13 @@ API_CORS_ORIGINS=https://macrocoach.example.com,http://localhost:5173,http://127
 только из токена, запускает LangGraph и сохраняет оба сообщения в
 `agent_messages`. После изменения `VITE_AGENT_API_URL` frontend нужно
 собрать и развернуть заново.
+
+Если Chat возвращает `401`, проверьте точный JSON в `Network -> Response`. Чаще
+всего frontend и backend используют разные Supabase-проекты либо браузер хранит
+старую сессию. Значения проекта в `VITE_SUPABASE_URL` и `SUPABASE_URL` должны
+совпадать; после исправления выйдите из аккаунта, очистите site data и войдите
+снова. Endpoint `/api/v1/agent/chat` принимает `POST`, поэтому его не проверяют
+простым открытием ссылки в браузере.
 
 ### Если чат возвращает `GIGACHAT_AUTH_ERROR`
 
