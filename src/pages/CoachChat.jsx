@@ -15,6 +15,26 @@ const AGENT_API_URL = import.meta.env.DEV
   ? "/agent-api"
   : (import.meta.env.VITE_AGENT_API_URL || "").replace(/\/$/, "");
 
+const AGENT_JOB_POLL_INTERVAL_MS = 750;
+const AGENT_JOB_TIMEOUT_MS = 5 * 60 * 1000;
+
+const waitForAgentJob = async (jobId, accessToken) => {
+  const deadline = Date.now() + AGENT_JOB_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, AGENT_JOB_POLL_INTERVAL_MS));
+    const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.detail || data?.error || `Job status request failed (${response.status})`);
+    }
+    if (data.status === "succeeded") return data;
+    if (data.status === "failed") throw new Error(data.error || "Agent job failed");
+  }
+  throw new Error("Agent response timed out. Please try again.");
+};
+
 // Разговоры и сообщения лежат в Supabase, а ответ формирует FastAPI
 // multi-agent backend. Supabase access token передаётся в Bearer-заголовке.
 
@@ -93,9 +113,14 @@ export default function CoachChat() {
           locale: lang,
         }),
       });
-      const data = await response.json().catch(() => null);
+      let data = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(data?.detail || data?.error || `Chat request failed (${response.status})`);
+      }
+      // New backends return a Redis job immediately. Keep accepting the old
+      // synchronous response during rolling deployments.
+      if (data?.job_id) {
+        data = await waitForAgentJob(data.job_id, sessionData.session.access_token);
       }
       if (!conversation) {
         // FastAPI создал новый разговор — подтягиваем его.

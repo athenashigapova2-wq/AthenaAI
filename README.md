@@ -369,6 +369,9 @@ Copy-Item ".\backend\.env.example" ".\backend\.env"
 python -m uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8001
 ```
 
+Chat выполняется через Redis и Celery workers. Полная инструкция запуска очереди,
+API и workers находится в [`backend/WORKERS.md`](backend/WORKERS.md).
+
 После запуска проверьте:
 
 ```text

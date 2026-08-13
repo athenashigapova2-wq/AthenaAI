@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # HTTP API
     api_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Redis-backed background jobs
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    agent_job_queue: str = "athena-agent"
+    agent_job_ttl_seconds: int = 3_600
+
     # Retrieval-augmented generation
     rag_enabled: bool = True
     rag_retrieval_limit: int = 6

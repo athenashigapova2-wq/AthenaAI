@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.agent import router as agent_router
 from app.config import settings
+from app.services.agent_jobs import redis_is_ready
 
 app = FastAPI(
     title="Athena AI API",
@@ -41,4 +42,9 @@ def readiness() -> dict[str, str | list[str]]:
     else:
         required_settings["GIGACHAT_AUTH_KEY"] = settings.gigachat_auth_key
     missing = [name for name, value in required_settings.items() if not value]
-    return {"status": "ready" if not missing else "not_ready", "missing": missing}
+    redis_ready = redis_is_ready()
+    return {
+        "status": "ready" if not missing and redis_ready else "not_ready",
+        "missing": missing,
+        "redis": "ready" if redis_ready else "unavailable",
+    }
