@@ -401,6 +401,8 @@ FastAPI принимает как legacy `HS256` access tokens, так и нов
 подписанные `RS256`/`ES256`. Для asymmetric tokens публичный ключ автоматически
 берётся из `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`; `SUPABASE_JWT_SECRET`
 нужен только проектам, которые всё ещё выпускают legacy `HS256` tokens.
+Если JWKS недоступен или в нём нет `kid` из заголовка токена, API возвращает
+JSON-ошибку `503`/`401`, а не безымянный `500`; сам access token в лог не пишется.
 
 В backend environment добавьте frontend origin в CORS, например:
 

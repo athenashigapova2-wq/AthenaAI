@@ -1,5 +1,6 @@
 """Validate Supabase access tokens at the FastAPI boundary."""
 
+import logging
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -7,10 +8,12 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError, PyJWKClient
+from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError, PyJWTError
 
 from app.config import settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -55,7 +58,21 @@ def decode_access_token(token: str) -> AuthenticatedUser:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Backend authentication is not configured: {exc}",
         ) from exc
-    except InvalidTokenError as exc:
+    except PyJWKClientConnectionError as exc:
+        logger.warning("Could not download Supabase JWKS: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Не удалось получить ключи подписи Supabase; проверьте SUPABASE_URL и сеть backend",
+        ) from exc
+    except PyJWKClientError as exc:
+        logger.warning("Supabase JWKS rejected access token: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Для access token не найден актуальный ключ подписи Supabase; войдите заново",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    except (InvalidTokenError, PyJWTError, ValueError, TypeError) as exc:
+        logger.info("Supabase access token validation failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Недействительный или истёкший access token",

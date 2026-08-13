@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import jwt
 from fastapi.testclient import TestClient
+from jwt.exceptions import PyJWKClientConnectionError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -68,6 +69,22 @@ def main() -> None:
     assert jwks_user.user_id == "jwks-user"
     assert jwks_decode.call_args.kwargs["algorithms"] == ["ES256"]
     assert jwks_decode.call_args.kwargs["issuer"].endswith("/auth/v1")
+
+    with (
+        patch.object(settings, "supabase_url", "https://project.supabase.co"),
+        patch("app.auth.supabase_jwt.jwt.get_unverified_header", return_value={"alg": "ES256"}),
+        patch("app.auth.supabase_jwt._jwks_client") as unavailable_jwks,
+    ):
+        unavailable_jwks.return_value.get_signing_key_from_jwt.side_effect = (
+            PyJWKClientConnectionError("offline")
+        )
+        try:
+            decode_access_token("asymmetric-token")
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 503
+            assert "SUPABASE_URL" in str(getattr(exc, "detail", ""))
+        else:
+            raise AssertionError("JWKS network failure must return HTTP 503")
 
     missing_token = client.post("/api/v1/agent/chat", json={"message": "Привет"})
     assert missing_token.status_code == 401
