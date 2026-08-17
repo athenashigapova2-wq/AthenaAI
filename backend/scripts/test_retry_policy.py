@@ -10,6 +10,8 @@ from langchain_core.tools import StructuredTool
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.specialists import _invoke_tool  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.model_routing import ModelSelection  # noqa: E402
 from app.resilience import is_transient_error, retry_transient  # noqa: E402
 from app.services import agent_traces  # noqa: E402
 
@@ -90,7 +92,10 @@ def assert_llm_is_retried() -> None:
             return "answer"
 
     llm = FlakyLLM()
-    with patch("app.resilience.time.sleep"):
+    with (
+        patch("app.resilience.time.sleep"),
+        patch.object(settings, "llm_circuit_breaker_enabled", False),
+    ):
         assert agent_traces.invoke_llm(
             llm,
             ["hello"],
@@ -146,10 +151,67 @@ def assert_only_read_tools_are_retried() -> None:
     assert write_attempts == 1
 
 
+def assert_each_llm_attempt_is_traced() -> None:
+    class FlakyLLM:
+        attempts = 0
+
+        def invoke(self, messages):
+            self.attempts += 1
+            if self.attempts < 3:
+                raise httpx.ReadTimeout("provider timeout")
+            return "answer"
+
+    selection = ModelSelection(
+        provider="gigachat",
+        requested_model_tier="small",
+        model_tier="main",
+        model_name="GigaChat-2",
+        matched_rule="router.route_classification",
+        selection_reason="matched router rule",
+        is_fallback=True,
+        fallback_reason="small model is not configured",
+    )
+    with (
+        patch("app.resilience.time.sleep"),
+        patch.object(settings, "llm_circuit_breaker_enabled", False),
+        patch(
+            "app.services.agent_traces.create_llm_call",
+            side_effect=["call-1", "call-2", "call-3"],
+        ) as create_call,
+        patch("app.services.agent_traces.fail_llm_call") as fail_call,
+        patch("app.services.agent_traces.succeed_llm_call") as succeed_call,
+    ):
+        assert agent_traces.invoke_llm(
+            FlakyLLM(),
+            ["hello"],
+            run_id="run-id",
+            node_name="router",
+            purpose="route_classification",
+            model_tier="main",
+            model_selection=selection,
+        ) == "answer"
+
+    assert create_call.call_count == 3
+    create_kwargs = [call.kwargs for call in create_call.call_args_list]
+    assert [values["attempt_number"] for values in create_kwargs] == [1, 2, 3]
+    assert [values["retry_reason"] for values in create_kwargs] == [
+        None,
+        "ReadTimeout",
+        "ReadTimeout",
+    ]
+    invocation_ids = {values["invocation_id"] for values in create_kwargs}
+    assert len(invocation_ids) == 1
+    assert all(values["model_selection"] is selection for values in create_kwargs)
+    assert fail_call.call_count == 2
+    succeed_call.assert_called_once()
+    assert succeed_call.call_args.args[0] == "call-3"
+
+
 if __name__ == "__main__":
     assert_retry_schedule()
     assert_non_transient_failure_is_not_retried()
     assert_status_classification()
     assert_llm_is_retried()
     assert_only_read_tools_are_retried()
+    assert_each_llm_attempt_is_traced()
     print("Retry policy checks passed")

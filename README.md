@@ -85,6 +85,85 @@ network/timeout ошибки и HTTP `408`, `425`, `429`, `500`, `502`, `503`, `
 Операции записи и Celery-задача целиком не повторяются: это предотвращает двойную
 запись еды или тренировки при неопределённом результате сетевого запроса.
 
+### Конфигурируемый model router
+
+Model router выбирает только между настроенными моделями GigaChat; переключения на
+другого провайдера нет. Доступны два tier:
+
+- `small` — `LLM_ROUTER_MODEL`, а если он пустой, используется `GIGACHAT_MODEL`;
+- `main` — `GIGACHAT_MODEL`.
+
+Policy задаётся JSON-объектом в `LLM_MODEL_ROUTING_POLICY`. Правила проверяются в
+порядке `node.purpose → node.* → *.purpose → *`. Конфигурация по умолчанию отправляет
+классификацию маршрута и перевод названия продукта в `small`, а остальные вызовы —
+в `main`:
+
+```env
+LLM_MODEL_ROUTING_ENABLED=true
+LLM_ROUTER_MODEL=
+LLM_MODEL_ROUTING_POLICY={"router.route_classification":"small","nutrition.food_translation":"small","*":"main"}
+```
+
+Примеры `node`: `router`, `nutrition`, `workout`, `recovery`, `general`. Примеры
+`purpose`: `route_classification`, `food_translation`, `tool_planning_or_answer`,
+`answer`. Неизвестный или некорректный tier останавливает backend при чтении настроек;
+молчаливого provider fallback нет. Фактические `model_tier` и `model_name` каждого
+вызова сохраняются в `agent_llm_calls`.
+
+Каждая фактическая попытка обращения к GigaChat создаёт отдельную строку
+`agent_llm_calls`. Все retries одного логического вызова объединяет `invocation_id`,
+а `attempt_number` содержит номер попытки. Для аудита также сохраняются:
+
+- `requested_model_tier` и фактически использованный `model_tier`;
+- `routing_rule` и человекочитаемый `selection_reason`;
+- `is_fallback` и `fallback_reason`;
+- `retry_reason` — классификация ошибки предыдущей попытки.
+
+Если policy выбрала `small`, но `LLM_ROUTER_MODEL` пустой, используется main-модель и
+это явно записывается как fallback. Runtime/provider fallback не выполняется. Перед
+запуском этого backend-кода должна быть применена миграция
+`0015_agent_llm_attempt_tracing.sql`.
+
+После миграции `agent_runs.llm_call_count` означает число фактических provider-попыток,
+а не число логических вызовов. Последние решения можно проверить в SQL Editor:
+
+```sql
+select invocation_id, attempt_number, node_name, purpose,
+       requested_model_tier, model_tier, model_name,
+       routing_rule, selection_reason, is_fallback,
+       fallback_reason, retry_reason, status
+from public.agent_llm_calls
+order by created_at desc
+limit 50;
+```
+
+### Redis circuit breaker
+
+Все workers используют общий circuit breaker GigaChat в Redis. После пяти логических
+временных сбоев (каждый считается только после исчерпания retries) circuit переходит
+из `closed` в `open`. Следующие LLM-вызовы завершаются сразу, не создавая дополнительную
+нагрузку на недоступного провайдера.
+
+Через 30 секунд circuit атомарно переходит в `half_open`: только один worker получает
+lease на пробный вызов. Успешный probe закрывает circuit и сбрасывает счётчик; временная
+ошибка снова открывает его. Если worker погиб во время probe, 210-секундный lease
+освобождается автоматически. Lua-скрипты и Redis `TIME` обеспечивают одинаковое
+состояние и единственный probe при нескольких контейнерах worker.
+
+При недоступности Redis breaker работает fail-open: GigaChat-вызов разрешается, чтобы
+защитный механизм сам не стал причиной отказа. Ошибки запроса, авторизации и другие
+не-временные ошибки не увеличивают счётчик availability failures.
+
+Текущее состояние можно посмотреть без изменения данных:
+
+```powershell
+docker compose exec -T redis redis-cli `
+    HGETALL athena:circuit-breaker:gigachat
+```
+
+Отсутствующий ключ означает `closed`. Параметры порога, cooldown, probe lease и TTL
+задаются переменными `LLM_CIRCUIT_BREAKER_*` из `backend/.env.example`.
+
 ### Embedding model
 
 Worker до перехода в `ready` загружает локальную модель
@@ -154,6 +233,8 @@ GIGACHAT_AUTH_KEY=
 GIGACHAT_SCOPE=GIGACHAT_API_PERS
 GIGACHAT_MODEL=GigaChat-2
 LLM_ROUTER_MODEL=
+LLM_MODEL_ROUTING_ENABLED=true
+LLM_MODEL_ROUTING_POLICY={"router.route_classification":"small","nutrition.food_translation":"small","*":"main"}
 
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
@@ -260,6 +341,8 @@ python backend/scripts/test_agent_architecture.py
 python backend/scripts/test_agent_workers.py
 python backend/scripts/test_agent_traces.py
 python backend/scripts/test_retry_policy.py
+python backend/scripts/test_circuit_breaker.py
+python backend/scripts/test_model_routing.py
 python backend/scripts/test_rag_retriever.py
 ```
 
@@ -340,6 +423,7 @@ backend/app/
   agents/       LangGraph router, retriever и specialists
   api/          FastAPI endpoints
   auth/         Supabase JWT validation
+  model_routing.py  GigaChat model-routing policy
   rag/          retrieval и ingestion contracts
   services/     jobs, conversations, tracing, Supabase
   tools/        read/write инструменты агента
