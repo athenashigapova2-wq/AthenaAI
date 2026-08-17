@@ -1,3 +1,16 @@
+x-backend: &backend
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  env_file:
+    - ./backend/.env
+  environment:
+    REDIS_URL: redis://redis:6379/0
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+
 services:
   redis:
     image: redis:7.4-alpine
@@ -13,5 +26,49 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8001:8001"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json, urllib.request;
+          assert json.load(urllib.request.urlopen('http://127.0.0.1:8001/health/ready'))['status'] == 'ready'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    <<: *backend
+    volumes:
+      - hf-cache:/home/athena/.cache/huggingface
+    command:
+      - python
+      - -m
+      - celery
+      - -A
+      - app.workers.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --pool=threads
+      - --concurrency=4
+      - --hostname=athena-worker@%h
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -m celery -A app.workers.celery_app:celery_app inspect ping
+          --destination athena-worker@$$(hostname) --timeout=5 | grep -q pong
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15m
+
 volumes:
   redis-data:
+  hf-cache:

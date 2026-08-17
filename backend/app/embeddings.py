@@ -9,7 +9,7 @@
 англоязычного справочника.
 """
 
-from functools import lru_cache
+from threading import Lock
 
 from langchain_core.embeddings import Embeddings
 
@@ -45,6 +45,15 @@ class LocalEmbeddings(Embeddings):
         return vector.tolist()
 
 
-@lru_cache(maxsize=1)
+_embeddings: Embeddings | None = None
+_embeddings_lock = Lock()
+
+
 def get_embeddings() -> Embeddings:
-    return LocalEmbeddings()
+    """Load the model once, even when several worker threads arrive together."""
+    global _embeddings
+    if _embeddings is None:
+        with _embeddings_lock:
+            if _embeddings is None:
+                _embeddings = LocalEmbeddings()
+    return _embeddings

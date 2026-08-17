@@ -29,9 +29,9 @@ def run_agent_chat_task(
         )
     except ConversationNotFoundError as exc:
         mark_job_failed(job_id, str(exc))
-        return
+        raise
     except Exception:
         logger.exception("Agent job %s failed", job_id)
         mark_job_failed(job_id, "Агент временно недоступен")
-        return
+        raise
     mark_job_succeeded(job_id, result)

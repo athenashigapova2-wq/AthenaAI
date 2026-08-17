@@ -1,8 +1,14 @@
 """Celery application configured with Redis as its broker."""
 
+import logging
+
 from celery import Celery
+from celery.signals import worker_ready
 
 from app.config import settings
+from app.embeddings import get_embeddings
+
+logger = logging.getLogger(__name__)
 
 celery_app = Celery(
     "athena",
@@ -21,3 +27,11 @@ celery_app.conf.update(
     timezone="UTC",
     worker_prefetch_multiplier=1,
 )
+
+
+@worker_ready.connect
+def preload_embeddings(**_: object) -> None:
+    """Load embeddings before this worker starts consuming chat jobs."""
+    logger.info("Preloading embedding model")
+    get_embeddings()
+    logger.info("Embedding model ready")
