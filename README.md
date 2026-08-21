@@ -344,6 +344,7 @@ python backend/scripts/test_retry_policy.py
 python backend/scripts/test_circuit_breaker.py
 python backend/scripts/test_model_routing.py
 python backend/scripts/test_rag_retriever.py
+python backend/scripts/test_load_tests.py
 ```
 
 Evaluation datasets:
@@ -357,6 +358,16 @@ python backend/scripts/eval_answer_quality.py
 
 Команды с `--live` выполняют реальные вызовы GigaChat, но используют фиктивные
 результаты инструментов и не должны записывать пользовательские данные.
+
+## Нагрузочное тестирование
+
+Locust-сценарий измеряет параллельных пользователей, enqueue и полный цикл worker,
+RPS, error rate, p50/p95/p99, а также отдельные стадии warm-up, steady, overload и
+recovery. Он делает реальные GigaChat-вызовы и предназначен только для локальной
+или staging-среды с отдельными тестовыми пользователями.
+
+Инструкции по токенам, профилю нагрузки, HTML/CSV-отчётам и SLO-проверке находятся
+в [`backend/load_tests/README.md`](backend/load_tests/README.md).
 
 ## RAG и справочник продуктов
 

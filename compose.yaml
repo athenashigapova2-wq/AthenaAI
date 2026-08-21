@@ -69,6 +69,49 @@ services:
       retries: 5
       start_period: 15m
 
+  influxdb:
+    image: influxdb:2.7-alpine
+    restart: unless-stopped
+    env_file:
+      - ./observability/.env
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://127.0.0.1:8086"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  grafana:
+    image: grafana/grafana:12.4.0
+    restart: unless-stopped
+    env_file:
+      - ./observability/.env
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --spider --quiet http://127.0.0.1:3000/api/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
 volumes:
   redis-data:
   hf-cache:
+  influxdb-data:
+  influxdb-config:
+  grafana-data:
