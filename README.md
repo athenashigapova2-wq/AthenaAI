@@ -78,17 +78,41 @@ Frontend в локальной разработке запускается от�
 - RAG RPC;
 - инструменты, явно отмеченные `read_only`.
 
-По умолчанию выполняется до трёх попыток с exponential backoff `0.5s → 1s`,
-jitter до 25% и верхней границей задержки 4 секунды. Повторяемыми считаются
-network/timeout ошибки и HTTP `408`, `425`, `429`, `500`, `502`, `503`, `504`.
+Для network/timeout и HTTP `408`, `425`, `500`, `502`, `503`, `504` по умолчанию
+выполняется до трёх попыток с exponential backoff `0.5s → 1s`, jitter до 25% и
+верхней границей задержки 4 секунды. HTTP `429` использует более спокойную отдельную
+политику: до четырёх попыток с задержками `2s → 4s → 8s`, jitter и учётом числового
+заголовка `Retry-After` (с общей верхней границей 30 секунд).
 
 Операции записи и Celery-задача целиком не повторяются: это предотвращает двойную
 запись еды или тренировки при неопределённом результате сетевого запроса.
 
+### Redis rate limiter для GigaChat
+
+Перед каждой фактической попыткой GigaChat worker получает permit из общего Redis
+token bucket. Поэтому четыре Celery threads и дополнительные worker-контейнеры не
+создают независимые всплески к провайдеру. По умолчанию общий лимит равен `4 RPS`,
+разрешённый кратковременный burst — 4 запроса, ожидание permit — до 30 секунд.
+
+Лимитер применяется только к реальным GigaChat-вызовам: mock LLM, Supabase reads и
+write-инструменты через него не проходят. Permit получается до создания строки
+`agent_llm_calls`, поэтому ожидание не считается provider latency и не выглядит как
+несуществующая попытка. Если Redis недоступен, limiter работает fail-open и пишет
+warning; если permit не получен за timeout, provider не вызывается и состояние
+circuit breaker не изменяется.
+
+Параметры `LLM_RATE_LIMIT_*` нужно согласовать с квотой конкретного GigaChat-контракта.
+Текущее состояние bucket можно посмотреть без изменения данных:
+
+```powershell
+docker compose exec -T redis redis-cli `
+    GET athena:rate-limit:gigachat
+```
+
 ### Конфигурируемый model router
 
-Model router выбирает только между настроенными моделями GigaChat; переключения на
-другого провайдера нет. Доступны два tier:
+В production-режиме model router выбирает только между настроенными моделями
+GigaChat; runtime-переключения на другого облачного провайдера нет. Доступны два tier:
 
 - `small` — `LLM_ROUTER_MODEL`, а если он пустой, используется `GIGACHAT_MODEL`;
 - `main` — `GIGACHAT_MODEL`.
@@ -123,6 +147,49 @@ LLM_MODEL_ROUTING_POLICY={"router.route_classification":"small","nutrition.food_
 это явно записывается как fallback. Runtime/provider fallback не выполняется. Перед
 запуском этого backend-кода должна быть применена миграция
 `0015_agent_llm_attempt_tracing.sql`.
+
+### Детерминированный mock LLM
+
+Для локальной проверки FastAPI, Redis, Celery, LangGraph и longitudinal-тестового
+контура можно явно включить mock-модель:
+
+```env
+LLM_PROVIDER=mock
+MOCK_LLM_MODEL=athena-mock-v1
+MOCK_LLM_LATENCY_MS=0
+```
+
+По умолчанию используется `LLM_PROVIDER=gigachat`. Mock не является fallback,
+никогда не обращается к GigaChat и помечается как `model_provider=mock` в tracing.
+Он возвращает детерминированные ответы и нужен для проверки инфраструктуры, а не
+для оценки качества реальной модели. JWT, Supabase и остальные границы доступа
+при этом не отключаются. После изменения `.env` пересоздайте `api` и `worker`.
+
+Для поиска именно инфраструктурного предела FastAPI → Redis → Celery → Redis
+есть отдельный, явно включаемый режим:
+
+```env
+LLM_PROVIDER=mock
+AGENT_INFRASTRUCTURE_TEST_MODE=true
+AGENT_INFRASTRUCTURE_TEST_LATENCY_MS=0
+```
+
+В нём API по-прежнему проверяет JWT, создаёт Redis job и отправляет Celery task,
+а worker записывает результат обратно в Redis. Внутри worker не вызываются
+LangGraph, Supabase и внешний LLM. Режим не запустится с
+`LLM_PROVIDER=gigachat`. После теста обязательно верните
+`AGENT_INFRASTRUCTURE_TEST_MODE=false`.
+
+Ступенчатый capacity-тест запускается так:
+
+```powershell
+.\backend\load_tests\jmeter\run-capacity-with-grafana.ps1
+```
+
+По умолчанию выполняются ступени 10, 20, 40, 80 и 120 виртуальных пользователей.
+Для каждой ступени сохраняются JTL, JSON summary, p50/p95/p99 полного E2E,
+latency постановки задачи в очередь, throughput и error rate. Общий CSV/JSON
+создаётся в `%TEMP%\athena-jmeter-capacity-results-*`.
 
 После миграции `agent_runs.llm_call_count` означает число фактических provider-попыток,
 а не число логических вызовов. Последние решения можно проверить в SQL Editor:
@@ -341,6 +408,7 @@ python backend/scripts/test_agent_architecture.py
 python backend/scripts/test_agent_workers.py
 python backend/scripts/test_agent_traces.py
 python backend/scripts/test_retry_policy.py
+python backend/scripts/test_rate_limiter.py
 python backend/scripts/test_circuit_breaker.py
 python backend/scripts/test_model_routing.py
 python backend/scripts/test_rag_retriever.py

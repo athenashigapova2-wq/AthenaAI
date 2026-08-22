@@ -9,6 +9,7 @@ from langchain_core.language_models import BaseChatModel
 
 from app.config import settings
 from app.model_routing import ModelSelection, ModelTier, model_name_for_tier, select_model
+from app.mock_llm import AthenaMockChatModel
 
 
 @lru_cache(maxsize=8)
@@ -30,14 +31,41 @@ def _get_gigachat(model: str, *, temperature: float | None = None) -> BaseChatMo
     return GigaChat(**kwargs)
 
 
+@lru_cache(maxsize=16)
+def _get_mock_llm(
+    model: str,
+    *,
+    node_name: str,
+    purpose: str,
+) -> BaseChatModel:
+    return AthenaMockChatModel(
+        model_name=model,
+        node_name=node_name,
+        purpose=purpose,
+        latency_ms=settings.mock_llm_latency_ms,
+    )
+
+
 def get_llm() -> BaseChatModel:
     """Основная модель: диалог, вызов инструментов."""
+    if settings.llm_provider == "mock":
+        return _get_mock_llm(
+            settings.mock_llm_model,
+            node_name="general",
+            purpose="answer",
+        )
     return _get_gigachat(settings.gigachat_model)
 
 
 @lru_cache(maxsize=1)
 def get_router_llm() -> BaseChatModel:
     """Лёгкая модель для роутера: одна классификация, нужна скорость."""
+    if settings.llm_provider == "mock":
+        return _get_mock_llm(
+            settings.mock_llm_model,
+            node_name="router",
+            purpose="route_classification",
+        )
     return _get_gigachat(model_name_for_tier("small"), temperature=0.0)
 
 
@@ -54,7 +82,12 @@ def get_routed_llm(
         purpose=purpose,
         default_tier=default_tier,
     )
-    return (
-        _get_gigachat(selection.model_name, temperature=temperature),
-        selection,
-    )
+    if selection.provider == "mock":
+        model = _get_mock_llm(
+            selection.model_name,
+            node_name=node_name,
+            purpose=purpose,
+        )
+    else:
+        model = _get_gigachat(selection.model_name, temperature=temperature)
+    return model, selection

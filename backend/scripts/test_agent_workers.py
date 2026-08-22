@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.config import settings  # noqa: E402
 from app.services.agent_chat import run_agent_chat  # noqa: E402
 from app.services.agent_jobs import get_agent_job  # noqa: E402
 from app.workers.tasks import run_agent_chat_task  # noqa: E402
@@ -78,6 +79,29 @@ def check_worker_task() -> None:
         else:
             raise AssertionError("A failed worker task must remain failed in Celery")
     failed.assert_called_once_with("failed-job-id", "Агент временно недоступен")
+
+    infrastructure_result = {
+        "answer": "[INFRASTRUCTURE_TEST] FastAPI/Redis/Celery task completed.",
+        "route": "general",
+        "conversation_id": "infra-job-id",
+    }
+    with (
+        patch.object(settings, "llm_provider", "mock"),
+        patch.object(settings, "agent_infrastructure_test_mode", True),
+        patch.object(settings, "agent_infrastructure_test_latency_ms", 0),
+        patch("app.workers.tasks.mark_job_running"),
+        patch("app.workers.tasks.run_agent_chat") as agent_chat,
+        patch("app.workers.tasks.mark_job_succeeded") as succeeded,
+    ):
+        run_agent_chat_task.run(
+            job_id="infra-job-id",
+            user_id="user-id",
+            message="Hello",
+            locale="en",
+            conversation_id=None,
+        )
+    agent_chat.assert_not_called()
+    succeeded.assert_called_once_with("infra-job-id", infrastructure_result)
 
 
 def check_job_ownership() -> None:

@@ -23,6 +23,7 @@ const Profile = lazy(() => import('@/pages/Profile'));
 const MacroCalculator = lazy(() => import('@/pages/MacroCalculator'));
 const Workout = lazy(() => import('@/pages/Workout'));
 const CoachChat = lazy(() => import('@/pages/CoachChat'));
+const Observability = lazy(() => import('@/pages/Observability'));
 
 import AppLayout from '@/components/AppLayout';
 import { useDarkMode } from '@/hooks/useDarkMode';
@@ -70,6 +71,7 @@ const AuthenticatedApp = () => {
             <Route path="/profile" element={<Profile />} />
             <Route path="/calculator" element={<MacroCalculator />} />
             <Route path="/workout" element={<Workout />} />
+            <Route path="/observability" element={<Observability />} />
           </Route>
         </Route>
         <Route path="*" element={<PageNotFound />} />

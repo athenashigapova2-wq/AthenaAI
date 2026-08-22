@@ -33,7 +33,7 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"athena-agent\" and r.transaction == \"agent_chat_e2e\" and r.statut == \"ok\")\n  |> filter(fn: (r) => r._field == \"pct50.0\" or r._field == \"pct95.0\" or r._field == \"pct99.0\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"latency\")",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"${application}\" and r.transaction == \"agent_chat_e2e\" and r.statut == \"ok\")\n  |> filter(fn: (r) => r._field == \"pct50.0\" or r._field == \"pct95.0\" or r._field == \"pct99.0\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"latency\")",
           "refId": "A"
         }
       ],
@@ -51,7 +51,7 @@
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
       "targets": [
         {
-          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"athena-agent\" and r.transaction == \"agent_chat_e2e\" and r.statut == \"ko\" and r._field == \"count\")\n  |> sum()",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"${application}\" and r.transaction == \"agent_chat_e2e\" and r.statut == \"ko\" and r._field == \"count\")\n  |> sum()",
           "refId": "A"
         }
       ],
@@ -66,7 +66,7 @@
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
       "targets": [
         {
-          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"athena-agent\" and r.transaction == \"internal\" and r._field == \"maxAT\")\n  |> max()",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"${application}\" and r.transaction == \"internal\" and r._field == \"maxAT\")\n  |> max()",
           "refId": "A"
         }
       ],
@@ -81,11 +81,11 @@
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         {
-          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"athena-agent\" and r.statut == \"all\" and r._field == \"count\")\n  |> filter(fn: (r) => r.transaction != \"internal\" and r.transaction != \"all\")\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) / 5.0 }))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"${application}\" and r.transaction == \"agent_chat_e2e\" and r.statut == \"all\" and r._field == \"count\")\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) / 5.0 }))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ],
-      "title": "Throughput (RPS, 5 s listener interval)",
+      "title": "E2E throughput (scenarios/s, 5 s interval)",
       "type": "timeseries"
     },
     {
@@ -96,7 +96,7 @@
       "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         {
-          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"athena-agent\" and r.statut == \"ok\")\n  |> filter(fn: (r) => r._field == \"pct95.0\")\n  |> filter(fn: (r) => r.transaction == \"POST agent/chat enqueue\" or r.transaction == \"GET agent/chat/jobs/{job_id} poll\" or r.transaction == \"agent_chat_e2e\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"jmeter\")\n  |> filter(fn: (r) => r.application == \"${application}\" and r.statut == \"ok\")\n  |> filter(fn: (r) => r._field == \"pct95.0\")\n  |> filter(fn: (r) => r.transaction == \"POST agent/chat enqueue\" or r.transaction == \"GET agent/chat/jobs/{job_id} poll\" or r.transaction == \"agent_chat_e2e\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ],
@@ -107,12 +107,32 @@
   "refresh": "5s",
   "schemaVersion": 41,
   "tags": ["athena", "jmeter", "load-test"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "influxdb", "uid": "athena-jmeter-influxdb" },
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"jmeter\", tag: \"application\", predicate: (r) => r._measurement == \"jmeter\", start: -30d)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Load-test run",
+        "multi": false,
+        "name": "application",
+        "options": [],
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"jmeter\", tag: \"application\", predicate: (r) => r._measurement == \"jmeter\", start: -30d)",
+        "refresh": 2,
+        "regex": "/^athena-agent-/",
+        "skipUrlSync": false,
+        "sort": 2,
+        "type": "query"
+      }
+    ]
+  },
   "time": { "from": "now-30m", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "Athena — JMeter Load Tests",
   "uid": "athena-jmeter-load-tests",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }

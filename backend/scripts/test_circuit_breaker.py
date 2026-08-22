@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import httpx
+from gigachat.exceptions import ResponseError as GigaChatResponseError
 from redis.exceptions import RedisError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -16,6 +17,7 @@ from app.circuit_breaker import (  # noqa: E402
     call_with_circuit_breaker,
 )
 from app.config import settings  # noqa: E402
+from app.rate_limiter import RateLimitAcquireTimeout  # noqa: E402
 from app.resilience import is_transient_error  # noqa: E402
 
 
@@ -68,6 +70,36 @@ def check_transient_failure_is_recorded_after_retries() -> None:
         else:
             raise AssertionError("The provider error must propagate")
     operation.assert_called_once()
+    assert len(client.eval_calls) == 2
+    assert client.eval_calls[1][0] == _FAILURE_SCRIPT
+
+
+def check_gigachat_429_is_recorded_once_after_retries() -> None:
+    client = FakeRedis([1, "closed", 0], ["closed", 1])
+    error = GigaChatResponseError(
+        "https://gigachat.example/chat/completions",
+        429,
+        b'{"status":429}',
+        {},
+    )
+    operation = Mock(side_effect=error)
+    with (
+        patch("app.circuit_breaker.redis_client", return_value=client),
+        patch("app.resilience.time.sleep"),
+        patch.object(settings, "safe_retry_rate_limit_max_attempts", 4),
+    ):
+        try:
+            call_with_circuit_breaker(
+                operation,
+                circuit_name="gigachat",
+                operation_name="llm.test",
+            )
+        except GigaChatResponseError:
+            pass
+        else:
+            raise AssertionError("The provider rate limit must propagate")
+
+    assert operation.call_count == 4
     assert len(client.eval_calls) == 2
     assert client.eval_calls[1][0] == _FAILURE_SCRIPT
 
@@ -126,12 +158,68 @@ def check_atomic_scripts_use_redis_time() -> None:
     assert '"state", "open"' in _FAILURE_SCRIPT
 
 
+def check_rate_limiter_runs_before_every_provider_attempt() -> None:
+    client = FakeRedis([1, "closed", 0], "closed")
+    operation = Mock(
+        side_effect=[
+            httpx.ConnectError("first"),
+            httpx.ConnectError("second"),
+            "answer",
+        ]
+    )
+    with (
+        patch("app.circuit_breaker.redis_client", return_value=client),
+        patch("app.circuit_breaker.acquire_rate_limit") as acquire_rate_limit,
+        patch("app.resilience.time.sleep"),
+        patch.object(settings, "safe_retry_max_attempts", 3),
+    ):
+        assert call_with_circuit_breaker(
+            operation,
+            circuit_name="gigachat",
+            operation_name="llm.test",
+        ) == "answer"
+
+    assert operation.call_count == 3
+    assert acquire_rate_limit.call_count == 3
+
+
+def check_local_rate_limit_timeout_does_not_mutate_circuit() -> None:
+    client = FakeRedis([1, "closed", 0])
+    operation = Mock(return_value="must not run")
+    with (
+        patch("app.circuit_breaker.redis_client", return_value=client),
+        patch(
+            "app.circuit_breaker.acquire_rate_limit",
+            side_effect=RateLimitAcquireTimeout("gigachat", 1.0),
+        ),
+    ):
+        try:
+            call_with_circuit_breaker(
+                operation,
+                circuit_name="gigachat",
+                operation_name="llm.test",
+            )
+        except RateLimitAcquireTimeout:
+            pass
+        else:
+            raise AssertionError("A local admission timeout must propagate")
+
+    operation.assert_not_called()
+    assert len(client.eval_calls) == 1
+
+
 if __name__ == "__main__":
-    with patch.object(settings, "llm_circuit_breaker_enabled", True):
+    with (
+        patch.object(settings, "llm_circuit_breaker_enabled", True),
+        patch.object(settings, "llm_rate_limiter_enabled", False),
+    ):
         check_open_circuit_short_circuits()
         check_transient_failure_is_recorded_after_retries()
+        check_gigachat_429_is_recorded_once_after_retries()
         check_half_open_allows_one_successful_probe()
         check_non_transient_probe_releases_breaker()
         check_redis_failure_is_fail_open()
         check_atomic_scripts_use_redis_time()
+        check_rate_limiter_runs_before_every_provider_attempt()
+        check_local_rate_limit_timeout_does_not_mutate_circuit()
     print("Circuit breaker checks passed")

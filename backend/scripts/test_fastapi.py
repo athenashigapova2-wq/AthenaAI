@@ -149,10 +149,38 @@ def check_job_api() -> None:
     assert hidden_foreign_job.status_code == 404
 
 
+def check_readiness_respects_llm_provider() -> None:
+    with (
+        patch.object(settings, "llm_provider", "mock"),
+        patch.object(settings, "supabase_url", "https://project.supabase.co"),
+        patch.object(settings, "supabase_service_role_key", "service-role"),
+        patch.object(settings, "gigachat_auth_key", ""),
+        patch("app.main.redis_is_ready", return_value=True),
+    ):
+        mock_ready = client.get("/health/ready")
+    assert mock_ready.json() == {
+        "status": "ready",
+        "missing": [],
+        "redis": "ready",
+    }
+
+    with (
+        patch.object(settings, "llm_provider", "gigachat"),
+        patch.object(settings, "supabase_url", "https://project.supabase.co"),
+        patch.object(settings, "supabase_service_role_key", "service-role"),
+        patch.object(settings, "gigachat_auth_key", ""),
+        patch("app.main.redis_is_ready", return_value=True),
+    ):
+        gigachat_not_ready = client.get("/health/ready")
+    assert gigachat_not_ready.json()["status"] == "not_ready"
+    assert gigachat_not_ready.json()["missing"] == ["GIGACHAT_AUTH_KEY"]
+
+
 def main() -> None:
     health_response = client.get("/health")
     assert health_response.status_code == 200
     assert health_response.json() == {"status": "ok"}
+    check_readiness_respects_llm_provider()
     check_jwt_boundary()
     check_job_api()
     print("FastAPI checks passed")

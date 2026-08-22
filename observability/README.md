@@ -40,6 +40,23 @@ equivalent to:
     -Scenario baseline-5x5
 ```
 
-The script uses JMeter in non-GUI mode, writes the JTL file to the Windows temp
-directory and sends aggregated metrics to InfluxDB. Open Grafana and select the
-last 30 minutes.
+The script uses JMeter in non-GUI mode and assigns every invocation a unique run
+ID such as `baseline-5x5-20260821-071418`. That ID is stored in the InfluxDB
+`application` tag, so metrics from separate runs are not combined.
+
+After the test, the script writes two files to the Windows temp directory:
+
+- `athena-jmeter-smoke-<timestamp>.jtl`: raw JMeter samples;
+- `athena-jmeter-smoke-<timestamp>.summary.json`: full-run p50/p95/p99,
+  duration, throughput, error rate and sample counts.
+
+The final terminal output includes a `Grafana (this run only)` URL. Open that
+exact URL: it selects the unique application tag and an absolute time range
+around the run. The `Load-test run` dashboard selector can be used to switch to
+another run without mixing their metrics.
+
+The Grafana latency and throughput charts contain five-second Backend Listener
+aggregates. The JSON summary and JTL remain authoritative for full-run
+percentiles and throughput. The throughput chart counts only completed parent
+`agent_chat_e2e` scenarios; POST, polling GET and assertion samplers are not
+added to that E2E rate.

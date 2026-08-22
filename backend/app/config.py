@@ -18,6 +18,20 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # LLM provider. Mock is explicit and intended only for local/test contours.
+    llm_provider: Literal["gigachat", "mock"] = "gigachat"
+    mock_llm_model: str = "athena-mock-v1"
+    mock_llm_latency_ms: int = Field(default=0, ge=0, le=60_000)
+
+    # Capacity-test fast path. This skips LangGraph and Supabase inside the
+    # worker while retaining JWT, FastAPI, Redis broker/status, and Celery.
+    agent_infrastructure_test_mode: bool = False
+    agent_infrastructure_test_latency_ms: int = Field(
+        default=0,
+        ge=0,
+        le=60_000,
+    )
+
     # GigaChat models
     llm_router_model: str = ""
     llm_model_routing_enabled: bool = True
@@ -40,6 +54,38 @@ class Settings(BaseSettings):
     safe_retry_base_delay_seconds: float = Field(default=0.5, ge=0.0, le=60.0)
     safe_retry_max_delay_seconds: float = Field(default=4.0, ge=0.0, le=120.0)
     safe_retry_jitter_ratio: float = Field(default=0.25, ge=0.0, le=1.0)
+
+    # Provider throttling needs a slower schedule than ordinary network errors.
+    safe_retry_rate_limit_max_attempts: int = Field(default=4, ge=1, le=10)
+    safe_retry_rate_limit_base_delay_seconds: float = Field(
+        default=2.0,
+        ge=0.0,
+        le=300.0,
+    )
+    safe_retry_rate_limit_max_delay_seconds: float = Field(
+        default=30.0,
+        ge=0.0,
+        le=600.0,
+    )
+
+    # Shared token-bucket limiter prevents all workers from bursting GigaChat.
+    llm_rate_limiter_enabled: bool = True
+    llm_rate_limit_requests_per_second: float = Field(
+        default=4.0,
+        gt=0.0,
+        le=1_000.0,
+    )
+    llm_rate_limit_burst: int = Field(default=4, ge=1, le=10_000)
+    llm_rate_limit_acquire_timeout_seconds: float = Field(
+        default=30.0,
+        ge=0.0,
+        le=600.0,
+    )
+    llm_rate_limit_state_ttl_seconds: int = Field(
+        default=3_600,
+        ge=60,
+        le=86_400,
+    )
 
     # Shared GigaChat circuit breaker state lives in Redis across all workers.
     llm_circuit_breaker_enabled: bool = True

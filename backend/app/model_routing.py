@@ -8,13 +8,14 @@ from typing import Literal
 from app.config import settings
 
 ModelTier = Literal["small", "main"]
+ModelProvider = Literal["gigachat", "mock"]
 
 
 @dataclass(frozen=True)
 class ModelSelection:
     """Auditable result of one model-routing decision."""
 
-    provider: Literal["gigachat"]
+    provider: ModelProvider
     requested_model_tier: ModelTier
     model_tier: ModelTier
     model_name: str
@@ -26,6 +27,8 @@ class ModelSelection:
 
 def model_name_for_tier(model_tier: str) -> str:
     """Resolve a configured tier to an actual GigaChat model name."""
+    if settings.llm_provider == "mock":
+        return settings.mock_llm_model
     if model_tier == "small":
         return settings.llm_router_model.strip() or settings.gigachat_model
     if model_tier == "main":
@@ -79,7 +82,11 @@ def select_model(
     actual_tier = requested_tier
     is_fallback = False
     fallback_reason = None
-    if requested_tier == "small" and not settings.llm_router_model.strip():
+    if (
+        settings.llm_provider == "gigachat"
+        and requested_tier == "small"
+        and not settings.llm_router_model.strip()
+    ):
         actual_tier = "main"
         is_fallback = True
         fallback_reason = (
@@ -88,7 +95,7 @@ def select_model(
         )
 
     return ModelSelection(
-        provider="gigachat",
+        provider=settings.llm_provider,
         requested_model_tier=requested_tier,
         model_tier=actual_tier,
         model_name=model_name_for_tier(actual_tier),

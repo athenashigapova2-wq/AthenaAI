@@ -1,20 +1,30 @@
 """Persistence helpers for agent-run observability in Supabase."""
 
+import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any
+from typing import Any, TypeVar
 from uuid import uuid4
 
 from app.circuit_breaker import call_with_circuit_breaker
 from app.config import settings
 from app.model_routing import ModelSelection, model_name_for_tier
+from app.resilience import http_status_code
 from app.services.supabase import get_supabase
 
-MODEL_PROVIDER = "gigachat"
+logger = logging.getLogger(__name__)
+_TraceResult = TypeVar("_TraceResult")
 
 
 def _model_name(model_tier: str = "main") -> str:
     return model_name_for_tier(model_tier)
+
+
+def _model_provider(model_selection: ModelSelection | None = None) -> str:
+    if model_selection is not None:
+        return model_selection.provider
+    return settings.llm_provider
 
 
 def elapsed_ms(started_at: float) -> int:
@@ -39,7 +49,7 @@ def create_agent_run(
             {
                 "user_id": user_id,
                 "route": "general",
-                "model_provider": MODEL_PROVIDER,
+                "model_provider": _model_provider(),
                 "model_name": _model_name(),
                 "input_text": input_text,
                 "conversation_id": conversation_id,
@@ -150,7 +160,7 @@ def create_llm_call(
                 "run_id": run_id,
                 "node_name": node_name,
                 "purpose": purpose,
-                "model_provider": MODEL_PROVIDER,
+                "model_provider": _model_provider(model_selection),
                 **selection_payload,
                 "invocation_id": invocation_id or str(uuid4()),
                 "attempt_number": attempt_number,
@@ -250,6 +260,23 @@ def fail_llm_call(llm_call_id: str, run_id: str, error: Exception, latency_ms: i
     )
 
 
+def _best_effort_llm_trace(
+    operation: Callable[[], _TraceResult],
+    *,
+    action: str,
+) -> _TraceResult | None:
+    """Run LLM observability work without changing the provider outcome."""
+    try:
+        return operation()
+    except Exception:
+        logger.warning(
+            "LLM tracing %s failed; preserving the provider outcome",
+            action,
+            exc_info=True,
+        )
+        return None
+
+
 def invoke_llm(
     llm: Any,
     messages: list[Any],
@@ -272,48 +299,61 @@ def invoke_llm(
         if run_id is None:
             return llm.invoke(messages)
 
-        llm_call_id = create_llm_call(
-            run_id,
-            node_name,
-            purpose,
-            model_tier,
-            model_name=model_name,
-            invocation_id=invocation_id,
-            attempt_number=attempt_number,
-            model_selection=model_selection,
-            retry_reason=retry_reason,
+        llm_call_id = _best_effort_llm_trace(
+            lambda: create_llm_call(
+                run_id,
+                node_name,
+                purpose,
+                model_tier,
+                model_name=model_name,
+                invocation_id=invocation_id,
+                attempt_number=attempt_number,
+                model_selection=model_selection,
+                retry_reason=retry_reason,
+            ),
+            action="create",
         )
         started_at = perf_counter()
         try:
             message = llm.invoke(messages)
         except Exception as error:
-            fail_llm_call(
-                llm_call_id,
-                run_id,
-                error,
-                elapsed_ms(started_at),
-            )
+            if llm_call_id is not None:
+                _best_effort_llm_trace(
+                    lambda: fail_llm_call(
+                        llm_call_id,
+                        run_id,
+                        error,
+                        elapsed_ms(started_at),
+                    ),
+                    action="mark_failed",
+                )
             retry_reason = _retry_reason(error)
             raise
-        succeed_llm_call(
-            llm_call_id,
-            run_id,
-            message,
-            elapsed_ms(started_at),
-        )
+        if llm_call_id is not None:
+            _best_effort_llm_trace(
+                lambda: succeed_llm_call(
+                    llm_call_id,
+                    run_id,
+                    message,
+                    elapsed_ms(started_at),
+                ),
+                action="mark_succeeded",
+            )
         return message
+
+    provider = _model_provider(model_selection)
+    if provider == "mock":
+        return invoke_attempt()
 
     return call_with_circuit_breaker(
         invoke_attempt,
-        circuit_name=MODEL_PROVIDER,
+        circuit_name=provider,
         operation_name=f"llm.{node_name}.{purpose}",
     )
 
 
 def _retry_reason(error: BaseException) -> str:
-    status = getattr(error, "status_code", None)
-    if status is None:
-        status = getattr(getattr(error, "response", None), "status_code", None)
+    status = http_status_code(error)
     if status is not None:
         return f"{type(error).__name__}:http_{status}"
     return type(error).__name__

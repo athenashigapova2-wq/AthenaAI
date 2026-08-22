@@ -14,6 +14,7 @@ from redis import Redis
 from redis.exceptions import RedisError
 
 from app.config import settings
+from app.rate_limiter import RateLimitAcquireTimeout, acquire_rate_limit
 from app.resilience import is_transient_error, retry_transient
 
 logger = logging.getLogger(__name__)
@@ -286,8 +287,22 @@ def call_with_circuit_breaker(
 ) -> T:
     """Run one safe operation with retries behind a shared circuit breaker."""
     permit = acquire_circuit(circuit_name)
+
+    def rate_limited_operation() -> T:
+        # Acquire immediately before every actual provider attempt. Waiting for
+        # a permit is not provider latency and must not create an LLM trace row.
+        acquire_rate_limit(circuit_name)
+        return operation()
+
     try:
-        result = retry_transient(operation, operation_name=operation_name)
+        result = retry_transient(
+            rate_limited_operation,
+            operation_name=operation_name,
+        )
+    except RateLimitAcquireTimeout:
+        # The provider was never contacted, so this local admission failure must
+        # neither increment nor reset the provider circuit breaker.
+        raise
     except Exception as error:
         if is_transient_error(error):
             record_circuit_failure(permit)

@@ -13,6 +13,9 @@ JMX_PATH = BACKEND_ROOT / "load_tests" / "jmeter" / "athena-agent-smoke.jmx"
 RUNNER_PATH = (
     BACKEND_ROOT / "load_tests" / "jmeter" / "run-smoke-with-grafana.ps1"
 )
+CAPACITY_RUNNER_PATH = (
+    BACKEND_ROOT / "load_tests" / "jmeter" / "run-capacity-with-grafana.ps1"
+)
 DASHBOARD_PATH = (
     REPO_ROOT
     / "observability"
@@ -48,6 +51,15 @@ def check_jmeter_plan() -> None:
     assert class_name.text is not None
     assert class_name.text.endswith("InfluxdbBackendListenerClient")
 
+    listener_arguments = {
+        argument.find("./stringProp[@name='Argument.name']").text:
+        argument.find("./stringProp[@name='Argument.value']").text
+        for argument in listeners[0].findall(".//elementProp[@elementType='Argument']")
+    }
+    assert listener_arguments["application"] == "${__P(application,athena-agent)}"
+    assert listener_arguments["percentiles"] == "50;95;99"
+    assert listener_arguments["summaryOnly"] == "false"
+
     runner = RUNNER_PATH.read_text(encoding="utf-8")
     for expected_default in (
         "[int]$Users = 5",
@@ -61,10 +73,58 @@ def check_jmeter_plan() -> None:
     assert "00000000-0000-0000-0000-000000000000" in runner
     assert "Token preflight passed" in runner
     assert "$tokenProbeStatus -eq 401" in runner
+    assert "$tokenSource = $tokenSource -replace '[\\p{C}\\p{Z}]', ''" in runner
+    assert "$jwtMatches = [regex]::Matches(" in runner
+    assert "(?<jwt>eyJ[A-Za-z0-9_-]*" in runner
+    assert "$jwtMatches.Count -ne 1" in runner
+    assert "$accessToken = $jwtMatches[0].Groups['jwt'].Value" in runner
+    assert "$env:LOAD_TEST_ACCESS_TOKEN = $accessToken" in runner
+    assert "exactly one valid three-segment JWT" in runner
+    assert "Get-JwtExpirationUtc" in runner
+    assert "$requiredTokenLifetimeSeconds" in runner
+    assert "expires too soon for this stage" in runner
+    assert '$runId = "$Scenario-$timestamp"' in runner
+    assert '$application = "athena-agent-$runId"' in runner
+    assert '"-Japplication=$application"' in runner
+    assert "var-application=$encodedApplication" in runner
+    assert "$summaryFile" in runner
+    assert "Get-NearestRankPercentile" in runner
+    assert "$grafanaFromMs = [long][math]::Max(" in runner
+    assert "[double]($testStartMs - 5000)" in runner
+    assert "[ValidateRange(1, 1000)]" in runner
+    assert "$enqueueResults" in runner
+    assert "enqueue_p95_ms" in runner
+    assert "$maxActiveUsers" in runner
+    assert "max_active_users = $maxActiveUsers" in runner
+
+    capacity_runner = CAPACITY_RUNNER_PATH.read_text(encoding="utf-8")
+    assert "AGENT_INFRASTRUCTURE_TEST_MODE" in capacity_runner
+    assert "LLM_PROVIDER" in capacity_runner
+    assert "10, 20, 40, 80, 120" in capacity_runner
+    assert "planned_error_rate_percent" in capacity_runner
+    assert "max_active_users" in capacity_runner
+    assert "capacity-results" in capacity_runner
 
 
 def check_grafana_dashboard() -> None:
     dashboard = json.loads(DASHBOARD_PATH.read_text(encoding="utf-8"))
+    variables = dashboard["templating"]["list"]
+    assert len(variables) == 1
+    assert variables[0]["name"] == "application"
+    assert variables[0]["label"] == "Load-test run"
+    assert variables[0]["includeAll"] is False
+    assert variables[0]["regex"] == "/^athena-agent-/"
+
+    panel_queries = [
+        target["query"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "query" in target
+    ]
+    assert panel_queries
+    assert all('r.application == "${application}"' in query for query in panel_queries)
+    assert all('r.application == "athena-agent"' not in query for query in panel_queries)
+
     failed_panel = next(
         panel
         for panel in dashboard["panels"]
@@ -85,6 +145,16 @@ def check_grafana_dashboard() -> None:
     active_users_query = active_users_panel["targets"][0]["query"]
     assert "|> max()" in active_users_query
     assert "|> last()" not in active_users_query
+
+    throughput_panel = next(
+        panel
+        for panel in dashboard["panels"]
+        if panel["title"] == "E2E throughput (scenarios/s, 5 s interval)"
+    )
+    throughput_query = throughput_panel["targets"][0]["query"]
+    assert 'r.transaction == "agent_chat_e2e"' in throughput_query
+    assert 'r.statut == "all"' in throughput_query
+    assert 'r.transaction != "internal"' not in throughput_query
 
 
 def main() -> None:

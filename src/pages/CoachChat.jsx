@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/api/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Sparkles, MessageCirclePlus, History, Trash2 } from "lucide-react";
+import { Activity, Loader2, Send, Sparkles, MessageCirclePlus, History, Trash2 } from "lucide-react";
 import MessageBubble from "@/components/agent/MessageBubble";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle,
@@ -204,6 +205,11 @@ export default function CoachChat() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="icon" className="h-8 w-8 touch-target">
+            <Link to="/observability" aria-label="Open agent observability dashboard" title="Agent traces">
+              <Activity className="w-4 h-4" />
+            </Link>
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 touch-target" onClick={() => { setShowHistory(true); loadConversations(); }}>
             <History className="w-4 h-4" />
           </Button>

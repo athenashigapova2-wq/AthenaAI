@@ -7,3 +7,15 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+
+const config: CapacitorConfig = {
+  appId: 'dev.aminashigapova2.athena',
+  appName: 'Athena',
+  webDir: 'dist',
+
+  // Только для локальной разработки через Android Emulator
+  server: {
+    androidScheme: 'http',
+    cleartext: true,
+  },
+};
