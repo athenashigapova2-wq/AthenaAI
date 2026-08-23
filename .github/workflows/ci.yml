@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend core checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install Python dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Ruff
+        run: python -m ruff check backend/app tests
+      - name: Python type checking
+        run: python -m mypy
+      - name: Pytest core
+        run: python -m pytest tests/unit tests/integration -q
+      - name: Migration chain checks
+        run: python -m pytest tests/integration/test_migrations.py -q
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install Node dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript checkJs baseline
+        run: npm run typecheck:ci
+      - name: Selected UI tests
+        run: npm run test:ui
+      - name: Production build
+        run: npm run build
+
+  ai-offline:
+    name: AI offline regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install Python dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Offline routing and dataset evals
+        run: python -m pytest tests/evals -q
+      - name: Tool access boundaries
+        run: python -m pytest tests/unit/test_agent_policy.py::test_tool_access_boundaries -q
+      - name: Nutrition invariants and safety regression
+        run: python -m pytest tests/unit/test_agent_policy.py::test_nutrition_invariants_and_safety -q
+      - name: Retry, rate-limit, and circuit-breaker regressions
+        run: python -m pytest tests/unit/test_resilience.py -q
+      - name: Longitudinal mock scenario
+        run: python -m pytest tests/simulation -q
+
+  docker:
+    name: Backend Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build FastAPI and worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: false
+          tags: athena-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

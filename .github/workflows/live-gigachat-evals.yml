@@ -1,0 +1,51 @@
+name: Live GigaChat regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      checkpoints:
+        description: "Optional comma-separated Anna checkpoint IDs"
+        required: false
+        type: string
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-gigachat-regression
+  cancel-in-progress: false
+
+jobs:
+  anna-live-eval:
+    name: Anna longitudinal live eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ATHENA_RUN_LIVE_EVALS: "1"
+      LLM_PROVIDER: gigachat
+      GIGACHAT_AUTH_KEY: ${{ secrets.GIGACHAT_AUTH_KEY }}
+      GIGACHAT_SCOPE: GIGACHAT_API_PERS
+      RAG_ENABLED: "false"
+      LLM_RATE_LIMITER_ENABLED: "false"
+      LLM_CIRCUIT_BREAKER_ENABLED: "false"
+      ANNA_EVAL_CHECKPOINTS: ${{ github.event.inputs.checkpoints || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Require the repository secret
+        shell: bash
+        run: |
+          if [ -z "$GIGACHAT_AUTH_KEY" ]; then
+            echo "Repository secret GIGACHAT_AUTH_KEY is required." >&2
+            exit 1
+          fi
+      - name: Install Python dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Run explicitly opted-in live evaluations
+        run: python -m pytest tests/live_evals --run-live-evals -q

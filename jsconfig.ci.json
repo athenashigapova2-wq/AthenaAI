@@ -1,0 +1,12 @@
+{
+  "extends": "./jsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/components/CalorieRing.jsx",
+    "src/components/agent/MessageBubble.jsx",
+    "src/lib/macroCalc.js"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

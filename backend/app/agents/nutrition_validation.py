@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -54,7 +55,7 @@ class MealPlanItem(BaseModel):
     carbs_g: float = Field(ge=0, le=250)
 
 
-PlanFoodReference = StrEnum(
+PlanFoodReference = StrEnum(  # type: ignore[misc]
     "PlanFoodReference",
     {
         f"food_{index}": food_name
@@ -441,7 +442,7 @@ def targets_from_profile_result(result: Any) -> NutritionNumbers | None:
         return None
 
 
-def _numbers(groups: tuple[str, str, str, str]) -> NutritionNumbers:
+def _numbers(groups: Sequence[str | Any]) -> NutritionNumbers:
     values = [float(item.replace(",", ".")) for item in groups]
     return NutritionNumbers(values[0], values[1], values[2], values[3])
 

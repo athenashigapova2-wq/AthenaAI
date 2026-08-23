@@ -43,7 +43,7 @@ def http_status_code(error: BaseException) -> int | None:
     # exception so arbitrary exceptions with an integer argument are not
     # misclassified as HTTP failures.
     if status is None and isinstance(error, GigaChatResponseError):
-        arguments = getattr(error, "args", ())
+        arguments = list(getattr(error, "args", ()))
         if len(arguments) > 1:
             status = arguments[1]
 
@@ -60,7 +60,7 @@ def retry_after_seconds(error: BaseException) -> float | None:
         response = getattr(item, "response", None)
         headers = getattr(response, "headers", None)
         if headers is None and isinstance(item, GigaChatResponseError):
-            arguments = getattr(item, "args", ())
+            arguments = list(getattr(item, "args", ()))
             if len(arguments) > 3:
                 headers = arguments[3]
         if not headers:

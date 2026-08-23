@@ -318,11 +318,13 @@ def invoke_llm(
             message = llm.invoke(messages)
         except Exception as error:
             if llm_call_id is not None:
+                failed_call_id = llm_call_id
+                failed_error = error
                 _best_effort_llm_trace(
                     lambda: fail_llm_call(
-                        llm_call_id,
+                        failed_call_id,
                         run_id,
-                        error,
+                        failed_error,
                         elapsed_ms(started_at),
                     ),
                     action="mark_failed",

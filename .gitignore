@@ -42,6 +42,7 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.npm-cache-ci-setup/
 !.env.example
 backend/data/
 # Supabase CLI local state
