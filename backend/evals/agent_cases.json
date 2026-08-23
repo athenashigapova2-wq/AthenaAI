@@ -5,6 +5,7 @@
   {"id":"ru_workout_02","locale":"ru","query":"Запиши мою тренировку: приседания и выпады","expected_route":"workout","required_tool":"log_workout"},
   {"id":"ru_recovery_01","locale":"ru","query":"Я плохо спала и чувствую усталость","expected_route":"recovery","required_tool":"get_recovery_logs"},
   {"id":"ru_recovery_02","locale":"ru","query":"Как менялся мой вес за месяц?","expected_route":"recovery","required_tool":"get_weight_trend"},
+  {"id":"ru_recovery_03","locale":"ru","query":"Какой у меня прогресс за последние две недели?","expected_route":"recovery","required_tool":"get_weight_trend"},
   {"id":"ru_general_01","locale":"ru","query":"Привет, что ты умеешь?","expected_route":"general","required_tool":null},
   {"id":"ru_general_02","locale":"ru","query":"Спасибо за помощь!","expected_route":"general","required_tool":null},
 
@@ -14,6 +15,7 @@
   {"id":"en_workout_02","locale":"en","query":"Log my full body workout","expected_route":"workout","required_tool":"log_workout"},
   {"id":"en_recovery_01","locale":"en","query":"My sleep was poor and I feel fatigue","expected_route":"recovery","required_tool":"get_recovery_logs"},
   {"id":"en_recovery_02","locale":"en","query":"Show my weight trend","expected_route":"recovery","required_tool":"get_weight_trend"},
+  {"id":"en_recovery_03","locale":"en","query":"How am I doing with my progress?","expected_route":"recovery","required_tool":"get_weight_trend"},
   {"id":"en_general_01","locale":"en","query":"Hello, what can you do?","expected_route":"general","required_tool":null},
   {"id":"en_general_02","locale":"en","query":"Thank you for your help","expected_route":"general","required_tool":null},
 

@@ -28,6 +28,7 @@ from app.agents.nutrition_validation import (
     validation_failure_message,
 )
 from app.agents.state import AgentState
+from app.agents.router import is_progress_request
 from app.config import settings
 from app.llm import get_routed_llm
 from app.resilience import retry_transient
@@ -146,6 +147,32 @@ def _required_nutrition_context(
     return context, results, needs_plan_validation
 
 
+def _required_recovery_context(
+    state: AgentState,
+    tools_by_name: dict[str, BaseTool],
+) -> tuple[list[SystemMessage], dict[str, Any]]:
+    """Fetch the weight trend before answering any request about progress."""
+    if not is_progress_request(_latest_user_text(state)):
+        return [], {}
+
+    name = "get_weight_trend"
+    result = _invoke_tool(
+        state,
+        {"name": name, "args": {}, "id": f"required-{name}"},
+        tools_by_name,
+    )
+    context = SystemMessage(
+        content=(
+            f"REQUIRED_SERVER_FACT {name}: "
+            f"{json.dumps(result, ensure_ascii=False, default=str)}. "
+            "This fact was fetched by the server before answering a progress request. "
+            "Use it explicitly and do not contradict it. When describing the trend "
+            "duration, use its exact dates or days field; do not relabel or round it."
+        )
+    )
+    return [context], {name: result}
+
+
 def _plan_submission_tool(
     targets: NutritionNumbers | None,
     locale: str,
@@ -222,7 +249,7 @@ def _plan_submission_tool(
         allergen_issues = []
         for index, meal in enumerate(normalized_meals, start=1):
             ingredient_text = " ".join(
-                f"{ingredient.display_name} {ingredient.reference_food}"
+                str(ingredient.reference_food)
                 for ingredient in meal.ingredients
             )
             meal_text = f"{meal.name} {ingredient_text}".lower()
@@ -429,6 +456,11 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
     if state["route"] == "nutrition":
         required_context, required_results, needs_plan_validation = (
             _required_nutrition_context(state, tools_by_name)
+        )
+    elif state["route"] == "recovery":
+        required_context, required_results = _required_recovery_context(
+            state,
+            tools_by_name,
         )
     if needs_plan_validation:
         profile_result = required_results.get("get_my_profile")

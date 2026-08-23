@@ -9,6 +9,30 @@ from app.services import agent_traces
 
 _ALLOWED: set[AgentName] = {"nutrition", "workout", "recovery", "general"}
 
+_PROGRESS_MARKERS = (
+    "прогресс",
+    "результат",
+    "динамик",
+    "изменени",
+    "продвига",
+    "сдвиг",
+    "progress",
+    "result",
+    "how am i doing",
+    "improv",
+    "progrès",
+    "résultat",
+    "évolution",
+    "progreso",
+    "resultado",
+    "evolución",
+    "进展",
+    "进步",
+    "变化",
+    "效果",
+    "结果",
+)
+
 _KEYWORDS: dict[AgentName, tuple[str, ...]] = {
     "nutrition": (
         "калор", "кбжу", "бел", "жир", "углев", "еда", "съел",
@@ -41,8 +65,16 @@ def _last_user_text(state: AgentState) -> str:
     return ""
 
 
+def is_progress_request(text: str) -> bool:
+    """Return whether the user is asking to assess their longitudinal progress."""
+    lowered = text.casefold()
+    return any(marker in lowered for marker in _PROGRESS_MARKERS)
+
+
 def route_with_keywords(text: str) -> AgentName:
     """Deterministic fallback used when the LLM router is unavailable."""
+    if is_progress_request(text):
+        return "recovery"
     lowered = text.lower()
     scores = {
         route: sum(1 for keyword in keywords if keyword in lowered)
@@ -55,6 +87,8 @@ def route_with_keywords(text: str) -> AgentName:
 def router_node(state: AgentState) -> dict[str, AgentName]:
     """LangGraph node that writes `route` into the state."""
     text = _last_user_text(state)
+    if is_progress_request(text):
+        return {"route": "recovery"}
     try:
         llm, selection = get_routed_llm(
             node_name="router",

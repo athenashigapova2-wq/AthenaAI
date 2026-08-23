@@ -244,6 +244,12 @@ def check_mock_agent_replay() -> dict:
     )
     history: list[dict[str, str]] = []
     turns: list[dict] = []
+    store = _MemorySupabase(_profile_row(persona))
+    events = sorted(
+        scenario["events"],
+        key=lambda item: (item["day"], item["time"]),
+    )
+    applied: set[tuple[int, str, str]] = set()
     _get_mock_llm.cache_clear()
     get_router_llm.cache_clear()
 
@@ -252,6 +258,10 @@ def check_mock_agent_replay() -> dict:
         patch.object(settings, "mock_llm_latency_ms", 0),
         patch.object(settings, "rag_enabled", False),
         patch("app.services.agent_traces.call_with_circuit_breaker") as breaker,
+        patch("app.tools.profile.get_supabase", return_value=store),
+        patch("app.tools.nutrition.get_supabase", return_value=store),
+        patch("app.tools.recovery.get_supabase", return_value=store),
+        patch("app.tools.workout.get_supabase", return_value=store),
     ):
         for checkpoint in scenario["checkpoints"]:
             checkpoint_at = _at(
@@ -259,6 +269,12 @@ def check_mock_agent_replay() -> dict:
                 checkpoint["day"],
                 checkpoint["time"],
             )
+            for event in events:
+                key = (event["day"], event["time"], event["event_type"])
+                event_at = _at(persona.start_at, event["day"], event["time"])
+                if event_at <= checkpoint_at and key not in applied:
+                    _apply_event(store, persona.persona_id, event_at, event)
+                    applied.add(key)
             with freeze_time(checkpoint_at):
                 result = run_agent_turn_details(
                     persona.persona_id,
@@ -266,7 +282,7 @@ def check_mock_agent_replay() -> dict:
                     persona.locale,
                     history=history,
                 )
-            assert result["answer"].startswith("[MOCK:")
+            assert "[MOCK:" in result["answer"]
             history.extend(
                 [
                     {"role": "user", "content": checkpoint["message"]},

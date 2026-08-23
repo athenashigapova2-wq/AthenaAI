@@ -66,7 +66,6 @@ PlanFoodReference = StrEnum(
 class MealIngredient(BaseModel):
     """A concrete ingredient and portion that can be checked against the food DB."""
 
-    display_name: str = Field(min_length=1, max_length=120)
     reference_food: PlanFoodReference
     grams: float = Field(gt=0, le=1_500)
 
@@ -151,11 +150,13 @@ def nutrition_plan_contract(
     """Return the machine-checkable contract added to meal-plan prompts."""
     contract = (
         "For a complete daily meal plan you MUST call submit_daily_nutrition_plan. "
-        "For every meal provide concrete ingredients. Each ingredient needs display_name, "
-        "reference_food (a precise English food name for database lookup, including cooked/raw "
+        "For every meal provide concrete ingredients. Each ingredient needs reference_food "
+        "(a precise English food name for database lookup, including cooked/raw "
         "state), and grams. Never provide calories or macros yourself: the server derives them "
         "from food_nutrients values per 100 g and rejects unknown foods or a plan that misses "
-        "the profile targets. Do not answer with a prose plan without submitting it to this tool."
+        "the profile targets. The server derives the displayed product name from the matched "
+        "food_nutrients row; do not provide a display name. Do not answer with a prose plan "
+        "without submitting it to this tool."
     )
     if allowed_reference_foods:
         contract += (
@@ -215,7 +216,7 @@ def ground_meal_plan(
             factor = ingredient.grams / 100.0
             grounded_ingredients.append(
                 GroundedIngredient(
-                    display_name=ingredient.display_name,
+                    display_name=_display_name_from_matched_food(reference.food_name),
                     reference_food=ingredient.reference_food,
                     matched_food=reference.food_name,
                     grams=round(ingredient.grams, 1),
@@ -244,6 +245,14 @@ def ground_meal_plan(
             )
         )
     return grounded_meals, tuple(issues)
+
+
+def _display_name_from_matched_food(matched_food: str) -> str:
+    """Build the user-visible product name only from the canonical database match."""
+    normalized = re.sub(r"\s+", " ", matched_food.replace("_", " ")).strip()
+    if not normalized:
+        raise ValueError("matched food name is empty")
+    return normalized[0].upper() + normalized[1:]
 
 
 def _portion_bounds(ingredient: GroundedIngredient) -> tuple[float, float]:

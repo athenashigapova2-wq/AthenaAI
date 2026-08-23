@@ -20,9 +20,11 @@ from app.agents.nutrition_validation import (  # noqa: E402
 )
 from app.agents.specialists import (  # noqa: E402
     NUTRITION_SYSTEM,
+    RECOVERY_SYSTEM,
     _invoke_tool_agent,
     _plan_submission_tool,
     _required_nutrition_context,
+    _required_recovery_context,
     _requires_full_day_plan,
     _requires_weight_trend,
     _weight_trend_evidence,
@@ -198,6 +200,59 @@ def check_weight_trend_is_forced() -> None:
     assert "-1.1 кг" in evidence
 
 
+def check_progress_request_forces_weight_trend_in_recovery() -> None:
+    tool = StructuredTool.from_function(
+        func=lambda days=30: {"status": "ok"},
+        name="get_weight_trend",
+        description="weight trend",
+    )
+    trend = {
+        "status": "ok",
+        "delta_kg": -0.8,
+        "weights": [
+            {"date": "2026-09-01", "weight_kg": 74.0},
+            {"date": "2026-09-15", "weight_kg": 73.2},
+        ],
+    }
+    state = _state("Какой у меня прогресс за последние две недели?")
+    state["route"] = "recovery"
+    with (
+        patch.object(settings, "llm_provider", "mock"),
+        patch("app.agents.specialists._invoke_tool", return_value=trend) as invoke,
+    ):
+        context, results = _required_recovery_context(
+            state,
+            {tool.name: tool},
+        )
+
+    assert invoke.call_count == 1
+    assert invoke.call_args.args[1]["name"] == "get_weight_trend"
+    assert results["get_weight_trend"]["delta_kg"] == -0.8
+    assert "REQUIRED_SERVER_FACT get_weight_trend" in context[0].content
+
+    selection = SimpleNamespace(model_tier="main")
+    with (
+        patch.object(settings, "llm_provider", "mock"),
+        patch(
+            "app.agents.specialists.get_routed_llm",
+            return_value=(object(), selection),
+        ),
+        patch("app.agents.specialists._invoke_tool", return_value=trend) as invoke,
+        patch(
+            "app.agents.specialists.agent_traces.invoke_llm",
+            return_value=AIMessage(content="Продолжайте текущий план."),
+        ) as invoke_llm,
+    ):
+        answer = _invoke_tool_agent(state, RECOVERY_SYSTEM, [tool])
+
+    assert invoke.call_count == 1
+    assert invoke.call_args.args[1]["name"] == "get_weight_trend"
+    system_message = invoke_llm.call_args.args[1][0].content
+    assert "REQUIRED_SERVER_FACT get_weight_trend" in system_message
+    assert "74 кг" in answer["messages"][0].content
+    assert "73.2 кг" in answer["messages"][0].content
+
+
 def check_invalid_draft_is_fitted_before_return() -> None:
     profile_tool = StructuredTool.from_function(
         func=lambda: PROFILE_RESULT,
@@ -235,7 +290,7 @@ def check_invalid_draft_is_fitted_before_return() -> None:
             {
                 "name": "Завтрак",
                 "ingredients": [{
-                    "display_name": "Омлет и тост",
+                    "display_name": "Ложное название, которому нельзя доверять",
                     "reference_food": "oats",
                     "grams": 100,
                 }],
@@ -243,7 +298,6 @@ def check_invalid_draft_is_fitted_before_return() -> None:
             {
                 "name": "Обед",
                 "ingredients": [{
-                    "display_name": "Курица, рис и овощи",
                     "reference_food": "chicken breast raw",
                     "grams": 100,
                 }],
@@ -251,7 +305,6 @@ def check_invalid_draft_is_fitted_before_return() -> None:
             {
                 "name": "Ужин",
                 "ingredients": [{
-                    "display_name": "Рыба и картофель",
                     "reference_food": "cod cooked",
                     "grams": 100,
                 }],
@@ -259,7 +312,6 @@ def check_invalid_draft_is_fitted_before_return() -> None:
             {
                 "name": "Перекус",
                 "ingredients": [{
-                    "display_name": "Йогурт и ягоды",
                     "reference_food": "greek yogurt",
                     "grams": 100,
                 }],
@@ -321,11 +373,11 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     assert "**Итого:**" in answer, answer
     assert "food_nutrients" in answer
     assert "аллергии на арахис" in answer
+    assert "Ложное название" not in answer
+    assert "Oats" in answer
 
     allergen_args = deepcopy(valid_args)
-    allergen_args["meals"][0]["ingredients"][0]["display_name"] = (
-        "Тост с арахисовой пастой"
-    )
+    allergen_args["meals"][0]["name"] = "Тост с арахисовой пастой"
     submission_tool = _plan_submission_tool(
         TARGETS,
         "ru",
@@ -342,5 +394,6 @@ if __name__ == "__main__":
     check_programmatic_totals()
     check_food_lookup_never_substitutes_a_different_food()
     check_weight_trend_is_forced()
+    check_progress_request_forces_weight_trend_in_recovery()
     check_invalid_draft_is_fitted_before_return()
     print("Nutrition guardrail checks passed")
