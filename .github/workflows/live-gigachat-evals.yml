@@ -3,8 +3,12 @@ name: Live GigaChat regression
 on:
   workflow_dispatch:
     inputs:
+      scenarios:
+        description: "Optional comma-separated scenario IDs, personas, or fixture names"
+        required: false
+        type: string
       checkpoints:
-        description: "Optional comma-separated Anna checkpoint IDs"
+        description: "Optional comma-separated checkpoint IDs"
         required: false
         type: string
   schedule:
@@ -18,8 +22,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  anna-live-eval:
-    name: Anna longitudinal live eval
+  longitudinal-live-eval:
+    name: Longitudinal live eval
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -30,10 +34,11 @@ jobs:
       RAG_ENABLED: "false"
       LLM_RATE_LIMITER_ENABLED: "false"
       LLM_CIRCUIT_BREAKER_ENABLED: "false"
-      ANNA_EVAL_CHECKPOINTS: ${{ github.event.inputs.checkpoints || '' }}
+      ATHENA_LIVE_SCENARIOS: ${{ github.event.inputs.scenarios || '' }}
+      ATHENA_LIVE_CHECKPOINTS: ${{ github.event.inputs.checkpoints || '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip

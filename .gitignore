@@ -45,5 +45,6 @@ __pycache__/
 .npm-cache-ci-setup/
 !.env.example
 backend/data/
+backend/simulation/reports/generated/
 # Supabase CLI local state
 supabase/.temp/

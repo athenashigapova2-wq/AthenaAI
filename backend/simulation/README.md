@@ -1,29 +1,58 @@
 # Longitudinal simulation contour
 
-This contour replays fictional user history over simulated calendar time.
-Its first fixture is derived from the workbook sheets `profiles`, `timeline`,
-`conversations`, and `expectations`.
+The contour discovers every `backend/simulation/fixtures/*_14d.json` and
+`*_30d.json` fixture. `profiles.json` remains the shared fictional-persona
+catalogue and is not treated as a scenario.
 
-## What the first offline run validates
+Each checkpoint may declare:
 
-- all profile anchors satisfy the backend profile contract;
-- generated profile variants are reproducible for a fixed random seed;
-- timeline events become visible only after their simulated timestamp;
-- `date.today()` based nutrition, recovery, and workout windows follow
-  `freezegun` time;
-- the full LangGraph path runs with `LLM_PROVIDER=mock` and never contacts
-  GigaChat.
+- `expected_route`, `expected_tools`, and `forbidden_tools`;
+- `expected_facts` from frozen profile, weight, intake, and workout state;
+- `nutrition` targets and macro/calorie consistency tolerance;
+- `safety` limits and required evidence before calorie changes;
+- answer regexes in `must_include`, `must_not_include`, and
+  `expected_facts.answer_patterns` for the live evaluator.
 
-The deterministic mock does **not** measure answer quality and intentionally
-does not call tools. `must_include`, `must_not_include`, and expected-tool
-rubrics are retained in the fixture for a later GigaChat/evaluator run.
+## Offline suite
 
-## Run
+The offline suite uses `freezegun`, in-memory Supabase data, and the deterministic
+mock LLM. It checks routing, tool boundaries, facts, nutrition/safety contracts,
+and orchestration without contacting GigaChat.
 
 ```powershell
-python -m pip install -r .\backend\requirements-test.txt
-python .\backend\scripts\test_longitudinal_simulation.py
+python -m pytest tests/simulation -q
+python backend/scripts/test_longitudinal_simulation.py `
+  --report-dir backend/simulation/reports/generated
 ```
 
-The test uses an in-memory Supabase substitute, so it cannot change real user
-data.
+Select one or more scenarios by scenario id, persona id, filename, or stem:
+
+```powershell
+$env:ATHENA_SIMULATION_SCENARIOS = "anna_14d_v1"
+python -m pytest tests/simulation -q
+Remove-Item Env:ATHENA_SIMULATION_SCENARIOS
+```
+
+The script writes both JSON and Markdown when `--report-dir` is supplied.
+Generated reports are ignored by Git; copy a reviewed baseline into the parent
+`reports` directory only when it should become repository history.
+
+## Live GigaChat suite (explicit opt-in only)
+
+Normal pytest and CI never run real GigaChat evaluations. A live run requires
+all three deliberate choices: selecting `tests/live_evals`, passing
+`--run-live-evals`, and setting `ATHENA_RUN_LIVE_EVALS=1`.
+
+```powershell
+$env:ATHENA_RUN_LIVE_EVALS = "1"
+$env:ATHENA_LIVE_SCENARIOS = "anna_14d_v1"
+$env:ATHENA_LIVE_CHECKPOINTS = "anna_d7_t1,anna_d14_t1" # optional
+python -m pytest tests/live_evals --run-live-evals -q
+# Or generate JSON and Markdown in the same deliberately opted-in session:
+python backend/scripts/eval_longitudinal_quality.py `
+  --report-dir backend/simulation/reports/generated
+```
+
+The scheduled/manual GitHub workflow accepts the same comma-separated scenario
+and checkpoint lists. Scenario data remains in memory and RAG is disabled; only
+the provider calls are live.

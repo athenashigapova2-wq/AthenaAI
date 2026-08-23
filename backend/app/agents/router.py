@@ -35,7 +35,7 @@ _PROGRESS_MARKERS = (
 
 _KEYWORDS: dict[AgentName, tuple[str, ...]] = {
     "nutrition": (
-        "калор", "кбжу", "бел", "жир", "углев", "еда", "съел",
+        "калор", "кбжу", "бел", "жир", "углев", "еда", "съел", "питани",
         "meal", "food", "protein", "calorie", " ate ",
         "repas", "aliment", "protéin", "calorie",
         "comida", "alimento", "proteína", "caloría",
