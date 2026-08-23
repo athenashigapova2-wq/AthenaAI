@@ -22,7 +22,7 @@ from app.tools.registry import build_tools  # noqa: E402
 CASES_PATH = Path(__file__).resolve().parents[1] / "evals" / "tool_selection_cases.json"
 EVAL_USER_ID = "00000000-0000-0000-0000-000000000000"
 ROUTE_CONFIG = {
-    "nutrition": (NUTRITION_SYSTEM, ("profile", "nutrition")),
+    "nutrition": (NUTRITION_SYSTEM, ("profile", "nutrition", "recovery")),
     "workout": (WORKOUT_SYSTEM, ("profile", "workout")),
     "recovery": (RECOVERY_SYSTEM, ("profile", "recovery", "calendar")),
 }

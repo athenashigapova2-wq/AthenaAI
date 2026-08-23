@@ -14,7 +14,7 @@ from app.tools.registry import build_tools  # noqa: E402
 CASES_PATH = Path(__file__).resolve().parents[1] / "evals" / "agent_cases.json"
 EVAL_USER_ID = "00000000-0000-0000-0000-000000000000"
 ROUTE_DOMAINS = {
-    "nutrition": ("profile", "nutrition"),
+    "nutrition": ("profile", "nutrition", "recovery"),
     "workout": ("profile", "workout"),
     "recovery": ("profile", "recovery", "calendar"),
     "general": (),
