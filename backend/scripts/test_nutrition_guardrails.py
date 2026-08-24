@@ -14,7 +14,12 @@ from langchain_core.tools import StructuredTool
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.nutrition_validation import (  # noqa: E402
+    FoodNutrientReference,
+    GroundedIngredient,
+    GroundedMeal,
     NutritionNumbers,
+    _portion_bounds,
+    assess_food_diversity,
     render_validated_plan,
     validate_nutrition_plan,
 )
@@ -232,6 +237,81 @@ def check_tool_call_keys_are_normalized_before_validation() -> None:
         raise AssertionError("colliding normalized keys must be rejected")
 
 
+def _grounded_ingredient(name: str, grams: float = 100) -> GroundedIngredient:
+    reference = FoodNutrientReference(
+        food_name=name,
+        calories_per_100g=100,
+        protein_g=10,
+        fat_g=2,
+        carbs_g=10,
+    )
+    return GroundedIngredient(
+        display_name=name,
+        reference_food=name,
+        matched_food=reference.food_name,
+        grams=grams,
+        calories_per_100g=reference.calories_per_100g,
+        protein_per_100g=reference.protein_g,
+        fat_per_100g=reference.fat_g,
+        carbs_per_100g=reference.carbs_g,
+        calories=100,
+        protein_g=10,
+        fat_g=2,
+        carbs_g=10,
+    )
+
+
+def check_household_portions_and_food_diversity() -> None:
+    assert _portion_bounds(_grounded_ingredient("oats"))[0] == 30
+    assert _portion_bounds(_grounded_ingredient("egg raw"))[0] == 50
+    assert _portion_bounds(_grounded_ingredient("greek yogurt"))[0] == 100
+    assert _portion_bounds(_grounded_ingredient("chicken breast raw"))[0] == 80
+    assert _portion_bounds(_grounded_ingredient("white rice cooked"))[0] == 80
+    assert _portion_bounds(_grounded_ingredient("olive oil"))[0] == 5
+
+    varied_names = (
+        "oats",
+        "egg raw",
+        "greek yogurt",
+        "banana",
+        "chicken breast raw",
+        "white rice cooked",
+        "broccoli cooked",
+        "turkey breast roasted",
+        "buckwheat raw",
+        "spinach raw",
+    )
+    varied = GroundedMeal(
+        name="day",
+        ingredients=[_grounded_ingredient(name) for name in varied_names],
+        calories=1_000,
+        protein_g=100,
+        fat_g=20,
+        carbs_g=100,
+    )
+    assessment = assess_food_diversity([varied])
+    assert assessment.score == 100
+    assert assessment.unique_foods == 10
+    assert not assessment.issues
+
+    repetitive = [
+        GroundedMeal(
+            name=f"repetitive-{index}",
+            ingredients=[_grounded_ingredient("oats")],
+            calories=100,
+            protein_g=10,
+            fat_g=2,
+            carbs_g=10,
+        )
+        for index in range(4)
+    ]
+    poor = assess_food_diversity(repetitive)
+    assert poor.score < 50
+    assert poor.duplicate_meals == 3
+    assert poor.repeated_foods == ("oats",)
+    assert len(poor.issues) == 2
+
+
 def check_progress_request_forces_weight_trend_in_recovery() -> None:
     tool = StructuredTool.from_function(
         func=lambda days=30: {"status": "ok"},
@@ -422,6 +502,8 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     assert "Ложное название" not in answer
     assert "Овсяные хлопья" in answer
     assert "Куриная грудка" in answer
+    assert "Разнообразие:" in answer
+    assert "/100" in answer
 
     allergen_args = deepcopy(valid_args)
     allergen_args["meals"][0]["name"] = "Тост с арахисовой пастой"
@@ -442,6 +524,7 @@ if __name__ == "__main__":
     check_food_lookup_never_substitutes_a_different_food()
     check_weight_trend_is_forced()
     check_tool_call_keys_are_normalized_before_validation()
+    check_household_portions_and_food_diversity()
     check_progress_request_forces_weight_trend_in_recovery()
     check_invalid_draft_is_fitted_before_return()
     print("Nutrition guardrail checks passed")

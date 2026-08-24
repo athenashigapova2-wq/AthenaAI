@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -137,6 +138,20 @@ class GroundedMeal(BaseModel):
     carbs_g: float
 
 
+@dataclass(frozen=True)
+class FoodDiversityAssessment:
+    """Deterministic, user-independent diversity metrics for one daily plan."""
+
+    score: int
+    unique_foods: int
+    total_ingredients: int
+    protein_sources: int
+    plant_foods: int
+    duplicate_meals: int
+    repeated_foods: tuple[str, ...]
+    issues: tuple[str, ...]
+
+
 def _meal_target_rows(targets: NutritionNumbers) -> list[NutritionNumbers]:
     """Split daily targets into five exact, model-friendly meal rows."""
     weights = (0.25, 0.10, 0.30, 0.10)
@@ -194,7 +209,9 @@ def nutrition_plan_contract(
             "(one meat or fish, one rice/buckwheat/potato, vegetables, optional oil); "
             "meal 4 snack (yogurt/banana/cottage cheese); meal 5 dinner (one meat or "
             "fish, one rice/buckwheat/potato, vegetables, optional oil). Do not put meat "
-            "or fish into a snack."
+            "or fish into a snack. Use different food combinations for meals 2 and 4. "
+            "The server enforces practical household portions and rejects plans with "
+            "fewer than four different foods or the same food in more than two meals."
         )
     if targets is not None:
         rows = _meal_target_rows(targets)
@@ -298,25 +315,115 @@ def _display_name_from_matched_food(matched_food: str, locale: str = "en") -> st
 
 
 def _portion_bounds(ingredient: GroundedIngredient) -> tuple[float, float]:
-    """Return conservative gram bounds for one selected catalogue food."""
+    """Return practical household portion bounds for one catalogue food."""
     name = ingredient.matched_food.lower()
     if "oil" in name:
-        return 1.0, 25.0
-    if name.endswith(" raw") and any(
-        term in name for term in ("rice", "buckwheat", "oats")
-    ):
-        return 10.0, 150.0
+        return 5.0, 25.0
+    if any(term in name for term in ("oats", "rice raw", "buckwheat raw")):
+        return 30.0, 150.0
     if "rice cooked" in name:
-        return 10.0, 300.0
+        return 80.0, 300.0
     if "potato" in name:
-        return 10.0, 450.0
-    if any(term in name for term in ("vegetable", "cucumber", "carrot", "broccoli", "spinach")):
-        return 10.0, 250.0
+        return 100.0, 450.0
+    if "spinach" in name:
+        return 30.0, 250.0
+    if any(term in name for term in ("vegetable", "cucumber", "carrot", "broccoli")):
+        return 50.0, 250.0
     if any(term in name for term in ("yogurt", "cottage cheese")):
-        return 10.0, 300.0
+        return 100.0, 300.0
     if "banana" in name:
-        return 10.0, 250.0
-    return 10.0, 250.0
+        return 80.0, 250.0
+    if "egg" in name:
+        return 50.0, 200.0
+    if any(term in name for term in ("chicken", "turkey", "beef", "cod", "salmon")):
+        return 80.0, 250.0
+    return 50.0, 250.0
+
+
+def assess_food_diversity(meals: list[GroundedMeal]) -> FoodDiversityAssessment:
+    """Score catalogue-food variety without asking the model to self-evaluate."""
+    names = [
+        ingredient.matched_food.strip().lower()
+        for meal in meals
+        for ingredient in meal.ingredients
+    ]
+    counts = Counter(names)
+    unique_names = set(counts)
+    meal_food_sets = [
+        {
+            ingredient.matched_food.strip().lower()
+            for ingredient in meal.ingredients
+        }
+        for meal in meals
+    ]
+    meal_presence = Counter(
+        name
+        for meal_foods in meal_food_sets
+        for name in meal_foods
+    )
+    meal_compositions = Counter(
+        tuple(sorted(meal_foods))
+        for meal_foods in meal_food_sets
+        if meal_foods
+    )
+    protein_terms = (
+        "egg",
+        "yogurt",
+        "cottage cheese",
+        "chicken",
+        "turkey",
+        "beef",
+        "cod",
+        "salmon",
+    )
+    plant_terms = (
+        "oats",
+        "banana",
+        "rice",
+        "buckwheat",
+        "potato",
+        "cucumber",
+        "carrot",
+        "broccoli",
+        "spinach",
+        "vegetable",
+    )
+    protein_sources = sum(
+        any(term in name for term in protein_terms) for name in unique_names
+    )
+    plant_foods = sum(any(term in name for term in plant_terms) for name in unique_names)
+    repeated = tuple(
+        sorted(name for name, count in meal_presence.items() if count > 2)
+    )
+    duplicate_meals = sum(
+        count - 1 for count in meal_compositions.values() if count > 1
+    )
+    unique_foods = len(unique_names)
+    score = round(
+        50 * min(unique_foods / 10, 1)
+        + 25 * min(protein_sources / 3, 1)
+        + 25 * min(plant_foods / 5, 1)
+        - 10 * duplicate_meals
+    )
+    score = max(0, min(100, score))
+    issues: list[str] = []
+    if unique_foods < 4:
+        issues.append("a daily plan must contain at least four different foods")
+    if repeated:
+        issues.append(
+            "the same food may not appear in more than two meals: "
+            + ", ".join(repeated)
+        )
+    return FoodDiversityAssessment(
+        score=score,
+        unique_foods=unique_foods,
+        total_ingredients=len(names),
+        protein_sources=protein_sources,
+        plant_foods=plant_foods,
+        duplicate_meals=duplicate_meals,
+        repeated_foods=repeated,
+        issues=tuple(issues),
+    )
 
 
 def fit_grounded_meal_portions(

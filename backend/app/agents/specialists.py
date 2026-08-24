@@ -20,6 +20,7 @@ from app.agents.prompts import (
 from app.agents.nutrition_validation import (
     GroundedMealPlanItem,
     NutritionNumbers,
+    assess_food_diversity,
     fit_grounded_meal_portions,
     ground_meal_plan,
     nutrition_plan_contract,
@@ -411,6 +412,7 @@ def _plan_submission_tool(
             carbs_g=sum(item.carbs_g for item in meal_numbers),
         )
         validation = validate_nutrition_numbers(meal_numbers, computed, targets)
+        diversity = assess_food_diversity(grounded_meals)
         allergen_issues = []
         for index, meal in enumerate(normalized_meals, start=1):
             ingredient_text = " ".join(
@@ -428,6 +430,7 @@ def _plan_submission_tool(
             *portion_issues,
             *validation.issues,
             *allergen_issues,
+            *diversity.issues,
         ]
         if issues:
             adjustments = (
@@ -467,6 +470,15 @@ def _plan_submission_tool(
                     else None
                 ),
                 "required_adjustments": adjustments,
+                "diversity": {
+                    "score": diversity.score,
+                    "unique_foods": diversity.unique_foods,
+                    "total_ingredients": diversity.total_ingredients,
+                    "protein_sources": diversity.protein_sources,
+                    "plant_foods": diversity.plant_foods,
+                    "duplicate_meals": diversity.duplicate_meals,
+                    "repeated_foods": list(diversity.repeated_foods),
+                },
                 "database_matches": [
                     {
                         "display_name": ingredient.display_name,
@@ -509,11 +521,15 @@ def _plan_submission_tool(
                 computed,
                 (
                     "Порции подобраны программно, а калории и БЖУ рассчитаны сервером "
-                    "по проверенной базе продуктов."
+                    "по проверенной базе продуктов. "
+                    f"Разнообразие: {diversity.unique_foods} разных продуктов, "
+                    f"оценка {diversity.score}/100."
                     if locale == "ru"
                     else (
                         "Portions were fitted programmatically; calories and macros were "
-                        "calculated by the server from the verified food database."
+                        "calculated by the server from the verified food database. "
+                        f"Diversity: {diversity.unique_foods} different foods, "
+                        f"score {diversity.score}/100."
                     )
                 ),
                 locale,
@@ -523,6 +539,15 @@ def _plan_submission_tool(
                 "protein_g": computed.protein_g,
                 "fat_g": computed.fat_g,
                 "carbs_g": computed.carbs_g,
+            },
+            "diversity": {
+                "score": diversity.score,
+                "unique_foods": diversity.unique_foods,
+                "total_ingredients": diversity.total_ingredients,
+                "protein_sources": diversity.protein_sources,
+                "plant_foods": diversity.plant_foods,
+                "duplicate_meals": diversity.duplicate_meals,
+                "repeated_foods": list(diversity.repeated_foods),
             },
         }
 
