@@ -368,6 +368,12 @@ def _plan_submission_tool(
         sorted(forbidden_terms),
         list(PLAN_FOOD_REFERENCE_NAMES),
     )
+    if str(profile_data.get("budget", "")).lower() == "low":
+        contract += (
+            " This profile requires a low-budget plan. Prefer oats, egg raw, chicken "
+            "breast raw, white rice raw or buckwheat raw, potato raw, seasonal catalogue "
+            "vegetables and small amounts of olive oil; prefer cod cooked over salmon raw."
+        )
     reference_cache: dict[str, Any] = {}
 
     def resolve_food(query: str) -> Any:
@@ -450,6 +456,12 @@ def _plan_submission_tool(
                 targets,
                 adjustments,
             )
+            overused_foods = set(diversity.repeated_foods)
+            replacement_candidates = [
+                food
+                for food in PLAN_FOOD_REFERENCE_NAMES
+                if food.strip().lower() not in overused_foods
+            ]
             return {
                 "status": "invalid",
                 "issues": issues,
@@ -477,7 +489,26 @@ def _plan_submission_tool(
                     "protein_sources": diversity.protein_sources,
                     "plant_foods": diversity.plant_foods,
                     "duplicate_meals": diversity.duplicate_meals,
+                    "duplicate_ingredients": list(diversity.duplicate_ingredients),
                     "repeated_foods": list(diversity.repeated_foods),
+                    "repeated_food_meals": [
+                        {"food": food, "meal_indexes": list(meal_indexes)}
+                        for food, meal_indexes in diversity.repeated_food_meals
+                    ],
+                },
+                "correction_hints": {
+                    "replace_repeated_foods_only_in_excess_meals": [
+                        {
+                            "food": food,
+                            "keep_in_meals": list(meal_indexes[:2]),
+                            "replace_in_meals": list(meal_indexes[2:]),
+                        }
+                        for food, meal_indexes in diversity.repeated_food_meals
+                    ],
+                    "remove_or_merge_duplicates_inside_meals": list(
+                        diversity.duplicate_ingredients
+                    ),
+                    "allowed_replacement_reference_foods": replacement_candidates,
                 },
                 "database_matches": [
                     {
@@ -498,25 +529,43 @@ def _plan_submission_tool(
                 "instruction": (
                     "Replace every unknown reference_food with an exact name from the verified "
                     "catalogue in the tool description. Never use a composite dish as one "
-                    "ingredient and never repeat an unchanged invalid submission. Change "
-                    "ingredient gram portions using required_adjustments, then call "
+                    "ingredient and never repeat an unchanged invalid submission. Apply every "
+                    "entry in correction_hints: keep an overused food only in keep_in_meals, "
+                    "replace it in replace_in_meals with an allowed replacement that is not "
+                    "already present in that meal, and never list one reference_food twice in "
+                    "one meal. Preserve valid meals when possible. Change ingredient gram "
+                    "portions using required_adjustments, then call "
                     "submit_daily_nutrition_plan again. "
                     "All nutrition values will be recalculated from food_nutrients."
                 ),
             }
+        goal = str(profile_data.get("goal", "")).lower()
+        budget_is_low = str(profile_data.get("budget", "")).lower() == "low"
+        if locale == "ru":
+            if goal == "gain_muscle":
+                plan_intro = "Вот проверенный план питания на день для набора мышечной массы"
+            elif goal in {"lose_weight", "weight_loss"}:
+                plan_intro = "Вот проверенный план питания на день для снижения веса"
+            else:
+                plan_intro = "Вот проверенный план питания на день"
+            if budget_is_low:
+                plan_intro += " с учётом ограниченного бюджета"
+            if "peanuts" in allergies:
+                plan_intro += " и аллергии на арахис"
+            plan_intro += "."
+        else:
+            plan_intro = "Here is a server-validated daily meal plan"
+            if goal == "gain_muscle":
+                plan_intro += " for muscle gain"
+            elif goal in {"lose_weight", "weight_loss"}:
+                plan_intro += " for weight loss"
+            if budget_is_low:
+                plan_intro += " on a low budget"
+            plan_intro += "."
         return {
             "status": "ok",
             "answer": render_grounded_plan(
-                (
-                    "Вот проверенный план на день с учётом цели снижения веса и "
-                    "аллергии на арахис."
-                    if locale == "ru" and "peanuts" in allergies
-                    else (
-                        "Вот проверенный план питания на день."
-                        if locale == "ru"
-                        else "Here is a server-validated daily meal plan."
-                    )
-                ),
+                plan_intro,
                 grounded_meals,
                 computed,
                 (
@@ -547,7 +596,12 @@ def _plan_submission_tool(
                 "protein_sources": diversity.protein_sources,
                 "plant_foods": diversity.plant_foods,
                 "duplicate_meals": diversity.duplicate_meals,
+                "duplicate_ingredients": list(diversity.duplicate_ingredients),
                 "repeated_foods": list(diversity.repeated_foods),
+                "repeated_food_meals": [
+                    {"food": food, "meal_indexes": list(meal_indexes)}
+                    for food, meal_indexes in diversity.repeated_food_meals
+                ],
             },
         }
 
@@ -734,7 +788,12 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
                     ],
                     "resolution_mode": "main_llm",
                 }
-            messages.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
+            messages.append(
+                ToolMessage(
+                    content=json.dumps(result, ensure_ascii=False, default=str),
+                    tool_call_id=call["id"],
+                )
+            )
 
     return {
         "messages": [AIMessage(content="Я остановилась, чтобы не зациклиться на инструментах. Попробуй уточнить запрос.")],

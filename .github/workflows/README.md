@@ -14,4 +14,6 @@ The frontend currently has two type-checking scopes:
 `live-gigachat-evals.yml` is deliberately separate. It runs only on its weekly
 schedule or via **Actions → Live GigaChat evals → Run workflow** and requires
 the repository secret `GIGACHAT_AUTH_KEY`. It is never triggered by a commit
-or pull request.
+or pull request. A weekly run is reported as intentionally skipped when the
+secret is absent; a manual run fails with setup instructions so it cannot be
+mistaken for an executed live regression.

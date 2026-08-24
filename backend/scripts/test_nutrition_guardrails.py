@@ -309,7 +309,27 @@ def check_household_portions_and_food_diversity() -> None:
     assert poor.score < 50
     assert poor.duplicate_meals == 3
     assert poor.repeated_foods == ("oats",)
+    assert poor.repeated_food_meals == (("oats", (1, 2, 3, 4)),)
+    assert not poor.duplicate_ingredients
     assert len(poor.issues) == 2
+
+    duplicate_inside_meal = GroundedMeal(
+        name="duplicate ingredient",
+        ingredients=[
+            _grounded_ingredient("yogurt"),
+            _grounded_ingredient("yogurt"),
+            _grounded_ingredient("banana"),
+            _grounded_ingredient("oats"),
+            _grounded_ingredient("egg raw"),
+        ],
+        calories=500,
+        protein_g=30,
+        fat_g=10,
+        carbs_g=60,
+    )
+    duplicate = assess_food_diversity([duplicate_inside_meal])
+    assert duplicate.duplicate_ingredients == ("meal 1: yogurt",)
+    assert any("only once inside each meal" in issue for issue in duplicate.issues)
 
 
 def check_progress_request_forces_weight_trend_in_recovery() -> None:
@@ -397,6 +417,7 @@ def check_invalid_draft_is_fitted_before_return() -> None:
         "chicken breast raw": (600, 45, 18, 64.5),
         "cod cooked": (500, 40, 15, 51.25),
         "greek yogurt": (250, 15, 4, 38.25),
+        "yogurt": (63, 3.5, 3.3, 5.2),
     }
 
     def fake_food_resolver(query: str) -> dict:
@@ -516,6 +537,65 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     rejected = submission_tool.invoke(allergen_args)
     assert rejected["status"] == "invalid"
     assert any("allergen" in issue for issue in rejected["issues"])
+
+    repeated_args = {
+        "meals": [
+            {
+                "name": "Breakfast",
+                "ingredients": [
+                    {"reference_food": "oats", "grams": 50},
+                    {"reference_food": "yogurt", "grams": 100},
+                ],
+            },
+            {
+                "name": "Snack 1",
+                "ingredients": [
+                    {"reference_food": "yogurt", "grams": 100},
+                    {"reference_food": "yogurt", "grams": 100},
+                ],
+            },
+            {
+                "name": "Lunch",
+                "ingredients": [
+                    {"reference_food": "chicken breast raw", "grams": 100},
+                    {"reference_food": "yogurt", "grams": 100},
+                ],
+            },
+            {
+                "name": "Snack 2",
+                "ingredients": [
+                    {"reference_food": "greek yogurt", "grams": 100},
+                ],
+            },
+            {
+                "name": "Dinner",
+                "ingredients": [
+                    {"reference_food": "cod cooked", "grams": 100},
+                ],
+            },
+        ]
+    }
+    repeated_result = submission_tool.invoke(repeated_args)
+    assert repeated_result["status"] == "invalid"
+    hints = repeated_result["correction_hints"]
+    # The submission tool deterministically merges two identical yoghurt rows in
+    # meal 2 before fitting/rendering, while still asking the model to replace the
+    # third cross-meal occurrence.
+    assert hints["remove_or_merge_duplicates_inside_meals"] == []
+    assert hints["replace_repeated_foods_only_in_excess_meals"] == [
+        {
+            "food": "yogurt",
+            "keep_in_meals": [1, 2],
+            "replace_in_meals": [3],
+        }
+    ]
+    assert "yogurt" not in hints["allowed_replacement_reference_foods"]
+    meal_two_yogurt = [
+        item
+        for item in repeated_result["database_matches"]
+        if item["reference_food"] == "yogurt"
+    ]
+    assert len(meal_two_yogurt) == 3
 
 
 if __name__ == "__main__":
