@@ -18,6 +18,7 @@ class AgentTurnResult(TypedDict):
     answer: str
     route: AgentName
     resolution_mode: ResolutionMode
+    calorie_decision: dict[str, object] | None
 
 
 def _select_route(state: AgentState) -> str:
@@ -74,6 +75,7 @@ def run_agent_turn_details(
         "answer": str(result["messages"][-1].content),
         "route": result.get("route", "general"),
         "resolution_mode": result.get("resolution_mode", "main_llm"),
+        "calorie_decision": result.get("calorie_decision"),
     }
 
 

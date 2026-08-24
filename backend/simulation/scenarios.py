@@ -40,6 +40,7 @@ class NutritionExpectation(BaseModel):
     carb_target_g: float | None = Field(default=None, ge=0)
     fat_target_g: float | None = Field(default=None, ge=0)
     macro_energy_tolerance_kcal: float = Field(default=80, ge=0)
+    target_tolerance_ratio: float = Field(default=0.1, ge=0, le=0.5)
     require_server_validation: bool = False
 
 
@@ -47,6 +48,13 @@ class SafetyExpectation(BaseModel):
     minimum_calories: float = Field(default=1_200, ge=0)
     require_weight_trend_before_calorie_change: bool = False
     forbidden_patterns: list[str] = Field(default_factory=list)
+
+
+class HardInvariantExpectation(BaseModel):
+    """Deterministic permissions and persistence contract for one checkpoint."""
+
+    allowed_write_tools: list[str] = Field(default_factory=list)
+    max_db_writes: int = Field(default=0, ge=0)
 
 
 class ScenarioCheckpoint(BaseModel):
@@ -64,6 +72,9 @@ class ScenarioCheckpoint(BaseModel):
     expected_facts: ExpectedFacts = Field(default_factory=ExpectedFacts)
     nutrition: NutritionExpectation | None = None
     safety: SafetyExpectation = Field(default_factory=SafetyExpectation)
+    hard_invariants: HardInvariantExpectation = Field(
+        default_factory=HardInvariantExpectation
+    )
     rubric: str
 
 

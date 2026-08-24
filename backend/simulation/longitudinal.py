@@ -55,6 +55,7 @@ class MemoryQuery:
         return self
 
     def insert(self, payload: dict[str, Any]) -> "MemoryQuery":
+        self.store.record_write("insert", self.table_name, payload)
         self.store.tables.setdefault(self.table_name, []).append(deepcopy(payload))
         self.rows = [deepcopy(payload)]
         return self
@@ -68,6 +69,7 @@ class MemorySupabase:
     """Minimal Supabase substitute used only by simulation tests."""
 
     def __init__(self, profile_row: dict[str, Any]):
+        self.write_audit: list[dict[str, Any]] = []
         self.tables: dict[str, list[dict[str, Any]]] = {
             "user_profiles": [profile_row],
             "meal_logs": [],
@@ -75,6 +77,17 @@ class MemorySupabase:
             "workout_logs": [],
             "user_health_logs": [],
         }
+
+    def record_write(
+        self, operation: str, table_name: str, payload: dict[str, Any]
+    ) -> None:
+        self.write_audit.append(
+            {
+                "operation": operation,
+                "table": table_name,
+                "payload": deepcopy(payload),
+            }
+        )
 
     def table(self, table_name: str) -> MemoryQuery:
         return MemoryQuery(self, table_name)
@@ -372,7 +385,10 @@ def replay_mock_agent(scenario: LongitudinalScenario) -> dict[str, Any]:
                     persona.locale,
                     history=history,
                 )
-            if "[MOCK:" not in result["answer"]:
+            if (
+                "[MOCK:" not in result["answer"]
+                and result.get("calorie_decision") is None
+            ):
                 raise AssertionError("Mock replay unexpectedly used a non-mock response")
             history.extend(
                 [
@@ -385,6 +401,7 @@ def replay_mock_agent(scenario: LongitudinalScenario) -> dict[str, Any]:
                     "checkpoint_id": checkpoint.checkpoint_id,
                     "route": result["route"],
                     "answer": result["answer"],
+                    "calorie_decision": result.get("calorie_decision"),
                     "quality_assertions": "not_applicable_to_deterministic_mock",
                 }
             )

@@ -11,8 +11,34 @@ Each checkpoint may declare:
 - `expected_facts` from frozen profile, weight, intake, and workout state;
 - `nutrition` targets and macro/calorie consistency tolerance;
 - `safety` limits and required evidence before calorie changes;
-- answer regexes in `must_include`, `must_not_include`, and
-  `expected_facts.answer_patterns` for the live evaluator.
+- legacy answer regexes in `must_include`, `must_not_include`, and
+  `expected_facts.answer_patterns`; these are non-blocking diagnostics only.
+
+Evaluation is split into three independent layers:
+
+1. **Hard invariants** are blocking and deterministic: exact route and tool
+   boundaries, tool read/write metadata and order, actual in-memory DB facts,
+   audited writes, server-validated calories/macros, allergens, and minimum
+   calories. They never inspect prose with regex.
+   Requests to change calorie targets must finish through the structured
+   `submit_calorie_decision` contract. Its result records the action, old and
+   proposed targets, enforced minimum, weight-record count, evidence dates, and
+   rationale; the same object is returned as `calorie_decision` by the job API.
+2. **Semantic quality** is an optional schema-based judge with four 1–5 rubric
+   dimensions: factual consistency, personalization, longitudinal reasoning,
+   and usefulness. Enable it only for an intentional live run with
+   `ATHENA_RUN_SEMANTIC_JUDGE=1`.
+3. **Human gold** is the separately versioned, named-reviewer subset in
+   `backend/simulation/gold/human_reviewed.json`. Generated judgments are never
+   promoted to human gold automatically.
+
+Gold candidates that share a `scenario_id` and `checkpoint_id` with a fixture
+are injected into the semantic judge payload without exposing the reference
+answer. Their curated rubric and per-dimension minimum scores are applied to the
+result. Every live report includes `gold_fixture_coverage`: candidates without a
+fixture are listed as `standalone_not_executed`, so they cannot be mistaken for
+executed checkpoints. A material prompt mismatch stops the live evaluator before
+any provider request.
 
 ## Offline suite
 
@@ -46,12 +72,14 @@ all three deliberate choices: selecting `tests/live_evals`, passing
 
 ```powershell
 $env:ATHENA_RUN_LIVE_EVALS = "1"
+$env:ATHENA_RUN_SEMANTIC_JUDGE = "1" # optional: one extra judged call/checkpoint
 $env:ATHENA_LIVE_SCENARIOS = "anna_14d_v1"
 $env:ATHENA_LIVE_CHECKPOINTS = "anna_d7_t1,anna_d14_t1" # optional
 python -m pytest tests/live_evals --run-live-evals -q
 # Or generate JSON and Markdown in the same deliberately opted-in session:
 python backend/scripts/eval_longitudinal_quality.py `
   --report-dir backend/simulation/reports/generated
+Remove-Item Env:ATHENA_RUN_SEMANTIC_JUDGE -ErrorAction SilentlyContinue
 ```
 
 The scheduled/manual GitHub workflow accepts the same comma-separated scenario

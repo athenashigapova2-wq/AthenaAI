@@ -1,6 +1,6 @@
 """Shared state for Athena's LangGraph agent workflow."""
 
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
@@ -21,3 +21,4 @@ class AgentState(TypedDict):
     rag_enabled: bool
     rag_context: str
     retrieved_chunks: list[dict[str, object]]
+    calorie_decision: NotRequired[dict[str, object] | None]

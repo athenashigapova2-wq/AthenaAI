@@ -8,6 +8,7 @@ delivery layers with reproducible responses.
 from __future__ import annotations
 
 from collections.abc import Sequence
+import re
 from time import sleep
 from typing import Any
 
@@ -60,8 +61,24 @@ class AthenaMockChatModel(BaseChatModel):
         if self.latency_ms:
             sleep(self.latency_ms / 1_000)
 
+        calorie_decision = "submit_calorie_decision" in self.bound_tool_names
         message = AIMessage(
-            content=self._response(messages),
+            content="" if calorie_decision else self._response(messages),
+            tool_calls=(
+                [
+                    {
+                        "name": "submit_calorie_decision",
+                        "args": {
+                            "action": "keep",
+                            "proposed_calories": _current_calorie_target(messages),
+                            "rationale": "Deterministic mock decision based on server facts.",
+                        },
+                        "id": "mock-calorie-decision",
+                    }
+                ]
+                if calorie_decision
+                else []
+            ),
             response_metadata={
                 "model_provider": "mock",
                 "model_name": self.model_name,
@@ -121,6 +138,12 @@ def _tool_name(tool: Any) -> str:
         function = tool.get("function") or {}
         return str(function.get("name") or tool.get("name") or "")
     return str(getattr(tool, "name", None) or getattr(tool, "__name__", ""))
+
+
+def _current_calorie_target(messages: list[BaseMessage]) -> float:
+    text = "\n".join(str(message.content) for message in messages)
+    match = re.search(r'"calorie_target"\s*:\s*(\d+(?:\.\d+)?)', text)
+    return float(match.group(1)) if match else 1_200.0
 
 
 _RESPONSES = {

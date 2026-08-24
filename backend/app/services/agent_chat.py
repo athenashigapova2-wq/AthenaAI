@@ -1,6 +1,7 @@
 """Run one agent turn independently from the HTTP and worker boundaries."""
 
 import logging
+from typing import Any
 from time import perf_counter
 
 from app.agents import graph as agent_graph
@@ -38,7 +39,7 @@ def run_agent_chat(
     message: str,
     locale: str,
     conversation_id: str | None,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Execute and persist an agent turn. Safe to call from a Celery worker."""
     started_at = perf_counter()
     try:
@@ -93,8 +94,11 @@ def run_agent_chat(
         except Exception:
             logger.exception("Could not complete agent trace %s", run_id)
 
-    return {
+    response: dict[str, Any] = {
         "answer": result["answer"],
         "route": result["route"],
         "conversation_id": resolved_conversation_id,
     }
+    if result.get("calorie_decision") is not None:
+        response["calorie_decision"] = result["calorie_decision"]
+    return response

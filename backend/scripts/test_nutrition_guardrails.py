@@ -188,18 +188,31 @@ def check_weight_trend_is_forced() -> None:
             {"date": "2026-09-15", "weight_kg": 72.9},
         ],
     }
+    profile = {
+        "status": "ok",
+        "profile": {"calorie_target": 2_000},
+    }
+
+    def invoke_required_tool(_state, call, _tools_by_name, **_kwargs):
+        return profile if call["name"] == "get_my_profile" else trend
+
     with (
         patch.object(settings, "llm_provider", "gigachat"),
-        patch("app.agents.specialists._invoke_tool", return_value=trend) as invoke,
+        patch(
+            "app.agents.specialists._invoke_tool",
+            side_effect=invoke_required_tool,
+        ) as invoke,
     ):
         context, results, validates_plan = _required_nutrition_context(
             _state("Нужно ли теперь менять калорийность?"),
             {tool.name: tool},
         )
-    assert invoke.call_count == 1
+    assert invoke.call_count == 2
+    assert invoke.call_args_list[0].args[1]["name"] == "get_my_profile"
     assert invoke.call_args.args[1]["name"] == "get_weight_trend"
+    assert results["get_my_profile"]["profile"]["calorie_target"] == 2_000
     assert results["get_weight_trend"]["delta_kg"] == -1.1
-    assert "-1.1" in context[0].content
+    assert any("-1.1" in item.content for item in context)
     assert validates_plan is False
     evidence = _weight_trend_evidence(trend, "ru")
     assert "74 кг" in evidence

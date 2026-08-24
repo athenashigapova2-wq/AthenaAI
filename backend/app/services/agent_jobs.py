@@ -115,7 +115,7 @@ def mark_job_running(job_id: str) -> None:
     _update_job(job_id, status="running")
 
 
-def mark_job_succeeded(job_id: str, result: dict[str, str]) -> None:
+def mark_job_succeeded(job_id: str, result: dict[str, Any]) -> None:
     _update_job(job_id, status="succeeded", result=json.dumps(result, ensure_ascii=False))
 
 

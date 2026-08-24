@@ -24,6 +24,22 @@ class AgentChatAccepted(BaseModel):
     status_url: str
 
 
+class CalorieEvidencePeriod(BaseModel):
+    start: str | None = None
+    end: str | None = None
+
+
+class CalorieDecisionResponse(BaseModel):
+    action: Literal["keep", "increase", "decrease"]
+    current_calories: float
+    proposed_calories: float
+    minimum_calories: float
+    change_kcal: float
+    weight_records: int = Field(ge=0)
+    evidence_period: CalorieEvidencePeriod
+    rationale: str
+
+
 class AgentJobResponse(BaseModel):
     job_id: str
     status: Literal["queued", "running", "succeeded", "failed"]
@@ -31,6 +47,7 @@ class AgentJobResponse(BaseModel):
     route: Literal["nutrition", "workout", "recovery", "general"] | None = None
     conversation_id: str | None = None
     error: str | None = None
+    calorie_decision: CalorieDecisionResponse | None = None
 
 
 @router.post(

@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import date
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
@@ -40,6 +40,7 @@ from app.tools.registry import build_tools, is_read_only_tool
 
 MAX_TOOL_STEPS = 6
 MAX_PLAN_SUBMISSIONS = 8
+MIN_CALORIE_TARGET = 1_200.0
 logger = logging.getLogger(__name__)
 
 
@@ -386,16 +387,15 @@ def _required_nutrition_context(
     tools_by_name: dict[str, BaseTool],
 ) -> tuple[list[SystemMessage], dict[str, Any], bool]:
     """Fetch facts that must be present before specific nutrition advice."""
-    if settings.llm_provider == "mock":
-        return [], {}, False
-
     message = _latest_user_text(state)
+    if settings.llm_provider == "mock" and not _requires_weight_trend(message):
+        return [], {}, False
     needs_plan_validation = _requires_full_day_plan(message)
     required_names: list[str] = []
     if needs_plan_validation:
         required_names.extend(("get_my_profile", "get_daily_intake"))
     if _requires_weight_trend(message):
-        required_names.append("get_weight_trend")
+        required_names.extend(("get_my_profile", "get_weight_trend"))
 
     results: dict[str, Any] = {}
     context: list[SystemMessage] = []
@@ -435,22 +435,134 @@ def _required_recovery_context(
     if not is_progress_request(_latest_user_text(state)):
         return [], {}
 
-    name = "get_weight_trend"
-    result = _invoke_tool(
-        state,
-        {"name": name, "args": {}, "id": f"required-{name}"},
-        tools_by_name,
-    )
-    context = SystemMessage(
-        content=(
-            f"REQUIRED_SERVER_FACT {name}: "
-            f"{json.dumps(result, ensure_ascii=False, default=str)}. "
-            "This fact was fetched by the server before answering a progress request. "
-            "Use it explicitly and do not contradict it. When describing the trend "
-            "duration, use its exact dates or days field; do not relabel or round it."
+    required_names = ["get_weight_trend"]
+    if _requires_weight_trend(_latest_user_text(state)):
+        required_names.insert(0, "get_my_profile")
+    results: dict[str, Any] = {}
+    context: list[SystemMessage] = []
+    for index, name in enumerate(required_names, start=1):
+        result = _invoke_tool(
+            state,
+            {"name": name, "args": {}, "id": f"required-{name}"},
+            tools_by_name,
+            tool_step=index,
         )
+        results[name] = result
+        context.append(
+            SystemMessage(
+                content=(
+                    f"REQUIRED_SERVER_FACT {name}: "
+                    f"{json.dumps(result, ensure_ascii=False, default=str)}. "
+                    "This fact was fetched by the server before answering. Use it "
+                    "explicitly and do not contradict it."
+                    + (
+                        " When describing the trend duration, use its exact dates or "
+                        "days field; do not relabel or round it."
+                        if name == "get_weight_trend"
+                        else ""
+                    )
+                )
+            )
+        )
+    return context, results
+
+
+def _calorie_decision_tool(
+    profile_result: Any,
+    trend_result: Any,
+    locale: str,
+) -> StructuredTool:
+    """Build the mandatory structured output path for calorie-target changes."""
+    profile_data = (
+        profile_result.get("profile", {})
+        if isinstance(profile_result, dict) and profile_result.get("status") == "ok"
+        else {}
     )
-    return [context], {name: result}
+    current = profile_data.get("calorie_target")
+
+    def submit_calorie_decision(
+        action: Literal["keep", "increase", "decrease"],
+        proposed_calories: float,
+        rationale: str,
+    ) -> dict[str, Any]:
+        normalized_action = action
+        if not isinstance(current, (int, float)):
+            return {
+                "status": "rejected",
+                "issues": ["current calorie target is unavailable"],
+            }
+        proposed = round(float(proposed_calories), 1)
+        issues: list[str] = []
+        if proposed < MIN_CALORIE_TARGET:
+            issues.append(
+                f"proposed calories {proposed:g} are below minimum {MIN_CALORIE_TARGET:g}"
+            )
+        if proposed > 6_000:
+            issues.append("proposed calories exceed the supported profile limit 6000")
+        if normalized_action == "keep" and proposed != float(current):
+            issues.append("keep requires proposed_calories to equal current_calories")
+        if normalized_action == "increase" and proposed <= float(current):
+            issues.append("increase requires proposed_calories above current_calories")
+        if normalized_action == "decrease" and proposed >= float(current):
+            issues.append("decrease requires proposed_calories below current_calories")
+        trend_dates = _weight_trend_dates(trend_result)
+        if normalized_action != "keep" and trend_dates is None:
+            issues.append("a calorie-target change requires at least two weight records")
+        if issues:
+            return {
+                "status": "rejected",
+                "issues": issues,
+                "current_calories": float(current),
+                "minimum_calories": MIN_CALORIE_TARGET,
+            }
+
+        first_date, last_date = trend_dates if trend_dates else (None, None)
+        decision = {
+            "action": normalized_action,
+            "current_calories": float(current),
+            "proposed_calories": proposed,
+            "minimum_calories": MIN_CALORIE_TARGET,
+            "change_kcal": round(proposed - float(current), 1),
+            "weight_records": len(
+                trend_result.get("weights") or []
+                if isinstance(trend_result, dict)
+                else []
+            ),
+            "evidence_period": {
+                "start": first_date.isoformat() if first_date else None,
+                "end": last_date.isoformat() if last_date else None,
+            },
+            "rationale": _sanitize_internal_notation(rationale, locale),
+        }
+        if locale == "ru":
+            action_text = {
+                "keep": "сохранить",
+                "increase": "увеличить",
+                "decrease": "снизить",
+            }[normalized_action]
+            answer = (
+                f"Решение по калорийности: {action_text} цель с {float(current):g} "
+                f"до {proposed:g} ккал. {decision['rationale']}"
+            )
+        else:
+            answer = (
+                f"Calorie decision: {normalized_action} the target from "
+                f"{float(current):g} to {proposed:g} kcal. {decision['rationale']}"
+            )
+        return {"status": "ok", "calorie_decision": decision, "answer": answer.strip()}
+
+    return StructuredTool.from_function(
+        func=submit_calorie_decision,
+        name="submit_calorie_decision",
+        metadata={"read_only": True},
+        description=(
+            "Mandatory final structured output for any request asking whether to change "
+            "the calorie target. action must be keep, increase, or decrease. Copy the "
+            "current target from get_my_profile. A change requires the fetched weight "
+            f"trend and proposed_calories must never be below {MIN_CALORIE_TARGET:g}. "
+            "Call this tool instead of answering only in prose."
+        ),
+    )
 
 
 def _plan_submission_tool(
@@ -774,6 +886,24 @@ def _plan_submission_tool(
                 "fat_g": computed.fat_g,
                 "carbs_g": computed.carbs_g,
             },
+            "database_matches": [
+                {
+                    "matched_food": ingredient.matched_food,
+                    "grams": ingredient.grams,
+                    "per_100g": {
+                        "calories": ingredient.calories_per_100g,
+                        "protein_g": ingredient.protein_per_100g,
+                        "fat_g": ingredient.fat_per_100g,
+                        "carbs_g": ingredient.carbs_per_100g,
+                    },
+                }
+                for meal in grounded_meals
+                for ingredient in meal.ingredients
+            ],
+            "allergen_check": {
+                "profile_allergies": allergies,
+                "violations": [],
+            },
             "diversity": {
                 "score": diversity.score,
                 "unique_foods": diversity.unique_foods,
@@ -883,6 +1013,7 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
     required_context: list[SystemMessage] = []
     required_results: dict[str, Any] = {}
     needs_plan_validation = False
+    needs_calorie_decision = _requires_weight_trend(_latest_user_text(state))
     if state["route"] == "nutrition":
         required_context, required_results, needs_plan_validation = (
             _required_nutrition_context(state, tools_by_name)
@@ -892,7 +1023,16 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
             state,
             tools_by_name,
         )
-    if needs_plan_validation:
+    calorie_tool: StructuredTool | None = None
+    if needs_calorie_decision and not needs_plan_validation:
+        calorie_tool = _calorie_decision_tool(
+            required_results.get("get_my_profile"),
+            required_results.get("get_weight_trend"),
+            state["locale"],
+        )
+        tools_by_name[calorie_tool.name] = calorie_tool
+        llm = base_llm.bind_tools([calorie_tool], tool_choice=calorie_tool.name)
+    elif needs_plan_validation:
         profile_result = required_results.get("get_my_profile")
         targets = targets_from_profile_result(profile_result)
         submission_tool = _plan_submission_tool(
@@ -918,6 +1058,8 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
     system_parts.extend(str(message.content) for message in required_context)
     if needs_plan_validation:
         system_parts.append(submission_tool.description)
+    if calorie_tool is not None:
+        system_parts.append(calorie_tool.description)
     system_parts.extend(str(message.content) for message in _rag_messages(state))
     messages = [
         SystemMessage(content="\n\n".join(system_parts)),
@@ -937,7 +1079,7 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
         )
         messages.append(ai_msg)
         if not getattr(ai_msg, "tool_calls", None):
-            if needs_plan_validation:
+            if needs_plan_validation or calorie_tool is not None:
                 return {
                     "messages": [
                         AIMessage(content=validation_failure_message(state["locale"]))
@@ -972,6 +1114,23 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
                         )
                     ],
                     "resolution_mode": "main_llm",
+                }
+            if (
+                call["name"] == "submit_calorie_decision"
+                and isinstance(result, dict)
+                and result.get("status") == "ok"
+            ):
+                evidence = _weight_trend_evidence(
+                    required_results.get("get_weight_trend"),
+                    state["locale"],
+                )
+                answer = _finalize_answer(result["answer"], state["locale"])
+                if evidence:
+                    answer = f"{evidence}\n\n{answer}".strip()
+                return {
+                    "messages": [AIMessage(content=answer)],
+                    "resolution_mode": "main_llm",
+                    "calorie_decision": result["calorie_decision"],
                 }
             messages.append(
                 ToolMessage(
