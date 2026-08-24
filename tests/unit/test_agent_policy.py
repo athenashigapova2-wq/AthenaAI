@@ -58,6 +58,7 @@ def test_routing_policy(check) -> None:
         nutrition_checks.check_household_portions_and_food_diversity,
         nutrition_checks.check_progress_request_forces_weight_trend_in_recovery,
         nutrition_checks.check_invalid_draft_is_fitted_before_return,
+        nutrition_checks.check_server_selects_an_alternative_food_set,
     ),
     ids=lambda check: check.__name__,
 )

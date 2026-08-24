@@ -43,6 +43,121 @@ MAX_PLAN_SUBMISSIONS = 8
 logger = logging.getLogger(__name__)
 
 
+# The model may choose a nutritionally incompatible ingredient set even when every
+# individual food exists in the catalogue. These bounded server-owned templates let
+# the validator change the food set (not merely the grams) without inventing foods or
+# paying for another LLM call. Every candidate still goes through database grounding,
+# portion fitting, allergy checks, diversity checks, and target validation.
+_ALTERNATIVE_PLAN_TEMPLATES: tuple[
+    tuple[str, tuple[tuple[str, tuple[str, ...]], ...]], ...
+] = (
+    (
+        "balanced_lean",
+        (
+            ("Breakfast", ("oats", "egg raw", "banana")),
+            ("Snack 1", ("greek yogurt", "cucumber")),
+            (
+                "Lunch",
+                ("chicken breast raw", "white rice cooked", "broccoli cooked", "olive oil"),
+            ),
+            ("Snack 2", ("cottage cheese nonfat", "carrots raw")),
+            ("Dinner", ("cod cooked", "buckwheat raw", "spinach raw", "olive oil")),
+        ),
+    ),
+    (
+        "turkey_potato",
+        (
+            ("Breakfast", ("oats", "egg raw", "banana")),
+            ("Snack 1", ("yogurt", "cucumber")),
+            (
+                "Lunch",
+                ("turkey breast roasted", "white rice cooked", "broccoli cooked", "olive oil"),
+            ),
+            ("Snack 2", ("cottage cheese nonfat", "carrots raw")),
+            ("Dinner", ("cod cooked", "potato raw", "spinach raw", "olive oil")),
+        ),
+    ),
+    (
+        "higher_energy",
+        (
+            ("Breakfast", ("oats", "egg raw", "banana")),
+            ("Snack 1", ("greek yogurt", "cucumber")),
+            (
+                "Lunch",
+                (
+                    "beef tenderloin steak cooked",
+                    "white rice cooked",
+                    "broccoli cooked",
+                    "olive oil",
+                ),
+            ),
+            ("Snack 2", ("cottage cheese nonfat", "carrots raw")),
+            ("Dinner", ("salmon raw", "buckwheat raw", "spinach raw", "olive oil")),
+        ),
+    ),
+    (
+        "low_budget",
+        (
+            ("Breakfast", ("oats", "egg raw", "banana")),
+            ("Snack 1", ("yogurt", "cucumber")),
+            (
+                "Lunch",
+                ("chicken breast raw", "white rice raw", "broccoli cooked", "olive oil"),
+            ),
+            ("Snack 2", ("cottage cheese nonfat", "carrots raw")),
+            ("Dinner", ("cod cooked", "potato raw", "spinach raw", "olive oil")),
+        ),
+    ),
+)
+
+
+def _alternative_plan_candidates(
+    locale: str,
+    *,
+    low_budget: bool,
+) -> list[tuple[str, list[GroundedMealPlanItem]]]:
+    """Build deterministic candidate plans in profile-aware priority order."""
+    templates = list(_ALTERNATIVE_PLAN_TEMPLATES)
+    if low_budget:
+        templates.sort(key=lambda item: item[0] != "low_budget")
+    ru_names = ("Завтрак", "Перекус 1", "Обед", "Перекус 2", "Ужин")
+    candidates: list[tuple[str, list[GroundedMealPlanItem]]] = []
+    for template_name, meal_specs in templates:
+        meals = [
+            GroundedMealPlanItem.model_validate(
+                {
+                    "name": ru_names[index] if locale == "ru" else meal_name,
+                    "ingredients": [
+                        {"reference_food": food, "grams": 100.0}
+                        for food in foods
+                    ],
+                }
+            )
+            for index, (meal_name, foods) in enumerate(meal_specs)
+        ]
+        candidates.append((template_name, meals))
+    return candidates
+
+
+def _allergen_issues(
+    meals: list[GroundedMealPlanItem],
+    forbidden_terms: set[str],
+) -> list[str]:
+    """Return profile-allergen violations for one normalized plan."""
+    issues: list[str] = []
+    for index, meal in enumerate(meals, start=1):
+        ingredient_text = " ".join(
+            str(ingredient.reference_food) for ingredient in meal.ingredients
+        )
+        meal_text = f"{meal.name} {ingredient_text}".lower()
+        matched = sorted(term for term in forbidden_terms if term in meal_text)
+        if matched:
+            issues.append(
+                f"meal {index} may contain a profile allergen: {', '.join(matched)}"
+            )
+    return issues
+
+
 def _normalize_tool_call_keys(value: Any) -> Any:
     """Strip accidental whitespace from model-produced keys before validation."""
     if isinstance(value, dict):
@@ -419,18 +534,7 @@ def _plan_submission_tool(
         )
         validation = validate_nutrition_numbers(meal_numbers, computed, targets)
         diversity = assess_food_diversity(grounded_meals)
-        allergen_issues = []
-        for index, meal in enumerate(normalized_meals, start=1):
-            ingredient_text = " ".join(
-                str(ingredient.reference_food)
-                for ingredient in meal.ingredients
-            )
-            meal_text = f"{meal.name} {ingredient_text}".lower()
-            matched = sorted(term for term in forbidden_terms if term in meal_text)
-            if matched:
-                allergen_issues.append(
-                    f"meal {index} may contain a profile allergen: {', '.join(matched)}"
-                )
+        allergen_issues = _allergen_issues(normalized_meals, forbidden_terms)
         issues = [
             *grounding_issues,
             *portion_issues,
@@ -438,6 +542,85 @@ def _plan_submission_tool(
             *allergen_issues,
             *diversity.issues,
         ]
+        selected_food_set = "model"
+        attempted_alternatives: list[str] = []
+        if issues and targets is not None:
+            original_food_set = {
+                str(ingredient.reference_food)
+                for meal in normalized_meals
+                for ingredient in meal.ingredients
+            }
+            budget_is_low = str(profile_data.get("budget", "")).lower() == "low"
+            for candidate_name, candidate_meals in _alternative_plan_candidates(
+                locale,
+                low_budget=budget_is_low,
+            ):
+                candidate_food_set = {
+                    str(ingredient.reference_food)
+                    for meal in candidate_meals
+                    for ingredient in meal.ingredients
+                }
+                if candidate_food_set == original_food_set:
+                    continue
+                attempted_alternatives.append(candidate_name)
+                candidate_grounded, candidate_grounding_issues = ground_meal_plan(
+                    candidate_meals,
+                    resolve_food,
+                    locale,
+                )
+                candidate_portion_issues: tuple[str, ...] = ()
+                if not candidate_grounding_issues:
+                    candidate_grounded, candidate_portion_issues = (
+                        fit_grounded_meal_portions(candidate_grounded, targets)
+                    )
+                candidate_numbers = [
+                    NutritionNumbers(
+                        calories=meal.calories,
+                        protein_g=meal.protein_g,
+                        fat_g=meal.fat_g,
+                        carbs_g=meal.carbs_g,
+                    )
+                    for meal in candidate_grounded
+                ]
+                candidate_computed = NutritionNumbers(
+                    calories=sum(item.calories for item in candidate_numbers),
+                    protein_g=sum(item.protein_g for item in candidate_numbers),
+                    fat_g=sum(item.fat_g for item in candidate_numbers),
+                    carbs_g=sum(item.carbs_g for item in candidate_numbers),
+                )
+                candidate_validation = validate_nutrition_numbers(
+                    candidate_numbers,
+                    candidate_computed,
+                    targets,
+                )
+                candidate_diversity = assess_food_diversity(candidate_grounded)
+                candidate_issues = [
+                    *candidate_grounding_issues,
+                    *candidate_portion_issues,
+                    *candidate_validation.issues,
+                    *_allergen_issues(candidate_meals, forbidden_terms),
+                    *candidate_diversity.issues,
+                ]
+                if candidate_issues:
+                    continue
+
+                logger.info(
+                    "Server replaced incompatible nutrition food set: template=%s original=%s",
+                    candidate_name,
+                    sorted(original_food_set),
+                )
+                normalized_meals = candidate_meals
+                grounded_meals = candidate_grounded
+                meal_numbers = candidate_numbers
+                computed = candidate_computed
+                validation = candidate_validation
+                diversity = candidate_diversity
+                grounding_issues = ()
+                portion_issues = ()
+                allergen_issues = []
+                issues = []
+                selected_food_set = f"server:{candidate_name}"
+                break
         if issues:
             adjustments = (
                 {
@@ -497,6 +680,7 @@ def _plan_submission_tool(
                     ],
                 },
                 "correction_hints": {
+                    "server_alternative_sets_tried": attempted_alternatives,
                     "replace_repeated_foods_only_in_excess_meals": [
                         {
                             "food": food,
@@ -564,6 +748,7 @@ def _plan_submission_tool(
             plan_intro += "."
         return {
             "status": "ok",
+            "food_set_selection": selected_food_set,
             "answer": render_grounded_plan(
                 plan_intro,
                 grounded_meals,

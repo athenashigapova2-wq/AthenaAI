@@ -598,6 +598,65 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     assert len(meal_two_yogurt) == 3
 
 
+def check_server_selects_an_alternative_food_set() -> None:
+    """An incompatible model food set is replaced without another LLM call."""
+    foods = {
+        "oats": (389, 16.9, 6.9, 66.3),
+        "egg raw": (143, 12.6, 9.5, 0.7),
+        "banana": (89, 1.1, 0.3, 22.8),
+        "greek yogurt": (97, 9.0, 5.0, 3.9),
+        "yogurt": (63, 3.5, 3.3, 5.2),
+        "cucumber": (15, 0.7, 0.1, 3.6),
+        "chicken breast raw": (120, 22.5, 2.6, 0.0),
+        "turkey breast roasted": (135, 29.0, 1.8, 0.0),
+        "beef tenderloin steak cooked": (250, 26.0, 17.0, 0.0),
+        "cod cooked": (105, 23.0, 0.9, 0.0),
+        "salmon raw": (208, 20.0, 13.0, 0.0),
+        "white rice cooked": (130, 2.7, 0.3, 28.2),
+        "white rice raw": (365, 7.1, 0.7, 80.0),
+        "buckwheat raw": (343, 13.3, 3.4, 71.5),
+        "potato raw": (77, 2.0, 0.1, 17.0),
+        "carrots raw": (41, 0.9, 0.2, 9.6),
+        "broccoli cooked": (35, 2.4, 0.4, 7.2),
+        "spinach raw": (23, 2.9, 0.4, 3.6),
+        "cottage cheese nonfat": (72, 12.4, 0.3, 2.7),
+        "olive oil": (884, 0.0, 100.0, 0.0),
+    }
+
+    def resolver(query: str) -> dict:
+        calories, protein, fat, carbs = foods[query]
+        return {
+            "food_name": query,
+            "calories_per_100g": calories,
+            "protein_g": protein,
+            "fat_g": fat,
+            "carbs_g": carbs,
+        }
+
+    submission_tool = _plan_submission_tool(
+        TARGETS,
+        "ru",
+        PROFILE_RESULT,
+        food_resolver=resolver,
+    )
+    incompatible = {
+        "meals": [
+            {
+                "name": name,
+                "ingredients": [{"reference_food": "cucumber", "grams": 100}],
+            }
+            for name in ("Завтрак", "Перекус 1", "Обед", "Перекус 2", "Ужин")
+        ]
+    }
+    result = submission_tool.invoke(incompatible)
+
+    assert result["status"] == "ok", result
+    assert result["food_set_selection"].startswith("server:"), result
+    assert result["diversity"]["unique_foods"] >= 4
+    assert "Овсяные хлопья" in result["answer"]
+    assert "Куриная грудка" in result["answer"]
+
+
 if __name__ == "__main__":
     check_intent_detection()
     check_programmatic_totals()
@@ -607,4 +666,5 @@ if __name__ == "__main__":
     check_household_portions_and_food_diversity()
     check_progress_request_forces_weight_trend_in_recovery()
     check_invalid_draft_is_fitted_before_return()
+    check_server_selects_an_alternative_food_set()
     print("Nutrition guardrail checks passed")
