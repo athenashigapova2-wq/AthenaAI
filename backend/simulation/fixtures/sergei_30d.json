@@ -1,0 +1,24 @@
+{
+  "scenario_id": "sergei_30d_v1", "source": "симуляционные тестироания.xlsx#profiles", "persona_id": "vp_sergei_01", "timezone": "Europe/Moscow", "duration_days": 30,
+  "events": [
+    {"day": 0, "time": "08:30", "event_type": "weight", "payload": {"weight_kg": 80.0}},
+    {"day": 1, "time": "08:30", "event_type": "weight", "payload": {"weight_kg": 80.0}},
+    {"day": 28, "time": "19:00", "event_type": "workout", "payload": {"workout_type": "full_body", "duration_min": 70}},
+    {"day": 30, "time": "08:30", "event_type": "weight", "payload": {"weight_kg": 81.0}}
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "sergei_d0_plan", "day": 0, "time": "09:30", "conversation_id": "nutrition_main", "turn": 1,
+      "message": "Составь простой план питания для набора мышц", "expected_route": "nutrition", "expected_tools": ["get_my_profile"],
+      "expected_facts": {"profile": {"status": "ok", "profile": {"goal": "gain_muscle", "calorie_target": 3100, "cooking_skill": "basic"}}, "weight_trend": {"entries": 1, "delta_kg": null}},
+      "nutrition": {"calorie_target": 3100, "protein_target_g": 164, "carb_target_g": 418, "fat_target_g": 86, "macro_energy_tolerance_kcal": 80, "require_server_validation": true},
+      "safety": {"minimum_calories": 1200}, "rubric": "personalization"
+    },
+    {
+      "checkpoint_id": "sergei_d30_progress", "day": 30, "time": "09:30", "conversation_id": "nutrition_main", "turn": 2,
+      "message": "Оцени мой прогресс за месяц", "expected_route": "recovery", "expected_tools": ["get_weight_trend"],
+      "expected_facts": {"weight_trend": {"entries": 2, "delta_kg": 1.0}, "workout_history": {"entries": 1}, "answer_patterns": ["1(?:[,.]0)?\\s*(?:кг|килограмм)"]},
+      "rubric": "longitudinal_consistency"
+    }
+  ]
+}

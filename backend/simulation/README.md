@@ -1,8 +1,9 @@
 # Longitudinal simulation contour
 
-The contour discovers every `backend/simulation/fixtures/*_14d.json` and
-`*_30d.json` fixture. `profiles.json` remains the shared fictional-persona
-catalogue and is not treated as a scenario.
+The contour discovers every `backend/simulation/fixtures/*_<N>d.json` fixture
+where `N` is between 14 and 30 (including `*_14d.json` and `*_30d.json`).
+`profiles.json` remains the shared fictional-persona catalogue and is not
+treated as a scenario.
 
 Each checkpoint may declare:
 

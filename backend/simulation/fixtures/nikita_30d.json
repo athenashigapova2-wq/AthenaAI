@@ -1,0 +1,24 @@
+{
+  "scenario_id": "nikita_30d_v1", "source": "симуляционные тестироания.xlsx#profiles", "persona_id": "vp_nikita_01", "timezone": "Europe/Moscow", "duration_days": 30,
+  "events": [
+    {"day": 0, "time": "09:28", "event_type": "weight", "payload": {"weight_kg": 73.0}},
+    {"day": 1, "time": "09:28", "event_type": "weight", "payload": {"weight_kg": 73.0}},
+    {"day": 28, "time": "18:00", "event_type": "workout", "payload": {"workout_type": "full_body", "duration_min": 60}},
+    {"day": 30, "time": "08:00", "event_type": "weight", "payload": {"weight_kg": 74.0}}
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "nikita_d0_plan", "day": 0, "time": "10:00", "conversation_id": "nutrition_main", "turn": 1,
+      "message": "Составь простой план питания для набора мышц", "expected_route": "nutrition", "expected_tools": ["get_my_profile"],
+      "expected_facts": {"profile": {"status": "ok", "profile": {"goal": "gain_muscle", "calorie_target": 2800, "cooking_skill": "basic"}}, "weight_trend": {"entries": 1, "delta_kg": null}},
+      "nutrition": {"calorie_target": 2800, "protein_target_g": 155, "carb_target_g": 370, "fat_target_g": 78, "macro_energy_tolerance_kcal": 80, "require_server_validation": true},
+      "safety": {"minimum_calories": 1200}, "rubric": "personalization"
+    },
+    {
+      "checkpoint_id": "nikita_d30_progress", "day": 30, "time": "09:00", "conversation_id": "nutrition_main", "turn": 2,
+      "message": "Оцени мой прогресс за месяц", "expected_route": "recovery", "expected_tools": ["get_weight_trend"],
+      "expected_facts": {"weight_trend": {"entries": 2, "delta_kg": 1.0}, "workout_history": {"entries": 1}, "answer_patterns": ["1(?:[,.]0)?\\s*(?:кг|килограмм)"]},
+      "rubric": "longitudinal_consistency"
+    }
+  ]
+}

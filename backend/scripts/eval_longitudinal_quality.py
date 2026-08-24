@@ -179,12 +179,33 @@ def run_scenario(scenario: LongitudinalScenario) -> dict:
             _apply_events_through(scenario, persona, store, checkpoint_at, applied)
             tool_calls = []
             history = histories.setdefault(checkpoint.conversation_id, [])
-            result = run_agent_turn_details(
-                persona.persona_id,
-                checkpoint.message,
-                persona.locale,
-                history=history,
-            )
+            try:
+                result = run_agent_turn_details(
+                    persona.persona_id,
+                    checkpoint.message,
+                    persona.locale,
+                    history=history,
+                )
+            except Exception as exc:
+                results.append(
+                    {
+                        "checkpoint_id": checkpoint.checkpoint_id,
+                        "simulated_at": checkpoint_at.isoformat(),
+                        "question": checkpoint.message,
+                        "route": None,
+                        "tool_calls": tool_calls,
+                        "answer": "",
+                        "execution_error": f"{type(exc).__name__}: {exc}",
+                        "evaluation": {
+                            "passed": False,
+                            "score": 0,
+                            "max_score": 1,
+                            "checks": {"execution_succeeded": False},
+                            "metrics": {},
+                        },
+                    }
+                )
+                continue
             history.extend(
                 [
                     {"role": "user", "content": checkpoint.message},

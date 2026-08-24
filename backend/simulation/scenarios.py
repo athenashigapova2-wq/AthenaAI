@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -13,7 +14,7 @@ from simulation.profiles import FIXTURES_DIR
 
 SCENARIO_SELECTION_ENV = "ATHENA_SIMULATION_SCENARIOS"
 LIVE_SCENARIO_SELECTION_ENV = "ATHENA_LIVE_SCENARIOS"
-SCENARIO_GLOBS = ("*_14d.json", "*_30d.json")
+SCENARIO_FILENAME = re.compile(r"^.+_(1[4-9]|2[0-9]|30)d\.json$")
 
 
 class ScenarioEvent(BaseModel):
@@ -71,7 +72,7 @@ class LongitudinalScenario(BaseModel):
     source: str
     persona_id: str
     timezone: str = "Europe/Moscow"
-    duration_days: Literal[14, 30]
+    duration_days: int = Field(ge=14, le=30)
     events: list[ScenarioEvent]
     checkpoints: list[ScenarioCheckpoint]
     fixture_path: Path | None = Field(default=None, exclude=True)
@@ -92,12 +93,11 @@ class LongitudinalScenario(BaseModel):
 
 
 def discover_scenario_paths(fixtures_dir: Path = FIXTURES_DIR) -> list[Path]:
-    """Find every supported 14-day and 30-day fixture deterministically."""
+    """Find every 14-to-30-day fixture deterministically."""
     paths = {
         path.resolve()
-        for pattern in SCENARIO_GLOBS
-        for path in fixtures_dir.glob(pattern)
-        if path.is_file()
+        for path in fixtures_dir.glob("*.json")
+        if path.is_file() and SCENARIO_FILENAME.fullmatch(path.name)
     }
     return sorted(paths, key=lambda path: path.name.casefold())
 

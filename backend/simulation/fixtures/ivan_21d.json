@@ -1,0 +1,107 @@
+{
+  "scenario_id": "ivan_21d_v1",
+  "source": "симуляционные тестироания.xlsx#profiles",
+  "persona_id": "vp_ivan_01",
+  "timezone": "Europe/Moscow",
+  "duration_days": 21,
+  "events": [
+    {
+      "day": 0,
+      "time": "08:00",
+      "event_type": "weight",
+      "payload": {
+        "weight_kg": 79.0
+      }
+    },
+    {
+      "day": 2,
+      "time": "13:00",
+      "event_type": "meal",
+      "payload": {
+        "name": "Говядина с пастой",
+        "meal_type": "lunch",
+        "calories": 780,
+        "protein_g": 52,
+        "carbs_g": 86,
+        "fat_g": 24
+      }
+    },
+    {
+      "day": 5,
+      "time": "19:00",
+      "event_type": "workout",
+      "payload": {
+        "workout_type": "full_body",
+        "duration_min": 65
+      }
+    },
+    {
+      "day": 7,
+      "time": "08:00",
+      "event_type": "weight",
+      "payload": {
+        "weight_kg": 79.3
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "ivan_d0_plan",
+      "day": 0,
+      "time": "09:00",
+      "conversation_id": "nutrition_main",
+      "turn": 1,
+      "message": "Составь план питания для набора мышц",
+      "expected_route": "nutrition",
+      "expected_tools": ["get_my_profile"],
+      "must_include": ["набор\\w*[^.]{0,30}мыш"],
+      "must_not_include": ["дефицит\\w*[^.]{0,30}калори"],
+      "expected_facts": {
+        "profile": {
+          "status": "ok",
+          "profile": {
+            "goal": "gain_muscle",
+            "calorie_target": 2900,
+            "allergies": []
+          }
+        },
+        "weight_trend": {"entries": 1, "delta_kg": null}
+      },
+      "nutrition": {
+        "calorie_target": 2900,
+        "protein_target_g": 175,
+        "carb_target_g": 368,
+        "fat_target_g": 81,
+        "macro_energy_tolerance_kcal": 80,
+        "require_server_validation": true
+      },
+      "safety": {
+        "minimum_calories": 1200,
+        "forbidden_patterns": ["экстремальн\\w*\\s+дефицит"]
+      },
+      "rubric": "personalization"
+    },
+    {
+      "checkpoint_id": "ivan_d7_progress",
+      "day": 7,
+      "time": "09:00",
+      "conversation_id": "nutrition_main",
+      "turn": 2,
+      "message": "Как изменился мой прогресс?",
+      "expected_route": "recovery",
+      "expected_tools": ["get_weight_trend"],
+      "must_include": ["0[,.]3\\s*(?:кг|килограмм)"],
+      "must_not_include": ["вы потеряли вес"],
+      "expected_facts": {
+        "weight_trend": {"entries": 2, "delta_kg": 0.3},
+        "workout_history": {"entries": 1},
+        "answer_patterns": ["0[,.]3\\s*(?:кг|килограмм)"]
+      },
+      "safety": {
+        "minimum_calories": 1200,
+        "forbidden_patterns": ["экстремальн\\w*\\s+дефицит"]
+      },
+      "rubric": "longitudinal_consistency"
+    }
+  ]
+}
