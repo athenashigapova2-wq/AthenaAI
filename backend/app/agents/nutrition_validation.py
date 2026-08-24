@@ -14,6 +14,31 @@ from scipy.optimize import lsq_linear
 from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES
 
 
+_RU_FOOD_NAMES = {
+    "oats": "овсяные хлопья",
+    "egg raw": "яйцо",
+    "greek yogurt": "греческий йогурт",
+    "yogurt": "йогурт",
+    "banana": "банан",
+    "cottage cheese nonfat": "обезжиренный творог",
+    "chicken breast raw": "куриная грудка",
+    "turkey breast roasted": "запечённая грудка индейки",
+    "beef tenderloin steak cooked": "приготовленная говяжья вырезка",
+    "cod cooked": "приготовленная треска",
+    "salmon raw": "лосось",
+    "white rice cooked": "варёный белый рис",
+    "white rice raw": "белый рис",
+    "buckwheat raw": "гречневая крупа",
+    "potato raw": "картофель",
+    "cucumber": "огурец",
+    "carrots raw": "морковь",
+    "broccoli cooked": "приготовленная брокколи",
+    "spinach raw": "шпинат",
+    "vegetable salad": "овощной салат",
+    "olive oil": "оливковое масло",
+}
+
+
 _NUMBER = r"(\d+(?:[.,]\d+)?)"
 _MEAL_PATTERN = re.compile(
     rf"\[MEAL_KBJU\s+kcal={_NUMBER}\s+protein={_NUMBER}"
@@ -193,6 +218,7 @@ def nutrition_plan_contract(
 def ground_meal_plan(
     meals: list[GroundedMealPlanItem],
     resolver: Any,
+    locale: str = "en",
 ) -> tuple[list[GroundedMeal], tuple[str, ...]]:
     """Resolve ingredients and calculate every nutrition value from DB rows."""
     grounded_meals: list[GroundedMeal] = []
@@ -217,7 +243,10 @@ def ground_meal_plan(
             factor = ingredient.grams / 100.0
             grounded_ingredients.append(
                 GroundedIngredient(
-                    display_name=_display_name_from_matched_food(reference.food_name),
+                    display_name=_display_name_from_matched_food(
+                        reference.food_name,
+                        locale,
+                    ),
                     reference_food=ingredient.reference_food,
                     matched_food=reference.food_name,
                     grams=round(ingredient.grams, 1),
@@ -248,12 +277,24 @@ def ground_meal_plan(
     return grounded_meals, tuple(issues)
 
 
-def _display_name_from_matched_food(matched_food: str) -> str:
+def _display_name_from_matched_food(matched_food: str, locale: str = "en") -> str:
     """Build the user-visible product name only from the canonical database match."""
     normalized = re.sub(r"\s+", " ", matched_food.replace("_", " ")).strip()
     if not normalized:
         raise ValueError("matched food name is empty")
-    return normalized[0].upper() + normalized[1:]
+    if locale == "ru":
+        display_name = _RU_FOOD_NAMES.get(normalized.lower())
+        if display_name is None:
+            display_name = re.sub(
+                r"\b(?:raw|cooked|roasted)\b",
+                "",
+                normalized,
+                flags=re.IGNORECASE,
+            )
+            display_name = re.sub(r"\s+", " ", display_name).strip()
+    else:
+        display_name = normalized
+    return display_name[0].upper() + display_name[1:]
 
 
 def _portion_bounds(ingredient: GroundedIngredient) -> tuple[float, float]:
@@ -383,11 +424,11 @@ def render_grounded_plan(
     notes: str,
     locale: str,
 ) -> str:
-    """Render only ingredients and values resolved from food_nutrients."""
+    """Render only user-facing ingredients and server-calculated values."""
     lines = [introduction.strip()]
     for meal in meals:
         ingredients = "; ".join(
-            f"{item.display_name} — {item.grams:g} г [food_nutrients: {item.matched_food}]"
+            f"{item.display_name} — {item.grams:g} г"
             for item in meal.ingredients
         )
         if locale == "ru":

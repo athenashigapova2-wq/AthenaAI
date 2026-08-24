@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from datetime import date
 from time import perf_counter
 from typing import Any
 
@@ -39,6 +40,167 @@ from app.tools.registry import build_tools, is_read_only_tool
 MAX_TOOL_STEPS = 6
 MAX_PLAN_SUBMISSIONS = 8
 logger = logging.getLogger(__name__)
+
+
+def _normalize_tool_call_keys(value: Any) -> Any:
+    """Strip accidental whitespace from model-produced keys before validation."""
+    if isinstance(value, dict):
+        normalized: dict[Any, Any] = {}
+        for key, item in value.items():
+            normalized_key = key.strip() if isinstance(key, str) else key
+            if normalized_key in normalized:
+                raise ValueError(
+                    f"Duplicate tool argument key after whitespace normalization: {normalized_key!r}"
+                )
+            normalized[normalized_key] = _normalize_tool_call_keys(item)
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_tool_call_keys(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_normalize_tool_call_keys(item) for item in value)
+    return value
+
+
+def _weight_trend_dates(result: Any) -> tuple[date, date] | None:
+    if not isinstance(result, dict) or result.get("status") != "ok":
+        return None
+    weights = result.get("weights") or []
+    if len(weights) < 2:
+        return None
+    try:
+        first = date.fromisoformat(str(weights[0]["date"]))
+        last = date.fromisoformat(str(weights[-1]["date"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    return first, last
+
+
+def _actual_progress_period(result: Any, locale: str) -> str:
+    dates = _weight_trend_dates(result)
+    if dates is None:
+        return ""
+    first, last = dates
+    days = (last - first).days
+    if locale == "ru":
+        return (
+            f"за период с {first.strftime('%d.%m.%Y')} по "
+            f"{last.strftime('%d.%m.%Y')} ({days} дн.)"
+        )
+    return f"from {first.isoformat()} to {last.isoformat()} ({days} days)"
+
+
+def _remove_known_trend_contradictions(text: str, trend: Any, locale: str) -> str:
+    """Remove only claims that progress data is absent when the server has a trend."""
+    if _weight_trend_dates(trend) is None:
+        return text
+    denial_terms = (
+        ("нет", "недостаточно", "отсутств", "не удалось", "невозможно")
+        if locale == "ru"
+        else ("no ", "not enough", "insufficient", "unavailable", "unable")
+    )
+    progress_terms = (
+        ("прогресс", "динамик", "изменен", "тренд", "вес")
+        if locale == "ru"
+        else ("progress", "trend", "change", "weight")
+    )
+    data_terms = (
+        ("информац", "данн", "запис")
+        if locale == "ru"
+        else ("information", "data", "record")
+    )
+    parts = re.split(r"(?<=[.!?])\s+|\n+", text)
+    kept = []
+    for part in parts:
+        lowered = part.lower()
+        contradiction = (
+            any(term in lowered for term in denial_terms)
+            and any(term in lowered for term in progress_terms)
+            and any(term in lowered for term in data_terms)
+        )
+        if part.strip() and not contradiction:
+            kept.append(part.strip())
+    return " ".join(kept)
+
+
+def _normalize_progress_period(text: str, trend: Any, locale: str) -> str:
+    period = _actual_progress_period(trend, locale)
+    if not period:
+        return text
+    pattern = (
+        r"(?:за|в\s+течение)\s+(?:последн\w+\s+)?(?:\d+\s+)?"
+        r"(?:д(?:ень|ня|ней)|недел\w*|месяц\w*)"
+        if locale == "ru"
+        else r"(?:over|during|for)\s+the\s+(?:last|past)\s+(?:\d+\s+)?(?:days?|weeks?|months?)"
+    )
+    return re.sub(pattern, period, text, flags=re.IGNORECASE)
+
+
+def _normalize_address_style(text: str, locale: str) -> str:
+    if locale != "ru":
+        return text
+    replacements = {
+        "ты": "вы",
+        "тебя": "вас",
+        "тебе": "вам",
+        "тобой": "вами",
+        "твой": "ваш",
+        "твоя": "ваша",
+        "твоё": "ваше",
+        "твое": "ваше",
+        "твои": "ваши",
+        "твоего": "вашего",
+        "твоей": "вашей",
+        "твоему": "вашему",
+        "твоим": "вашим",
+        "твоих": "ваших",
+    }
+    pattern = re.compile(
+        r"\b(" + "|".join(map(re.escape, replacements)) + r")\b",
+        re.IGNORECASE,
+    )
+    normalized = pattern.sub(lambda match: replacements[match.group(0).lower()], text)
+    informal_imperatives = {
+        "продолжай": "продолжайте",
+        "попробуй": "попробуйте",
+        "добавь": "добавьте",
+        "убери": "уберите",
+        "замени": "замените",
+        "следи": "следите",
+        "сохраняй": "сохраняйте",
+        "обратись": "обратитесь",
+        "учти": "учтите",
+        "помни": "помните",
+    }
+    imperative_pattern = re.compile(
+        r"\b(" + "|".join(map(re.escape, informal_imperatives)) + r")\b",
+        re.IGNORECASE,
+    )
+    return imperative_pattern.sub(
+        lambda match: informal_imperatives[match.group(0).lower()],
+        normalized,
+    )
+
+
+def _sanitize_internal_notation(text: str, locale: str) -> str:
+    cleaned = re.sub(
+        r"\[(?:food_nutrients|matched_food|reference_food)\s*:[^\]]*\]",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    database_label = "проверенная база продуктов" if locale == "ru" else "verified food database"
+    cleaned = re.sub(r"\bfood_nutrients\b", database_label, cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:matched_food|reference_food)\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bserver[- ]fetched\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    return re.sub(r"\s+([,.;:])", r"\1", cleaned).strip()
+
+
+def _finalize_answer(text: Any, locale: str, trend: Any = None) -> str:
+    answer = _sanitize_internal_notation(str(text), locale)
+    answer = _remove_known_trend_contradictions(answer, trend, locale)
+    answer = _normalize_progress_period(answer, trend, locale)
+    return _normalize_address_style(answer, locale).strip()
 
 
 def _latest_user_text(state: AgentState) -> str:
@@ -92,11 +254,13 @@ def _weight_trend_evidence(result: Any, locale: str) -> str:
     last_weight = float(last["weight_kg"])
     if locale == "ru":
         return (
-            f"Проверенный тренд веса: {first_weight:g} кг ({first.get('date')}) → "
+            f"Проверенный прогресс {_actual_progress_period(result, locale)}: "
+            f"вес {first_weight:g} кг ({first.get('date')}) → "
             f"{last_weight:g} кг ({last.get('date')}), изменение {float(delta):+g} кг."
         )
     return (
-        f"Verified weight trend: {first_weight:g} kg ({first.get('date')}) → "
+        f"Verified progress {_actual_progress_period(result, locale)}: "
+        f"weight {first_weight:g} kg ({first.get('date')}) → "
         f"{last_weight:g} kg ({last.get('date')}), change {float(delta):+g} kg."
     )
 
@@ -223,6 +387,7 @@ def _plan_submission_tool(
         grounded_meals, grounding_issues = ground_meal_plan(
             normalized_meals,
             resolve_food,
+            locale,
         )
         portion_issues: tuple[str, ...] = ()
         if not grounding_issues and targets is not None:
@@ -344,11 +509,11 @@ def _plan_submission_tool(
                 computed,
                 (
                     "Порции подобраны программно, а калории и БЖУ рассчитаны сервером "
-                    "по значениям food_nutrients на 100 г."
+                    "по проверенной базе продуктов."
                     if locale == "ru"
                     else (
                         "Portions were fitted programmatically; calories and macros were "
-                        "calculated by the server from food_nutrients values per 100 g."
+                        "calculated by the server from the verified food database."
                     )
                 ),
                 locale,
@@ -385,6 +550,7 @@ def _invoke_tool(
     tool_step: int = 1,
 ) -> Any:
     """Invoke one tool and trace it when this graph turn has a run id."""
+    normalized_args = _normalize_tool_call_keys(call.get("args", {}))
     tool = tools_by_name.get(call["name"])
     run_id = state.get("run_id")
     if tool is None:
@@ -393,7 +559,7 @@ def _invoke_tool(
             tool_call_id = agent_traces.create_tool_call(
                 run_id=run_id,
                 tool_name=call["name"],
-                tool_args=call["args"],
+                tool_args=normalized_args,
                 tool_step=tool_step,
             )
             agent_traces.fail_tool_call(
@@ -407,10 +573,10 @@ def _invoke_tool(
     def invoke() -> Any:
         if is_read_only_tool(tool):
             return retry_transient(
-                lambda: tool.invoke(call["args"]),
+                lambda: tool.invoke(normalized_args),
                 operation_name=f"tool.{tool.name}",
             )
-        return tool.invoke(call["args"])
+        return tool.invoke(normalized_args)
 
     if run_id is None:
         return invoke()
@@ -418,7 +584,7 @@ def _invoke_tool(
     tool_call_id = agent_traces.create_tool_call(
         run_id=run_id,
         tool_name=call["name"],
-        tool_args=call["args"],
+        tool_args=normalized_args,
         tool_step=tool_step,
     )
     started_at = perf_counter()
@@ -518,8 +684,14 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
                 required_results.get("get_weight_trend"),
                 state["locale"],
             )
+            finalized = _finalize_answer(
+                ai_msg.content,
+                state["locale"],
+                required_results.get("get_weight_trend"),
+            )
             if evidence:
-                ai_msg = AIMessage(content=f"{evidence}\n\n{ai_msg.content}")
+                finalized = f"{evidence}\n\n{finalized}".strip()
+            ai_msg = AIMessage(content=finalized)
             return {"messages": [ai_msg], "resolution_mode": "main_llm"}
 
         for call in ai_msg.tool_calls:
@@ -530,7 +702,11 @@ def _invoke_tool_agent(state: AgentState, system_prompt: str, tools: list[BaseTo
                 and result.get("status") == "ok"
             ):
                 return {
-                    "messages": [AIMessage(content=str(result["answer"]))],
+                    "messages": [
+                        AIMessage(
+                            content=_finalize_answer(result["answer"], state["locale"])
+                        )
+                    ],
                     "resolution_mode": "main_llm",
                 }
             messages.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
@@ -573,4 +749,9 @@ def general_node(state: AgentState) -> dict:
         model_tier=selection.model_tier,
         model_selection=selection,
     )
-    return {"messages": [response], "resolution_mode": "main_llm"}
+    return {
+        "messages": [
+            AIMessage(content=_finalize_answer(response.content, state["locale"]))
+        ],
+        "resolution_mode": "main_llm",
+    }

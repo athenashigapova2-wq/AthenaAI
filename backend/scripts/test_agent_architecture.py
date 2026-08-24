@@ -79,7 +79,8 @@ def assert_tool_boundaries() -> None:
     )
 
     english_prompt = localized_system_prompt("System rules", "en")
-    assert english_prompt.endswith("The user's language is English. Reply only in English.")
+    assert "The user's language is English. Reply only in English." in english_prompt
+    assert "consistent, neutral second-person style" in english_prompt
 
 
 if __name__ == "__main__":

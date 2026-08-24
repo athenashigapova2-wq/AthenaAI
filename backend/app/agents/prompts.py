@@ -49,4 +49,13 @@ LOCALE_NAMES = {
 def localized_system_prompt(system_prompt: str, locale: str) -> str:
     """Make the API locale an explicit response-language contract."""
     language = LOCALE_NAMES.get(locale, "the same language as the user")
-    return f"{system_prompt}\nThe user's language is {language}. Reply only in {language}."
+    address_style = (
+        "Address the user consistently with the polite Russian 'вы' form. "
+        "Never switch to 'ты' and do not use the ceremonial capitalized 'Вы' mid-sentence."
+        if locale == "ru"
+        else "Use one consistent, neutral second-person style throughout the answer."
+    )
+    return (
+        f"{system_prompt}\nThe user's language is {language}. Reply only in {language}. "
+        f"{address_style} Never expose internal field, table, tool or trace names."
+    )

@@ -54,6 +54,7 @@ def test_routing_policy(check) -> None:
         nutrition_checks.check_programmatic_totals,
         nutrition_checks.check_food_lookup_never_substitutes_a_different_food,
         nutrition_checks.check_weight_trend_is_forced,
+        nutrition_checks.check_tool_call_keys_are_normalized_before_validation,
         nutrition_checks.check_progress_request_forces_weight_trend_in_recovery,
         nutrition_checks.check_invalid_draft_is_fitted_before_return,
     ),

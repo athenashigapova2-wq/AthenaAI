@@ -22,6 +22,8 @@ from app.agents.specialists import (  # noqa: E402
     NUTRITION_SYSTEM,
     RECOVERY_SYSTEM,
     _invoke_tool_agent,
+    _invoke_tool,
+    _normalize_tool_call_keys,
     _plan_submission_tool,
     _required_nutrition_context,
     _required_recovery_context,
@@ -198,6 +200,36 @@ def check_weight_trend_is_forced() -> None:
     assert "74 кг" in evidence
     assert "72.9 кг" in evidence
     assert "-1.1 кг" in evidence
+    assert "01.09.2026" in evidence
+    assert "15.09.2026" in evidence
+    assert "14 дн." in evidence
+
+
+def check_tool_call_keys_are_normalized_before_validation() -> None:
+    tool = StructuredTool.from_function(
+        func=lambda reference_food: {"status": "ok", "food": reference_food},
+        name="lookup_reference",
+        description="lookup",
+    )
+    result = _invoke_tool(
+        _state("test"),
+        {
+            "name": tool.name,
+            "args": {" reference_food ": "oats"},
+            "id": "malformed-key",
+        },
+        {tool.name: tool},
+    )
+    assert result == {"status": "ok", "food": "oats"}
+    assert _normalize_tool_call_keys({" meals ": [{" grams ": 10}]}) == {
+        "meals": [{"grams": 10}]
+    }
+    try:
+        _normalize_tool_call_keys({"grams": 10, " grams ": 20})
+    except ValueError as exc:
+        assert "Duplicate tool argument key" in str(exc)
+    else:
+        raise AssertionError("colliding normalized keys must be rejected")
 
 
 def check_progress_request_forces_weight_trend_in_recovery() -> None:
@@ -240,7 +272,12 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
         patch("app.agents.specialists._invoke_tool", return_value=trend) as invoke,
         patch(
             "app.agents.specialists.agent_traces.invoke_llm",
-            return_value=AIMessage(content="Продолжайте текущий план."),
+            return_value=AIMessage(
+                content=(
+                    "За последний месяц ты хорошо продвинулась. "
+                    "Но информации о твоём прогрессе нет. Продолжай свой план."
+                )
+            ),
         ) as invoke_llm,
     ):
         answer = _invoke_tool_agent(state, RECOVERY_SYSTEM, [tool])
@@ -251,6 +288,13 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
     assert "REQUIRED_SERVER_FACT get_weight_trend" in system_message
     assert "74 кг" in answer["messages"][0].content
     assert "73.2 кг" in answer["messages"][0].content
+    assert "01.09.2026" in answer["messages"][0].content
+    assert "15.09.2026" in answer["messages"][0].content
+    assert "последний месяц" not in answer["messages"][0].content
+    assert "информации о" not in answer["messages"][0].content
+    assert "ты " not in answer["messages"][0].content.lower()
+    assert "вы хорошо" in answer["messages"][0].content.lower()
+    assert "продолжайте свой план" in answer["messages"][0].content.lower()
 
 
 def check_invalid_draft_is_fitted_before_return() -> None:
@@ -371,10 +415,13 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     answer = result["messages"][0].content
     assert "MEAL_KBJU" not in answer
     assert "**Итого:**" in answer, answer
-    assert "food_nutrients" in answer
+    assert "food_nutrients" not in answer
+    assert "[" not in answer
+    assert " raw" not in answer.lower()
     assert "аллергии на арахис" in answer
     assert "Ложное название" not in answer
-    assert "Oats" in answer
+    assert "Овсяные хлопья" in answer
+    assert "Куриная грудка" in answer
 
     allergen_args = deepcopy(valid_args)
     allergen_args["meals"][0]["name"] = "Тост с арахисовой пастой"
@@ -394,6 +441,7 @@ if __name__ == "__main__":
     check_programmatic_totals()
     check_food_lookup_never_substitutes_a_different_food()
     check_weight_trend_is_forced()
+    check_tool_call_keys_are_normalized_before_validation()
     check_progress_request_forces_weight_trend_in_recovery()
     check_invalid_draft_is_fitted_before_return()
     print("Nutrition guardrail checks passed")
