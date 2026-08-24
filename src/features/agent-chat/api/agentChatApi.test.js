@@ -1,12 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
 
 vi.mock("@/api/supabaseClient", () => ({
   supabase: {
     auth: {
-      getSession: vi.fn(async () => ({
-        data: { session: { access_token: "test-token" } },
-        error: null,
-      })),
+      getSession,
     },
   },
 }));
@@ -15,6 +14,13 @@ import { startAgentMessage } from "@/features/agent-chat/api/agentChatApi";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  getSession.mockResolvedValue({
+    data: { session: { access_token: "test-token" } },
+    error: null,
+  });
 });
 
 describe("agent chat SSE lifecycle", () => {
@@ -60,5 +66,42 @@ describe("agent chat SSE lifecycle", () => {
     });
     expect(progress).toEqual(["queued", "running", "tool_call", "completed"]);
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an expired session before sending a request", async () => {
+    getSession.mockResolvedValueOnce({ data: { session: null }, error: null });
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+
+    const request = startAgentMessage({ message: "hello", locale: "en" });
+
+    await expect(request.promise).rejects.toThrow("Your session expired");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed Redis/worker job from the event stream", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          'event: failed\ndata: {"job_id":"job-2","status":"failed","error":"Worker unavailable"}\n\n',
+        ));
+        controller.close();
+      },
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ job_id: "job-2", status: "queued" }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }));
+    vi.stubGlobal("fetch", fetch);
+
+    const request = startAgentMessage({ message: "hello", locale: "en" });
+
+    await expect(request.promise).rejects.toThrow("Worker unavailable");
   });
 });

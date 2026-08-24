@@ -101,6 +101,7 @@
   "chat_progress_generating": "Preparing recommendations…",
   "chat_cancel": "Stop",
   "chat_cancelled": "Response cancelled",
+  "chat_send": "Send message",
   "calc_title": "Macro Calculator",
   "calc_subtitle": "Daily targets by the Mifflin–St Jeor formula ⚖️",
   "calc_disclaimer": "These numbers are an estimate, not medical advice.",

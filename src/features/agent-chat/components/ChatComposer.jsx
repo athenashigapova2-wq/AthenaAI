@@ -30,7 +30,12 @@ export default function ChatComposer({ input, sending, error, t, textareaRef, on
           className="max-h-[120px] min-h-[44px] flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           disabled={sending}
         />
-        <Button className="h-11 w-11 shrink-0 rounded-xl p-0" onClick={onSend} disabled={!input.trim() || sending}>
+        <Button
+          className="h-11 w-11 shrink-0 rounded-xl p-0"
+          onClick={onSend}
+          disabled={!input.trim() || sending}
+          aria-label={t("chat_send")}
+        >
           <Send className="h-4 w-4" />
         </Button>
       </div>

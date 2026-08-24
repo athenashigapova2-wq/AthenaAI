@@ -21,10 +21,22 @@ export default function ChatHeader({ t, onHistory, onNewConversation }) {
             <Activity className="h-4 w-4" />
           </Link>
         </Button>
-        <Button variant="ghost" size="icon" className="touch-target h-8 w-8" onClick={onHistory}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="touch-target h-8 w-8"
+          onClick={onHistory}
+          aria-label={t("chat_history")}
+        >
           <History className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="touch-target h-8 w-8" onClick={onNewConversation}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="touch-target h-8 w-8"
+          onClick={onNewConversation}
+          aria-label={t("chat_newChat")}
+        >
           <MessageCirclePlus className="h-4 w-4" />
         </Button>
       </div>

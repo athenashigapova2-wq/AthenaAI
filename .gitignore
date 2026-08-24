@@ -43,6 +43,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .npm-cache-ci-setup/
+.npm-cache/
+.playwright-browsers/
+playwright-report/
+test-results/
 !.env.example
 backend/data/
 backend/simulation/reports/generated/

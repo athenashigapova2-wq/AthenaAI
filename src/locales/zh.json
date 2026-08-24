@@ -101,6 +101,7 @@
   "chat_progress_generating": "正在生成建议…",
   "chat_cancel": "停止",
   "chat_cancelled": "回复已取消",
+  "chat_send": "发送消息",
   "calc_title": "宏量计算器",
   "calc_subtitle": "Mifflin–St Jeor 公式每日目标 ⚖️",
   "calc_disclaimer": "这些数字是估算值，非医疗建议。",
