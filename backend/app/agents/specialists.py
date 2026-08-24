@@ -42,6 +42,11 @@ def _rag_messages(state: AgentState) -> list[SystemMessage]:
     return [SystemMessage(content=context)] if context else []
 
 
+def _memory_messages(state: AgentState) -> list[SystemMessage]:
+    context = state.get("memory_context", "")
+    return [SystemMessage(content=context)] if context else []
+
+
 def _invoke_tool_agent(
     state: AgentState,
     system_prompt: str,
@@ -109,6 +114,7 @@ def _invoke_tool_agent(
     if calorie_tool is not None:
         system_parts.append(calorie_tool.description)
     system_parts.extend(str(message.content) for message in _rag_messages(state))
+    system_parts.extend(str(message.content) for message in _memory_messages(state))
     messages = [
         SystemMessage(content="\n\n".join(system_parts)),
         *state["messages"],
@@ -211,7 +217,12 @@ def general_node(state: AgentState) -> dict:
     )
     response = agent_traces.invoke_llm(
         llm,
-        [SystemMessage(content=prompt), *_rag_messages(state), *state["messages"]],
+        [
+            SystemMessage(content=prompt),
+            *_memory_messages(state),
+            *_rag_messages(state),
+            *state["messages"],
+        ],
         run_id=state.get("run_id"),
         node_name="general",
         purpose="answer",

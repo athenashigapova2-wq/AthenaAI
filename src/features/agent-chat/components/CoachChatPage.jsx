@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 
 import { useAuth } from "@/lib/AuthContext";
 import { useLang } from "@/lib/i18n";
-import { agentFetchErrorMessage, sendAgentMessage } from "@/features/agent-chat/api/agentChatApi";
+import { agentFetchErrorMessage, startAgentMessage } from "@/features/agent-chat/api/agentChatApi";
 import {
   fetchConversations,
   fetchMessages,
@@ -22,11 +22,13 @@ export default function CoachChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [sendError, setSendError] = useState("");
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const textareaRef = useRef(null);
+  const activeRequestRef = useRef(null);
   const scrollRef = useAutoScroll(messages);
 
   const loadMessages = async (conversationId) => {
@@ -58,6 +60,10 @@ export default function CoachChat() {
     };
   }, [user?.id]);
 
+  useEffect(() => () => {
+    activeRequestRef.current?.cancel();
+  }, []);
+
   const sendText = async (text) => {
     const trimmed = (text ?? input).trim();
     if (!trimmed || sending) return;
@@ -71,22 +77,28 @@ export default function CoachChat() {
     ]);
 
     try {
-      const result = await sendAgentMessage({
+      const request = startAgentMessage({
         conversationId: conversation?.id || null,
         message: trimmed,
         locale: lang,
+        onProgress: setProgress,
       });
+      activeRequestRef.current = request;
+      const result = await request.promise;
       if (!conversation) {
         const data = await loadConversations();
         setConversation(data.find((item) => item.id === result.conversation_id) || null);
       }
       await loadMessages(result.conversation_id);
     } catch (error) {
+      const cancelled = error instanceof DOMException && error.name === "AbortError";
       const message = error instanceof Error ? error.message : "Chat request failed";
-      setSendError(agentFetchErrorMessage(message));
+      setSendError(cancelled ? t("chat_cancelled") : agentFetchErrorMessage(message));
       setInput(trimmed);
       setMessages((current) => current.filter((item) => !String(item.id).startsWith("tmp-")));
     } finally {
+      activeRequestRef.current = null;
+      setProgress(null);
       setSending(false);
     }
   };
@@ -137,9 +149,11 @@ export default function CoachChat() {
       <ChatMessages
         messages={messages}
         sending={sending}
+        progress={progress}
         suggestions={[t("chat_sugg1"), t("chat_sugg2"), t("chat_sugg3")]}
         t={t}
         onSuggestion={sendText}
+        onCancel={() => activeRequestRef.current?.cancel()}
         scrollRef={scrollRef}
       />
       <ChatComposer

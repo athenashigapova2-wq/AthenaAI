@@ -93,6 +93,18 @@ class AthenaMockChatModel(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=message)])
 
     def _response(self, messages: list[BaseMessage]) -> str:
+        if self.node_name == "memory" or self.purpose == "structured_extraction":
+            return json.dumps(
+                {
+                    "learned_preferences": [],
+                    "avoided_foods": [],
+                    "successful_meals": [],
+                    "conversation_summary": "Deterministic mock conversation summary.",
+                    "summary_confidence": 1.0,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
         if self.node_name == "router" or self.purpose == "route_classification":
             return json.dumps(
                 {"route": _route_for_text(_last_human_text(messages))},

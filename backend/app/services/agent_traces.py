@@ -11,6 +11,7 @@ from app.circuit_breaker import call_with_circuit_breaker
 from app.config import settings
 from app.model_routing import ModelSelection, model_name_for_tier
 from app.resilience import http_status_code
+from app.services.agent_jobs import publish_current_job_progress
 from app.services.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -322,6 +323,7 @@ def invoke_llm(
 
     def invoke_attempt() -> Any:
         nonlocal attempt_number, retry_reason
+        publish_current_job_progress("generating", node=node_name, purpose=purpose)
         attempt_number += 1
         if run_id is None:
             return llm.invoke(messages)

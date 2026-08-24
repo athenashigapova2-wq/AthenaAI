@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import agent_conversations  # noqa: E402
+from app.config import settings  # noqa: E402
 
 
 def main() -> None:
@@ -44,6 +45,7 @@ def main() -> None:
     filters = [call.args for call in query.eq.call_args_list]
     assert ("id", "conversation-id") in filters
     assert ("user_id", "user-id") in filters
+    query.limit.assert_called_with(settings.agent_memory_recent_message_limit)
 
     query.reset_mock()
     query.execute.side_effect = None

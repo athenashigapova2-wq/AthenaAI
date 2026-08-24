@@ -1,9 +1,21 @@
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import MessageBubble from "@/features/agent-chat/components/MessageBubble";
 
-export default function ChatMessages({ messages, sending, suggestions, t, onSuggestion, scrollRef }) {
+export default function ChatMessages({
+  messages,
+  sending,
+  progress,
+  suggestions,
+  t,
+  onSuggestion,
+  onCancel,
+  scrollRef,
+}) {
+  const visibleStage = ["queued", "running", "tool_call", "generating"].includes(progress?.stage)
+    ? progress.stage
+    : "generating";
   return (
     <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4">
       {messages.length === 0 ? (
@@ -34,8 +46,21 @@ export default function ChatMessages({ messages, sending, suggestions, t, onSugg
       )}
       {sending && (
         <div className="flex justify-start">
-          <div className="rounded-2xl border border-border bg-card px-3.5 py-2.5">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span className="text-xs text-muted-foreground">
+              {t(`chat_progress_${visibleStage}`)}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={onCancel}
+            >
+              <Square className="h-3 w-3 fill-current" />
+              {t("chat_cancel")}
+            </Button>
           </div>
         </div>
       )}

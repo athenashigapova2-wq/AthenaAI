@@ -5,7 +5,7 @@ from typing import Any
 from time import perf_counter
 
 from app.agents import graph as agent_graph
-from app.services import agent_conversations, agent_traces
+from app.services import agent_conversations, agent_memory, agent_traces
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ def run_agent_chat(
         raise ConversationNotFoundError(str(exc)) from exc
 
     run_id: str | None = None
+    memory_snapshot = agent_memory.load_agent_memory_best_effort(user_id)
     try:
         run_id = agent_traces.create_agent_run(
             user_id,
@@ -70,11 +71,20 @@ def run_agent_chat(
             locale=locale,
             run_id=run_id,
             history=history,
+            memory_context=memory_snapshot.prompt(),
         )
         agent_conversations.save_turn(
             resolved_conversation_id,
             message,
             result["answer"],
+        )
+        agent_memory.update_agent_memory_best_effort(
+            user_id=user_id,
+            user_message=message,
+            assistant_answer=result["answer"],
+            previous=memory_snapshot,
+            locale=locale,
+            run_id=run_id,
         )
     except Exception as exc:
         logger.exception("Agent turn failed for user %s", user_id)

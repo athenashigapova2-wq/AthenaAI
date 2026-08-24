@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import jwt
 from fastapi.testclient import TestClient
@@ -141,12 +141,54 @@ def check_job_api() -> None:
     assert completed.status_code == 200
     assert completed.json()["answer"] == "Hello!"
 
+    stream_job = {
+        **completed_job,
+        "stage": "completed",
+    }
+    redis = MagicMock()
+    redis.pubsub.return_value = MagicMock()
+    with (
+        patch("app.api.agent.agent_jobs.get_agent_job", return_value=stream_job),
+        patch("app.api.agent.agent_jobs.redis_client", return_value=redis),
+    ):
+        events = client.get(
+            f"/api/v1/agent/chat/jobs/{JOB_ID}/events",
+            headers=auth_headers(),
+        )
+    assert events.status_code == 200
+    assert "event: completed" in events.text
+    assert '"answer": "Hello!"' in events.text
+
     with patch("app.api.agent.agent_jobs.get_agent_job", return_value=None):
         hidden_foreign_job = client.get(
             f"/api/v1/agent/chat/jobs/{JOB_ID}",
             headers=auth_headers(),
         )
     assert hidden_foreign_job.status_code == 404
+
+    cancelled_job = {
+        "job_id": JOB_ID,
+        "status": "cancelled",
+        "stage": "cancelled",
+    }
+    with patch(
+        "app.api.agent.agent_jobs.cancel_agent_job",
+        return_value=cancelled_job,
+    ) as cancel:
+        cancelled = client.post(
+            f"/api/v1/agent/chat/jobs/{JOB_ID}/cancel",
+            headers=auth_headers(),
+        )
+    assert cancelled.status_code == 200
+    assert cancelled.json() == cancelled_job
+    cancel.assert_called_once_with(JOB_ID, "test-user-id")
+
+    with patch("app.api.agent.agent_jobs.cancel_agent_job", return_value=None):
+        hidden_cancel = client.post(
+            f"/api/v1/agent/chat/jobs/{JOB_ID}/cancel",
+            headers=auth_headers(),
+        )
+    assert hidden_cancel.status_code == 404
 
 
 def check_readiness_respects_llm_provider() -> None:

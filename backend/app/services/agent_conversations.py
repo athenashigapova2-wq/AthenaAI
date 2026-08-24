@@ -3,6 +3,7 @@
 from typing import Any
 
 from app.resilience import retry_transient
+from app.config import settings
 from app.services.supabase import get_supabase
 
 
@@ -49,7 +50,7 @@ def prepare_conversation(
         .select("role, content")
         .eq("conversation_id", conversation_id)
         .order("created_at", desc=True)
-        .limit(20)
+        .limit(settings.agent_memory_recent_message_limit)
     )
     history_response = retry_transient(
         history_query.execute,

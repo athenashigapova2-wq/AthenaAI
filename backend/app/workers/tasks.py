@@ -5,7 +5,15 @@ from time import sleep
 
 from app.config import settings
 from app.services.agent_chat import ConversationNotFoundError, run_agent_chat
-from app.services.agent_jobs import mark_job_failed, mark_job_running, mark_job_succeeded
+from app.services.agent_jobs import (
+    AgentJobCancelledError,
+    agent_job_context,
+    mark_job_failed,
+    mark_job_running,
+    mark_job_succeeded,
+    publish_current_job_progress,
+    raise_if_current_job_cancelled,
+)
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -40,25 +48,40 @@ def run_agent_chat_task(
     conversation_id: str | None,
 ) -> None:
     """Run one chat request without retrying potentially state-changing tools."""
-    mark_job_running(job_id)
-    try:
-        if settings.agent_infrastructure_test_mode:
-            result = _run_infrastructure_test_job(
-                job_id=job_id,
-                conversation_id=conversation_id,
-            )
-        else:
-            result = run_agent_chat(
-                user_id=user_id,
-                message=message,
-                locale=locale,
-                conversation_id=conversation_id,
-            )
-    except ConversationNotFoundError as exc:
-        mark_job_failed(job_id, str(exc))
-        raise
-    except Exception:
-        logger.exception("Agent job %s failed", job_id)
-        mark_job_failed(job_id, "Агент временно недоступен")
-        raise
-    mark_job_succeeded(job_id, result)
+    with agent_job_context(job_id):
+        try:
+            raise_if_current_job_cancelled()
+            mark_job_running(job_id)
+            if settings.agent_infrastructure_test_mode:
+                publish_current_job_progress("generating")
+                result = _run_infrastructure_test_job(
+                    job_id=job_id,
+                    conversation_id=conversation_id,
+                )
+            else:
+                result = run_agent_chat(
+                    user_id=user_id,
+                    message=message,
+                    locale=locale,
+                    conversation_id=conversation_id,
+                )
+            raise_if_current_job_cancelled()
+            mark_job_succeeded(job_id, result)
+        except AgentJobCancelledError:
+            logger.info("Agent job %s cancelled", job_id)
+            return
+        except ConversationNotFoundError as exc:
+            try:
+                mark_job_failed(job_id, str(exc))
+            except AgentJobCancelledError:
+                logger.info("Agent job %s cancelled while failing", job_id)
+                return
+            raise
+        except Exception:
+            logger.exception("Agent job %s failed", job_id)
+            try:
+                mark_job_failed(job_id, "Агент временно недоступен")
+            except AgentJobCancelledError:
+                logger.info("Agent job %s cancelled while failing", job_id)
+                return
+            raise

@@ -21,5 +21,6 @@ class AgentState(TypedDict):
     rag_enabled: bool
     rag_context: str
     retrieved_chunks: list[dict[str, object]]
+    memory_context: str
     calorie_decision: NotRequired[dict[str, object] | None]
     routing_fallback_reason: NotRequired[str | None]

@@ -7,7 +7,7 @@ from langchain_core.tools import BaseTool
 
 from app.agents.state import AgentState
 from app.resilience import retry_transient
-from app.services import agent_traces
+from app.services import agent_jobs, agent_traces
 from app.tools.registry import is_read_only_tool
 
 def _normalize_tool_call_keys(value: Any) -> Any:
@@ -36,6 +36,7 @@ def _invoke_tool(
 ) -> Any:
     """Invoke one tool and trace it when this graph turn has a run id."""
     normalized_args = _normalize_tool_call_keys(call.get("args", {}))
+    agent_jobs.publish_current_job_progress("tool_call", tool_name=call["name"])
     tool = tools_by_name.get(call["name"])
     run_id = state.get("run_id")
     if tool is None:

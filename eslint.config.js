@@ -11,6 +11,8 @@ export default [
       "dist/**",
       "node_modules/**",
       ".pytest_cache/**",
+      ".pytest-*/**",
+      "backend/.pytest-*/**",
       "supabase/.temp/**",
     ],
   },

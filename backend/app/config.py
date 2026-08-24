@@ -39,6 +39,7 @@ class Settings(BaseSettings):
         default_factory=lambda: {
             "router.route_classification": "small",
             "nutrition.food_translation": "small",
+            "memory.structured_extraction": "small",
             "*": "main",
         }
     )
@@ -119,6 +120,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     agent_job_queue: str = "athena-agent"
     agent_job_ttl_seconds: int = 3_600
+
+    # Layered conversation memory. Model-proposed facts are accepted only after
+    # deterministic evidence and confidence checks on the server.
+    agent_memory_updates_enabled: bool = True
+    agent_memory_recent_message_limit: int = Field(default=8, ge=2, le=20)
+    agent_memory_confidence_threshold: float = Field(default=0.9, ge=0.5, le=1.0)
+    agent_memory_max_items_per_category: int = Field(default=40, ge=1, le=200)
+    agent_memory_summary_max_chars: int = Field(default=1_200, ge=200, le=4_000)
 
     # Retrieval-augmented generation
     rag_enabled: bool = True
