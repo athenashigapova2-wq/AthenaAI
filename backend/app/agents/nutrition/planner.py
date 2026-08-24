@@ -5,21 +5,23 @@ from typing import Any
 
 from langchain_core.tools import StructuredTool
 
-from app.agents.nutrition.constraints import _allergen_issues
+from app.agents.nutrition.constraints import (
+    NutritionConstraintEngine,
+    constraint_report_payload,
+)
 from app.agents.nutrition.grounding import _alternative_plan_candidates
 from app.agents.nutrition_validation import (
     GroundedMealPlanItem,
     NutritionNumbers,
-    assess_food_diversity,
     fit_grounded_meal_portions,
     ground_meal_plan,
     nutrition_plan_contract,
     render_grounded_plan,
-    validate_nutrition_numbers,
 )
 from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES, lookup_food_reference
 
 logger = logging.getLogger(__name__)
+
 
 def _plan_submission_tool(
     targets: NutritionNumbers | None,
@@ -33,6 +35,7 @@ def _plan_submission_tool(
         if isinstance(profile_result, dict) and profile_result.get("status") == "ok"
         else {}
     )
+    constraint_engine = NutritionConstraintEngine()
     allergies = [str(item).strip().lower() for item in profile_data.get("allergies") or []]
     allergy_aliases = {
         "peanuts": ("peanut", "арахис", "орех"),
@@ -41,17 +44,31 @@ def _plan_submission_tool(
         "apple": ("apple", "яблок"),
     }
     forbidden_terms = {
-        term
-        for allergy in allergies
-        for term in allergy_aliases.get(allergy, (allergy,))
-        if term
+        term for allergy in allergies for term in allergy_aliases.get(allergy, (allergy,)) if term
     }
     contract = nutrition_plan_contract(
         targets,
         sorted(forbidden_terms),
         list(PLAN_FOOD_REFERENCE_NAMES),
     )
-    if str(profile_data.get("budget", "")).lower() == "low":
+    contract += (
+        " The server will independently reject allergens, dietary-pattern or "
+        "restriction violations, disliked foods, premium foods for a low-budget "
+        "profile, nutrition mismatch, impractical portions, and poor diversity."
+    )
+    dietary_pattern = str(profile_data.get("dietary_pattern") or "omnivore").strip().lower()
+    dietary_restrictions = [
+        str(item).strip().lower()
+        for item in profile_data.get("dietary_restrictions") or []
+        if str(item).strip()
+    ]
+    contract += (
+        f" The profile dietary_pattern is {dietary_pattern}. The profile "
+        "dietary_restrictions are "
+        f"{', '.join(dietary_restrictions) if dietary_restrictions else 'none'}. "
+        "These constraints override the generic example template."
+    )
+    if str(profile_data.get("budget", "")).lower() == "low" and dietary_pattern == "omnivore":
         contract += (
             " This profile requires a low-budget plan. Prefer oats, egg raw, chicken "
             "breast raw, white rice raw or buckwheat raw, potato raw, seasonal catalogue "
@@ -85,30 +102,17 @@ def _plan_submission_tool(
                 grounded_meals,
                 targets,
             )
-        meal_numbers = [
-            NutritionNumbers(
-                calories=meal.calories,
-                protein_g=meal.protein_g,
-                fat_g=meal.fat_g,
-                carbs_g=meal.carbs_g,
-            )
-            for meal in grounded_meals
-        ]
-        computed = NutritionNumbers(
-            calories=sum(item.calories for item in meal_numbers),
-            protein_g=sum(item.protein_g for item in meal_numbers),
-            fat_g=sum(item.fat_g for item in meal_numbers),
-            carbs_g=sum(item.carbs_g for item in meal_numbers),
+        constraint_report = constraint_engine.validate(
+            grounded_meals,
+            targets,
+            profile_data,
         )
-        validation = validate_nutrition_numbers(meal_numbers, computed, targets)
-        diversity = assess_food_diversity(grounded_meals)
-        allergen_issues = _allergen_issues(normalized_meals, forbidden_terms)
+        computed = constraint_report.computed
+        diversity = constraint_report.diversity
         issues = [
             *grounding_issues,
             *portion_issues,
-            *validation.issues,
-            *allergen_issues,
-            *diversity.issues,
+            *constraint_report.issues,
         ]
         selected_food_set = "model"
         attempted_alternatives: list[str] = []
@@ -122,6 +126,7 @@ def _plan_submission_tool(
             for candidate_name, candidate_meals in _alternative_plan_candidates(
                 locale,
                 low_budget=budget_is_low,
+                dietary_pattern=str(profile_data.get("dietary_pattern") or "omnivore").lower(),
             ):
                 candidate_food_set = {
                     str(ingredient.reference_food)
@@ -138,36 +143,20 @@ def _plan_submission_tool(
                 )
                 candidate_portion_issues: tuple[str, ...] = ()
                 if not candidate_grounding_issues:
-                    candidate_grounded, candidate_portion_issues = (
-                        fit_grounded_meal_portions(candidate_grounded, targets)
+                    candidate_grounded, candidate_portion_issues = fit_grounded_meal_portions(
+                        candidate_grounded, targets
                     )
-                candidate_numbers = [
-                    NutritionNumbers(
-                        calories=meal.calories,
-                        protein_g=meal.protein_g,
-                        fat_g=meal.fat_g,
-                        carbs_g=meal.carbs_g,
-                    )
-                    for meal in candidate_grounded
-                ]
-                candidate_computed = NutritionNumbers(
-                    calories=sum(item.calories for item in candidate_numbers),
-                    protein_g=sum(item.protein_g for item in candidate_numbers),
-                    fat_g=sum(item.fat_g for item in candidate_numbers),
-                    carbs_g=sum(item.carbs_g for item in candidate_numbers),
-                )
-                candidate_validation = validate_nutrition_numbers(
-                    candidate_numbers,
-                    candidate_computed,
+                candidate_report = constraint_engine.validate(
+                    candidate_grounded,
                     targets,
+                    profile_data,
                 )
-                candidate_diversity = assess_food_diversity(candidate_grounded)
+                candidate_computed = candidate_report.computed
+                candidate_diversity = candidate_report.diversity
                 candidate_issues = [
                     *candidate_grounding_issues,
                     *candidate_portion_issues,
-                    *candidate_validation.issues,
-                    *_allergen_issues(candidate_meals, forbidden_terms),
-                    *candidate_diversity.issues,
+                    *candidate_report.issues,
                 ]
                 if candidate_issues:
                     continue
@@ -179,13 +168,11 @@ def _plan_submission_tool(
                 )
                 normalized_meals = candidate_meals
                 grounded_meals = candidate_grounded
-                meal_numbers = candidate_numbers
                 computed = candidate_computed
-                validation = candidate_validation
+                constraint_report = candidate_report
                 diversity = candidate_diversity
                 grounding_issues = ()
                 portion_issues = ()
-                allergen_issues = []
                 issues = []
                 selected_food_set = f"server:{candidate_name}"
                 break
@@ -216,6 +203,7 @@ def _plan_submission_tool(
             return {
                 "status": "invalid",
                 "issues": issues,
+                "constraint_validation": constraint_report_payload(constraint_report),
                 "computed_totals": {
                     "calories": computed.calories,
                     "protein_g": computed.protein_g,
@@ -360,6 +348,7 @@ def _plan_submission_tool(
                 "profile_allergies": allergies,
                 "violations": [],
             },
+            "constraint_validation": constraint_report_payload(constraint_report),
             "diversity": {
                 "score": diversity.score,
                 "unique_foods": diversity.unique_foods,

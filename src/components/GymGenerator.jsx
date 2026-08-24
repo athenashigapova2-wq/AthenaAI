@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
-import { invokeLLM } from '@/lib/invokeLLM';
+import { invokeAthenaTask } from '@/lib/athenaTasks';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Loader2, Sparkles, Footprints, Utensils, Moon, HeartPulse, Flame } from "lucide-react";
@@ -26,35 +26,11 @@ export default function GymGenerator() {
     setLoading(true);
     setWorkout(null);
     try {
-      const focus = WHAT_OPTIONS.find((o) => o.value === what)?.labelEn;
-      const whereLabel = WHERE_OPTIONS.find((o) => o.value === where)?.labelEn;
-      const res = await invokeLLM({
-        prompt: `You are Athena, an expert strength coach. Build ONE gym workout session.
-Setting: ${whereLabel}.
-Focus: ${focus}.
-Intensity: ${intensity}.
-Estimate realistic calories_burned for this session and duration_min.
-Respond ENTIRELY in this language code: ${lang}. Return JSON only.`,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            title: { type: "string" },
-            exercises: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: { name: { type: "string" }, sets: { type: "string" }, reps: { type: "string" } },
-              },
-            },
-            calories_burned: { type: "number" },
-            duration_min: { type: "number" },
-            recovery: {
-              type: "object",
-              properties: { steps: { type: "string" }, eat: { type: "string" }, sleep: { type: "string" }, stretch: { type: "string" } },
-            },
-          },
-          required: ["title", "exercises", "recovery"],
-        },
+      const res = await invokeAthenaTask('workout_plan', {
+        setting: where,
+        focus: what,
+        intensity,
+        language: lang,
       });
       setWorkout(res);
     } catch {

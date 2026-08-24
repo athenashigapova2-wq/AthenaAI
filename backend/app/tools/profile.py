@@ -19,6 +19,7 @@ def get_profile(user_id: str) -> dict[str, Any]:
             "age, sex, height_cm, weight_kg, goal, "
             "calorie_target, protein_target_g, carb_target_g, fat_target_g, "
             "allergies, disliked_foods, favorite_foods, "
+            "dietary_pattern, dietary_restrictions, "
             "budget, cooking_skill, onboarding_complete"
         )
         .eq("user_id", user_id)

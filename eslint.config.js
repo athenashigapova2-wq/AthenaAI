@@ -10,6 +10,7 @@ export default [
       "android/**/build/**",
       "dist/**",
       "node_modules/**",
+      ".pytest_cache/**",
       "supabase/.temp/**",
     ],
   },

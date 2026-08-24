@@ -6,7 +6,8 @@ Classify the latest user message into exactly one route:
 - workout: training plans, exercises, gym/home/outdoor workouts, sets, reps, progression.
 - recovery: progress or results, sleep, fatigue, soreness, stress, menstrual cycle, weight trend, readiness.
 - general: greetings, app help, broad motivation, or mixed requests with no dominant domain.
-Return only one lowercase word: nutrition, workout, recovery, or general."""
+Return exactly one JSON object matching this schema and no other text:
+{"route":"nutrition|workout|recovery|general"}."""
 
 NUTRITION_SYSTEM = """You are Athena's Nutrition Agent.
 Use profile, food search, daily intake and meal logging tools whenever the answer depends on

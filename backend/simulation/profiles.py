@@ -32,6 +32,10 @@ class SimulationProfile(BaseModel):
     carb_target_g: int = Field(ge=30, le=800)
     fat_target_g: int = Field(ge=20, le=250)
     allergies: list[str] = Field(default_factory=list)
+    dietary_pattern: Literal["omnivore", "vegetarian", "vegan", "pescatarian"] = "omnivore"
+    dietary_restrictions: list[Literal["halal", "kosher", "lactose_free", "gluten_free"]] = Field(
+        default_factory=list
+    )
     favorite_foods: list[str] = Field(default_factory=list)
     budget: Literal["low", "medium", "high"]
     cooking_skill: Literal["none", "basic", "intermediate", "advanced"]
@@ -39,15 +43,9 @@ class SimulationProfile(BaseModel):
 
     @model_validator(mode="after")
     def validate_energy_budget(self) -> "SimulationProfile":
-        macro_calories = (
-            self.protein_target_g * 4
-            + self.carb_target_g * 4
-            + self.fat_target_g * 9
-        )
+        macro_calories = self.protein_target_g * 4 + self.carb_target_g * 4 + self.fat_target_g * 9
         if abs(macro_calories - self.calorie_target) > 80:
-            raise ValueError(
-                "macro targets must stay within 80 kcal of calorie_target"
-            )
+            raise ValueError("macro targets must stay within 80 kcal of calorie_target")
         return self
 
 

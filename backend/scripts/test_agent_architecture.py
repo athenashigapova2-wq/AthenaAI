@@ -6,6 +6,7 @@ user_id remains closed over inside tools instead of being exposed to the model s
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -17,7 +18,7 @@ from app.agents.router import (  # noqa: E402
 )
 from app.agents.prompts import localized_system_prompt  # noqa: E402
 from app.tools.registry import READ_ONLY_TOOL_NAMES, build_tools, is_read_only_tool  # noqa: E402
-from langchain_core.messages import HumanMessage  # noqa: E402
+from langchain_core.messages import AIMessage, HumanMessage  # noqa: E402
 from langchain_core.utils.function_calling import convert_to_openai_tool  # noqa: E402
 
 USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -39,12 +40,69 @@ def assert_routes() -> None:
     assert is_progress_request("Покажи мою динамику")
     assert not is_progress_request("Сколько калорий в твороге?")
 
-    progress_state = {"messages": [HumanMessage(content="Есть ли у меня прогресс?")]}
-    with patch(
-        "app.agents.router.get_routed_llm",
-        side_effect=AssertionError("progress intent must bypass the LLM router"),
+    selection = SimpleNamespace(model_tier="small")
+    progress_state = {
+        "user_id": USER_ID,
+        "run_id": None,
+        "messages": [HumanMessage(content="Есть ли у меня прогресс?")],
+    }
+    with (
+        patch("app.agents.router.get_routed_llm", return_value=(object(), selection)),
+        patch(
+            "app.agents.router.agent_traces.invoke_llm",
+            return_value=AIMessage(content='{"route":"recovery"}'),
+        ),
     ):
-        assert router_node(progress_state)["route"] == "recovery"
+        decision = router_node(progress_state)
+    assert decision == {"route": "recovery", "routing_fallback_reason": None}
+
+    with (
+        patch("app.agents.router.get_routed_llm", return_value=(object(), selection)),
+        patch(
+            "app.agents.router.agent_traces.invoke_llm",
+            return_value=AIMessage(content='{"route":"nutrition"}'),
+        ),
+    ):
+        llm_override = router_node(progress_state)
+    assert llm_override["route"] == "nutrition"
+
+    with (
+        patch("app.agents.router.get_routed_llm", return_value=(object(), selection)),
+        patch(
+            "app.agents.router.agent_traces.invoke_llm",
+            return_value=AIMessage(content="recovery because progress"),
+        ),
+        patch("app.agents.router.agent_traces.record_routing_fallback") as record,
+    ):
+        fallback = router_node(progress_state)
+    assert fallback["route"] == "recovery"
+    assert str(fallback["routing_fallback_reason"]).startswith(
+        "structured_output_validation:"
+    )
+    record.assert_called_once()
+
+    nutrition_state = {
+        "user_id": USER_ID,
+        "run_id": "run-id",
+        "messages": [HumanMessage(content="Сколько калорий в твороге?")],
+    }
+    with (
+        patch(
+            "app.agents.router.get_routed_llm",
+            side_effect=TimeoutError("router unavailable"),
+        ),
+        patch("app.agents.router.agent_traces.record_routing_fallback") as record,
+    ):
+        fallback = router_node(nutrition_state)
+    assert fallback == {
+        "route": "nutrition",
+        "routing_fallback_reason": "router_llm_exception:TimeoutError",
+    }
+    record.assert_called_once_with(
+        run_id="run-id",
+        user_id=USER_ID,
+        reason="router_llm_exception:TimeoutError",
+    )
 
 
 def assert_tool_boundaries() -> None:

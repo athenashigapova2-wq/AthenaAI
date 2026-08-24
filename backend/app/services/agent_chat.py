@@ -90,6 +90,7 @@ def run_agent_chat(
                 output_text=result["answer"],
                 latency_ms=agent_traces.elapsed_ms(started_at),
                 resolution_mode=result["resolution_mode"],
+                routing_fallback_reason=result.get("routing_fallback_reason"),
             )
         except Exception:
             logger.exception("Could not complete agent trace %s", run_id)

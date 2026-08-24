@@ -8,6 +8,7 @@ delivery layers with reproducible responses.
 from __future__ import annotations
 
 from collections.abc import Sequence
+import json
 import re
 from time import sleep
 from typing import Any
@@ -93,7 +94,11 @@ class AthenaMockChatModel(BaseChatModel):
 
     def _response(self, messages: list[BaseMessage]) -> str:
         if self.node_name == "router" or self.purpose == "route_classification":
-            return _route_for_text(_last_human_text(messages))
+            return json.dumps(
+                {"route": _route_for_text(_last_human_text(messages))},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
 
         language = _language(messages)
         return _RESPONSES.get(language, _RESPONSES["ru"]).format(

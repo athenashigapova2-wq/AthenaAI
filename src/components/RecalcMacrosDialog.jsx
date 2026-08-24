@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { entities } from '@/lib/entities';
-import { invokeLLM } from '@/lib/invokeLLM';
+import { invokeAthenaTask } from '@/lib/athenaTasks';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Calculator, HeartPulse, Save, AlertTriangle, Pencil, Check } from "lucide-react";
 import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useLang, LANG_NAME } from "@/lib/i18n";
+import { useLang } from "@/lib/i18n";
 import { toast } from "@/components/ui/use-toast";
 import { ACTIVITY_OPTIONS, ACTIVITY_FACTOR, stepsToActivity, round, macrosFor, VARIANTS } from "@/lib/macroCalc";
 
@@ -74,29 +74,15 @@ export default function RecalcMacrosDialog({ open, onOpenChange, profile, onAppl
     const issues = healthIssues.trim();
     if (issues) {
       try {
-        const res = await invokeLLM({
-          prompt: `You are a clinical-nutrition research assistant. Adjust a daily calorie and macro target for an adult using evidence-based guidance.
-
-Baseline (Mifflin–St Jeor TDEE): ${round(tdee)} kcal/day.
-Sex: ${sex}, Age: ${a}, Weight: ${w} kg, Height: ${h} cm, Activity level: ${t(ACTIVITY_OPTIONS.find((o) => o.value === activity).labelKey)}.
-Health conditions the user reported: "${issues}".
-Goal: general healthy eating.
-
-Research current dietary guidance for these conditions and return an ADJUSTED calorie target and macro split in grams. Do NOT prescribe medical treatment. Write "note" and "disclaimer" in ${LANG_NAME[lang]}.`,
-          add_context_from_internet: true,
-          model: "gemini_3_flash",
-          response_json_schema: {
-            type: "object",
-            properties: {
-              adjusted_calories: { type: "number" },
-              protein_g: { type: "number" },
-              carb_g: { type: "number" },
-              fat_g: { type: "number" },
-              note: { type: "string" },
-              disclaimer: { type: "string" },
-            },
-            required: ["adjusted_calories", "protein_g", "carb_g", "fat_g", "note"],
-          },
+        const res = await invokeAthenaTask('health_macro_adjustment', {
+          baseline_tdee: round(tdee),
+          sex,
+          age: a,
+          weight_kg: w,
+          height_cm: h,
+          activity,
+          health_issues: issues,
+          language: lang,
         });
         setResearch(res);
       } catch {

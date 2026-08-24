@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
-import { invokeLLM } from '@/lib/invokeLLM';
+import { invokeAthenaTask } from '@/lib/athenaTasks';
 import { supabase } from '@/api/supabaseClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { Loader2, Sparkles } from "lucide-react";
-import { useLang, LANG_NAME } from "@/lib/i18n";
+import { useLang } from "@/lib/i18n";
 
 const today = () => toLocalDateStr();
 
@@ -50,15 +50,9 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
     }
 
     // Не нашли в базе (или база недоступна) — как раньше, чистая оценка ИИ
-    const res = await invokeLLM({
-      prompt: `Estimate the macros for this meal: "${desc}". Return a JSON object with: name (short meal name, in ${LANG_NAME[lang]}), calories (number), protein_g (number), carbs_g (number), fat_g (number). Be realistic.`,
-      response_json_schema: {
-        type: "object",
-        properties: {
-          name: { type: "string" }, calories: { type: "number" },
-          protein_g: { type: "number" }, carbs_g: { type: "number" }, fat_g: { type: "number" },
-        },
-      },
+    const res = await invokeAthenaTask('meal_estimate', {
+      description: desc,
+      language: lang,
     });
     setForm((f) => ({
       ...f,

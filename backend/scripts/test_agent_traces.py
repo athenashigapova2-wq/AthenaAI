@@ -41,6 +41,7 @@ def main() -> None:
             route="nutrition",
             output_text="Ответ",
             latency_ms=120,
+            routing_fallback_reason="router_llm_exception:TimeoutError",
         )
 
     filters = [call.args for call in query.eq.call_args_list]
@@ -51,6 +52,9 @@ def main() -> None:
     assert update_payload["route"] == "nutrition"
     assert update_payload["latency_ms"] == 120
     assert update_payload["resolution_mode"] == "main_llm"
+    assert update_payload["routing_fallback_reason"] == (
+        "router_llm_exception:TimeoutError"
+    )
 
     query.execute.return_value = SimpleNamespace(data=[{"id": "tool-call-id"}])
     with patch("app.services.agent_traces.get_supabase", return_value=query):

@@ -23,6 +23,7 @@ class AgentTurnResult(TypedDict):
     route: AgentName
     resolution_mode: ResolutionMode
     calorie_decision: dict[str, object] | None
+    routing_fallback_reason: str | None
 
 
 def _select_route(state: AgentState) -> str:
@@ -79,6 +80,7 @@ def run_agent_turn_details(
         "rag_enabled": settings.rag_enabled,
         "rag_context": "",
         "retrieved_chunks": [],
+        "routing_fallback_reason": None,
     }
     result = app.invoke(initial_state)
     return {
@@ -86,6 +88,7 @@ def run_agent_turn_details(
         "route": result.get("route", "general"),
         "resolution_mode": result.get("resolution_mode", "main_llm"),
         "calorie_decision": result.get("calorie_decision"),
+        "routing_fallback_reason": result.get("routing_fallback_reason"),
     }
 
 

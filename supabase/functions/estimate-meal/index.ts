@@ -1,5 +1,5 @@
 // Supabase Edge Function: estimate-meal
-// Заменяет прямой вызов invokeLLM в LogMealDialog.jsx точным поиском по базе:
+// Основной точный поиск для LogMealDialog.jsx:
 //   1. Просим GigaChat извлечь из описания (на любом языке) английский поисковый
 //      термин + количество в граммах.
 //   2. Ищем по food_nutrients (ILIKE по-английски, база уже на английском).

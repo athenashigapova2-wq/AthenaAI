@@ -1,13 +1,25 @@
 """Router Agent: chooses the specialist agent for the next turn."""
 
+import logging
+from typing import Any
+
 from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.agents.prompts import ROUTER_SYSTEM
 from app.agents.state import AgentName, AgentState
 from app.llm import get_routed_llm
 from app.services import agent_traces
 
-_ALLOWED: set[AgentName] = {"nutrition", "workout", "recovery", "general"}
+logger = logging.getLogger(__name__)
+
+
+class RoutingDecision(BaseModel):
+    """Strict structured contract returned by the LLM router."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: AgentName
 
 _PROGRESS_MARKERS = (
     "прогресс",
@@ -84,11 +96,25 @@ def route_with_keywords(text: str) -> AgentName:
     return best_route if best_score > 0 else "general"
 
 
-def router_node(state: AgentState) -> dict[str, AgentName]:
+def _parse_routing_decision(response: Any) -> RoutingDecision:
+    """Validate the complete router payload instead of trusting its first token."""
+    content = getattr(response, "content", response)
+    if isinstance(content, str):
+        return RoutingDecision.model_validate_json(content.strip())
+    return RoutingDecision.model_validate(content)
+
+
+def _routing_fallback_reason(error: Exception) -> str:
+    if isinstance(error, ValidationError):
+        errors = error.errors()
+        error_type = str(errors[0].get("type", "validation_error")) if errors else "validation_error"
+        return f"structured_output_validation:{error_type}"
+    return f"router_llm_exception:{type(error).__name__}"
+
+
+def router_node(state: AgentState) -> dict[str, object]:
     """LangGraph node that writes `route` into the state."""
     text = _last_user_text(state)
-    if is_progress_request(text):
-        return {"route": "recovery"}
     try:
         llm, selection = get_routed_llm(
             node_name="router",
@@ -105,9 +131,26 @@ def router_node(state: AgentState) -> dict[str, AgentName]:
             model_tier=selection.model_tier,
             model_selection=selection,
         )
-        route = str(response.content).strip().lower().split()[0]
-        if route in _ALLOWED:
-            return {"route": route}  # type: ignore[return-value]
-    except Exception:
-        pass
-    return {"route": route_with_keywords(text)}
+        decision = _parse_routing_decision(response)
+        return {"route": decision.route, "routing_fallback_reason": None}
+    except Exception as error:
+        reason = _routing_fallback_reason(error)
+        fallback_route = route_with_keywords(text)
+        logger.warning(
+            "Router LLM degraded; using keyword fallback",
+            extra={
+                "run_id": state.get("run_id"),
+                "routing_fallback_reason": reason,
+                "fallback_route": fallback_route,
+            },
+            exc_info=True,
+        )
+        agent_traces.record_routing_fallback(
+            run_id=state.get("run_id"),
+            user_id=state.get("user_id"),
+            reason=reason,
+        )
+        return {
+            "route": fallback_route,
+            "routing_fallback_reason": reason,
+        }

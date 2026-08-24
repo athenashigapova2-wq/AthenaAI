@@ -72,19 +72,23 @@ def succeed_agent_run(
     output_text: str,
     latency_ms: int,
     resolution_mode: str = "main_llm",
+    routing_fallback_reason: str | None = None,
 ) -> None:
     """Mark one user-owned run as successfully completed."""
+    values: dict[str, Any] = {
+        "route": route,
+        "output_text": output_text,
+        "status": "succeeded",
+        "latency_ms": latency_ms,
+        "resolution_mode": resolution_mode,
+        "completed_at": _completed_at(),
+    }
+    if routing_fallback_reason is not None:
+        values["routing_fallback_reason"] = routing_fallback_reason
     _update_owned_run(
         run_id,
         user_id,
-        {
-            "route": route,
-            "output_text": output_text,
-            "status": "succeeded",
-            "latency_ms": latency_ms,
-            "resolution_mode": resolution_mode,
-            "completed_at": _completed_at(),
-        },
+        values,
     )
 
 
@@ -106,6 +110,29 @@ def fail_agent_run(
             "completed_at": _completed_at(),
         },
     )
+
+
+def record_routing_fallback(
+    *,
+    run_id: str | None,
+    user_id: str | None,
+    reason: str,
+) -> None:
+    """Best-effort persistence for a degraded Router Agent decision."""
+    if run_id is None or user_id is None:
+        return
+    try:
+        _update_owned_run(
+            run_id,
+            user_id,
+            {"routing_fallback_reason": reason[:250]},
+        )
+    except Exception:
+        logger.warning(
+            "Could not persist routing fallback reason for run %s",
+            run_id,
+            exc_info=True,
+        )
 
 
 def create_tool_call(

@@ -78,9 +78,7 @@ class MemorySupabase:
             "user_health_logs": [],
         }
 
-    def record_write(
-        self, operation: str, table_name: str, payload: dict[str, Any]
-    ) -> None:
+    def record_write(self, operation: str, table_name: str, payload: dict[str, Any]) -> None:
         self.write_audit.append(
             {
                 "operation": operation,
@@ -106,6 +104,8 @@ def profile_row(persona: SimulationProfile) -> dict[str, Any]:
         "carb_target_g": persona.carb_target_g,
         "fat_target_g": persona.fat_target_g,
         "allergies": persona.allergies,
+        "dietary_pattern": persona.dietary_pattern,
+        "dietary_restrictions": persona.dietary_restrictions,
         "disliked_foods": [],
         "favorite_foods": persona.favorite_foods,
         "budget": persona.budget,
@@ -143,9 +143,7 @@ def apply_event(
 
 
 def find_persona(scenario: LongitudinalScenario) -> SimulationProfile:
-    matches = [
-        item for item in load_anchor_profiles() if item.persona_id == scenario.persona_id
-    ]
+    matches = [item for item in load_anchor_profiles() if item.persona_id == scenario.persona_id]
     if not matches:
         raise AssertionError(
             f"Scenario {scenario.scenario_id} references unknown persona {scenario.persona_id}"
@@ -232,9 +230,7 @@ def validate_checkpoint_contract(
 ) -> list[str]:
     issues: list[str] = []
     if checkpoint.expected_route and route != checkpoint.expected_route:
-        issues.append(
-            f"route: expected {checkpoint.expected_route}, got {route}"
-        )
+        issues.append(f"route: expected {checkpoint.expected_route}, got {route}")
 
     for field_name, patterns in {
         "must_include": checkpoint.must_include,
@@ -248,9 +244,7 @@ def validate_checkpoint_contract(
             except re.error as exc:
                 issues.append(f"{field_name}: invalid regex {pattern!r}: {exc}")
 
-    available_tools = {
-        tool.name for tool in tools_for_route(route, "simulation-user")
-    }
+    available_tools = {tool.name for tool in tools_for_route(route, "simulation-user")}
     missing_tools = sorted(set(checkpoint.expected_tools) - available_tools)
     forbidden_tools = sorted(set(checkpoint.forbidden_tools) & available_tools)
     if missing_tools:
@@ -275,9 +269,7 @@ def validate_checkpoint_contract(
         }
         for key, expected in targets.items():
             if expected is not None and profile_data.get(key) != expected:
-                issues.append(
-                    f"nutrition.{key}: expected {expected}, got {profile_data.get(key)}"
-                )
+                issues.append(f"nutrition.{key}: expected {expected}, got {profile_data.get(key)}")
         calories = checkpoint.nutrition.calorie_target
         protein = checkpoint.nutrition.protein_target_g
         carbs = checkpoint.nutrition.carb_target_g
@@ -293,22 +285,15 @@ def validate_checkpoint_contract(
                 )
         if (
             checkpoint.nutrition.calorie_target is not None
-            and checkpoint.nutrition.calorie_target
-            < checkpoint.safety.minimum_calories
+            and checkpoint.nutrition.calorie_target < checkpoint.safety.minimum_calories
         ):
-            issues.append(
-                "nutrition calorie target is below the checkpoint safety minimum"
-            )
+            issues.append("nutrition calorie target is below the checkpoint safety minimum")
         if checkpoint.nutrition.require_server_validation and route != "nutrition":
-            issues.append(
-                "server nutrition validation requires the nutrition route"
-            )
+            issues.append("server nutrition validation requires the nutrition route")
 
     if checkpoint.safety.require_weight_trend_before_calorie_change:
         if "get_weight_trend" not in checkpoint.expected_tools:
-            issues.append(
-                "safety requires get_weight_trend before a calorie change decision"
-            )
+            issues.append("safety requires get_weight_trend before a calorie change decision")
     return issues
 
 
@@ -325,9 +310,7 @@ def replay_timeline(scenario: LongitudinalScenario) -> dict[str, Any]:
         patch("app.tools.workout.get_supabase", return_value=store),
     ):
         for checkpoint in scenario.checkpoints:
-            checkpoint_at = scenario_time(
-                persona.start_at, checkpoint.day, checkpoint.time
-            )
+            checkpoint_at = scenario_time(persona.start_at, checkpoint.day, checkpoint.time)
             _apply_events_through(scenario, persona, store, checkpoint_at, applied)
             with freeze_time(checkpoint_at):
                 snapshot = _snapshot(persona)
@@ -373,9 +356,7 @@ def replay_mock_agent(scenario: LongitudinalScenario) -> dict[str, Any]:
         patch("app.tools.workout.get_supabase", return_value=store),
     ):
         for checkpoint in scenario.checkpoints:
-            checkpoint_at = scenario_time(
-                persona.start_at, checkpoint.day, checkpoint.time
-            )
+            checkpoint_at = scenario_time(persona.start_at, checkpoint.day, checkpoint.time)
             _apply_events_through(scenario, persona, store, checkpoint_at, applied)
             history = histories.setdefault(checkpoint.conversation_id, [])
             with freeze_time(checkpoint_at):
@@ -385,10 +366,7 @@ def replay_mock_agent(scenario: LongitudinalScenario) -> dict[str, Any]:
                     persona.locale,
                     history=history,
                 )
-            if (
-                "[MOCK:" not in result["answer"]
-                and result.get("calorie_decision") is None
-            ):
+            if "[MOCK:" not in result["answer"] and result.get("calorie_decision") is None:
                 raise AssertionError("Mock replay unexpectedly used a non-mock response")
             history.extend(
                 [
@@ -452,9 +430,7 @@ def write_reports(report: dict[str, Any], output_dir: Path, stem: str) -> tuple[
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / f"{stem}.json"
     markdown_path = output_dir / f"{stem}.md"
-    json_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     lines = [
         "# Longitudinal simulation report",
@@ -473,9 +449,7 @@ def write_reports(report: dict[str, Any], output_dir: Path, stem: str) -> tuple[
             f"{'pass' if item['passed'] else 'fail'} |"
         )
         failures = [
-            checkpoint
-            for checkpoint in timeline["checkpoints"]
-            if checkpoint["contract_issues"]
+            checkpoint for checkpoint in timeline["checkpoints"] if checkpoint["contract_issues"]
         ]
         for checkpoint in failures:
             lines.extend(

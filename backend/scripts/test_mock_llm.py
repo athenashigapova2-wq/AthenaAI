@@ -43,7 +43,7 @@ def check_mock_routing_and_answers() -> None:
         assert selection.model_name == "athena-mock-test"
         assert selection.is_fallback is False
         route = router.invoke([HumanMessage(content="Сколько белка мне нужно?")])
-        assert route.content == "nutrition"
+        assert route.content == '{"route":"nutrition"}'
 
         specialist, specialist_selection = get_routed_llm(
             node_name="nutrition",

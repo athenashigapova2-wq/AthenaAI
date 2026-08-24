@@ -5,7 +5,9 @@
   },
   "include": [
     "src/components/CalorieRing.jsx",
-    "src/components/agent/MessageBubble.jsx",
+    "src/features/agent-chat/api/agentChatApi.js",
+    "src/features/agent-chat/api/conversationRepository.js",
+    "src/features/profile/model/profileOptions.js",
     "src/lib/macroCalc.js"
   ],
   "exclude": ["node_modules", "dist"]

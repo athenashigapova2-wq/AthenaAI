@@ -17,6 +17,9 @@ const GOALS = [
   { value: "recomp", labelKey: "onb_goalRecomp", emoji: "🔄" },
 ];
 
+const DIETARY_PATTERNS = ["omnivore", "vegetarian", "vegan", "pescatarian"];
+const DIETARY_RESTRICTIONS = ["halal", "kosher", "lactose_free", "gluten_free"];
+
 function calculateDefaults(weight, goal) {
   let cals, protMult;
   switch (goal) {
@@ -40,10 +43,17 @@ export default function Onboarding({ onComplete }) {
     goal: "", sex: "male", age: "", height_cm: "", weight_kg: "",
     calorie_target: "", protein_target_g: "", carb_target_g: "", fat_target_g: "",
     budget: "medium", cooking_skill: "basic", allergies: [], disliked_foods: [], favorite_foods: [],
+    dietary_pattern: "omnivore", dietary_restrictions: [],
     cycle_tracking_enabled: false,
   });
 
   const update = (field, value) => setData((d) => ({ ...d, [field]: value }));
+  const toggleRestriction = (restriction) => setData((current) => ({
+    ...current,
+    dietary_restrictions: current.dietary_restrictions.includes(restriction)
+      ? current.dietary_restrictions.filter((item) => item !== restriction)
+      : [...current.dietary_restrictions, restriction],
+  }));
 
   const goNext = () => {
     if (step === 1 && data.weight_kg && data.goal) {
@@ -222,6 +232,37 @@ export default function Onboarding({ onComplete }) {
                     { value: "advanced", label: t("cook_advanced") },
                   ]}
                 />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("prof_dietPattern")}</Label>
+              <ResponsiveSelect
+                value={data.dietary_pattern}
+                onValueChange={(value) => update("dietary_pattern", value)}
+                placeholder={t("prof_dietPattern")}
+                options={DIETARY_PATTERNS.map((value) => ({
+                  value,
+                  label: t(`diet_${value}`),
+                }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("prof_dietRestrictions")}</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {DIETARY_RESTRICTIONS.map((restriction) => {
+                  const selected = data.dietary_restrictions.includes(restriction);
+                  return (
+                    <Button
+                      key={restriction}
+                      type="button"
+                      size="sm"
+                      variant={selected ? "default" : "outline"}
+                      onClick={() => toggleRestriction(restriction)}
+                    >
+                      {selected ? "✓ " : ""}{t(`restriction_${restriction}`)}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
             <div className="space-y-2">

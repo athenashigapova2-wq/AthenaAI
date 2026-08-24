@@ -216,7 +216,7 @@ def nutrition_plan_contract(
             "count each reference_food across meals and replace it in later meals when it "
             "would occur in a third meal. "
             "The server enforces practical household portions and rejects plans with "
-        "fewer than four different foods or the same food in more than two meals."
+            "fewer than four different foods or the same food in more than two meals."
             " Never list the same reference_food twice inside one meal."
         )
     if targets is not None:
@@ -365,33 +365,38 @@ def _portion_bounds(ingredient: GroundedIngredient) -> tuple[float, float]:
     return 50.0, 250.0
 
 
+def portion_feasibility_issues(meals: list[GroundedMeal]) -> tuple[str, ...]:
+    """Reject impractical portions independently of the model and optimizer."""
+    issues: list[str] = []
+    for meal_index, meal in enumerate(meals, start=1):
+        for ingredient in meal.ingredients:
+            minimum, maximum = _portion_bounds(ingredient)
+            if ingredient.grams < minimum - 0.1 or ingredient.grams > maximum + 0.1:
+                issues.append(
+                    f"meal {meal_index} portion is not feasible: "
+                    f"{ingredient.matched_food} {ingredient.grams:g} g "
+                    f"(allowed {minimum:g}-{maximum:g} g)"
+                )
+    return tuple(issues)
+
+
 def assess_food_diversity(meals: list[GroundedMeal]) -> FoodDiversityAssessment:
     """Score catalogue-food variety without asking the model to self-evaluate."""
     names = [
-        ingredient.matched_food.strip().lower()
-        for meal in meals
-        for ingredient in meal.ingredients
+        ingredient.matched_food.strip().lower() for meal in meals for ingredient in meal.ingredients
     ]
     counts = Counter(names)
     unique_names = set(counts)
     meal_food_sets = [
-        {
-            ingredient.matched_food.strip().lower()
-            for ingredient in meal.ingredients
-        }
+        {ingredient.matched_food.strip().lower() for ingredient in meal.ingredients}
         for meal in meals
     ]
-    meal_presence = Counter(
-        name
-        for meal_foods in meal_food_sets
-        for name in meal_foods
-    )
+    meal_presence = Counter(name for meal_foods in meal_food_sets for name in meal_foods)
     duplicate_ingredients = tuple(
         f"meal {meal_index}: {name}"
         for meal_index, meal in enumerate(meals, start=1)
         for name, count in Counter(
-            ingredient.matched_food.strip().lower()
-            for ingredient in meal.ingredients
+            ingredient.matched_food.strip().lower() for ingredient in meal.ingredients
         ).items()
         if count > 1
     )
@@ -408,9 +413,7 @@ def assess_food_diversity(meals: list[GroundedMeal]) -> FoodDiversityAssessment:
         if count > 2
     )
     meal_compositions = Counter(
-        tuple(sorted(meal_foods))
-        for meal_foods in meal_food_sets
-        if meal_foods
+        tuple(sorted(meal_foods)) for meal_foods in meal_food_sets if meal_foods
     )
     protein_terms = (
         "egg",
@@ -434,16 +437,10 @@ def assess_food_diversity(meals: list[GroundedMeal]) -> FoodDiversityAssessment:
         "spinach",
         "vegetable",
     )
-    protein_sources = sum(
-        any(term in name for term in protein_terms) for name in unique_names
-    )
+    protein_sources = sum(any(term in name for term in protein_terms) for name in unique_names)
     plant_foods = sum(any(term in name for term in plant_terms) for name in unique_names)
-    repeated = tuple(
-        sorted(name for name, count in meal_presence.items() if count > 2)
-    )
-    duplicate_meals = sum(
-        count - 1 for count in meal_compositions.values() if count > 1
-    )
+    repeated = tuple(sorted(name for name, count in meal_presence.items() if count > 2))
+    duplicate_meals = sum(count - 1 for count in meal_compositions.values() if count > 1)
     unique_foods = len(unique_names)
     score = round(
         50 * min(unique_foods / 10, 1)
@@ -525,9 +522,7 @@ def fit_grounded_meal_portions(
         meal_target = expected_meals[min(meal_index, len(expected_meals) - 1)].calories
         row = [0.0] * len(flat)
         for local_index, ingredient in enumerate(meal.ingredients):
-            row[offset + local_index] = (
-                0.35 * ingredient.calories_per_100g / 100.0 / meal_target
-            )
+            row[offset + local_index] = 0.35 * ingredient.calories_per_100g / 100.0 / meal_target
         meal_rows.append(row)
         offset += len(meal.ingredients)
 
@@ -593,8 +588,7 @@ def render_grounded_plan(
     lines = [introduction.strip()]
     for meal in meals:
         ingredients = "; ".join(
-            f"{item.display_name} — {item.grams:g} г"
-            for item in meal.ingredients
+            f"{item.display_name} — {item.grams:g} г" for item in meal.ingredients
         )
         if locale == "ru":
             nutrition = (
@@ -693,11 +687,7 @@ def validate_nutrition_numbers(
             if not _close(actual, expected, tolerance):
                 issues.append(f"declared {name} does not equal the meal sum")
 
-        macro_calories = (
-            declared.protein_g * 4
-            + declared.fat_g * 9
-            + declared.carbs_g * 4
-        )
+        macro_calories = declared.protein_g * 4 + declared.fat_g * 9 + declared.carbs_g * 4
         if not _close(
             macro_calories,
             declared.calories,
@@ -744,9 +734,7 @@ def validate_nutrition_plan(
     validation = validate_nutrition_numbers(meals, declared, targets)
     issues = list(validation.issues)
     if len(total_matches) != 1:
-        issues = [
-            issue for issue in issues if issue != "declared daily totals are required"
-        ]
+        issues = [issue for issue in issues if issue != "declared daily totals are required"]
         issues.append("exactly one TOTAL_KBJU marker is required")
     if len(meals) < 3:
         issues = [issue for issue in issues if issue != "at least three meals are required"]
@@ -799,6 +787,7 @@ def render_structured_plan(
 
 def render_validated_plan(answer: str, locale: str) -> str:
     """Replace internal markers with readable nutrition values."""
+
     def render_meal(match: re.Match[str]) -> str:
         values = _numbers(match.groups())
         if locale == "ru":
