@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.specialists import _invoke_tool  # noqa: E402
+from app.agents.common.tool_executor import _invoke_tool  # noqa: E402
 from app.model_routing import ModelSelection  # noqa: E402
 from app.services import agent_traces  # noqa: E402
 
@@ -162,10 +162,10 @@ def main() -> None:
     call = {"id": "llm-call-id", "name": "echo_food", "args": {"name": "рис"}}
     with (
         patch(
-            "app.agents.specialists.agent_traces.create_tool_call",
+            "app.agents.common.tool_executor.agent_traces.create_tool_call",
             return_value="trace-id",
         ),
-        patch("app.agents.specialists.agent_traces.succeed_tool_call") as succeed,
+        patch("app.agents.common.tool_executor.agent_traces.succeed_tool_call") as succeed,
     ):
         result = _invoke_tool(state, call, {tool.name: tool})
 
@@ -190,10 +190,10 @@ def main() -> None:
     }
     with (
         patch(
-            "app.agents.specialists.agent_traces.create_tool_call",
+            "app.agents.common.tool_executor.agent_traces.create_tool_call",
             return_value="failed-trace-id",
         ),
-        patch("app.agents.specialists.agent_traces.fail_tool_call") as fail,
+        patch("app.agents.common.tool_executor.agent_traces.fail_tool_call") as fail,
     ):
         try:
             _invoke_tool(state, failed_call, {broken.name: broken})

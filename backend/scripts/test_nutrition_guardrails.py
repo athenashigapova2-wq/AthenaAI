@@ -23,19 +23,20 @@ from app.agents.nutrition_validation import (  # noqa: E402
     render_validated_plan,
     validate_nutrition_plan,
 )
-from app.agents.specialists import (  # noqa: E402
-    NUTRITION_SYSTEM,
-    RECOVERY_SYSTEM,
-    _invoke_tool_agent,
+from app.agents.common.response_pipeline import _weight_trend_evidence  # noqa: E402
+from app.agents.common.tool_executor import (  # noqa: E402
     _invoke_tool,
     _normalize_tool_call_keys,
-    _plan_submission_tool,
-    _required_nutrition_context,
-    _required_recovery_context,
+)
+from app.agents.nutrition.agent import _required_nutrition_context  # noqa: E402
+from app.agents.nutrition.constraints import (  # noqa: E402
     _requires_full_day_plan,
     _requires_weight_trend,
-    _weight_trend_evidence,
 )
+from app.agents.nutrition.planner import _plan_submission_tool  # noqa: E402
+from app.agents.prompts import NUTRITION_SYSTEM, RECOVERY_SYSTEM  # noqa: E402
+from app.agents.recovery.agent import _required_recovery_context  # noqa: E402
+from app.agents.specialists import _invoke_tool_agent  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.tools.nutrition import lookup_food_reference  # noqa: E402
 
@@ -199,7 +200,7 @@ def check_weight_trend_is_forced() -> None:
     with (
         patch.object(settings, "llm_provider", "gigachat"),
         patch(
-            "app.agents.specialists._invoke_tool",
+            "app.agents.nutrition.agent._invoke_tool",
             side_effect=invoke_required_tool,
         ) as invoke,
     ):
@@ -363,7 +364,7 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
     state["route"] = "recovery"
     with (
         patch.object(settings, "llm_provider", "mock"),
-        patch("app.agents.specialists._invoke_tool", return_value=trend) as invoke,
+        patch("app.agents.recovery.agent._invoke_tool", return_value=trend) as invoke,
     ):
         context, results = _required_recovery_context(
             state,
@@ -382,7 +383,7 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
             "app.agents.specialists.get_routed_llm",
             return_value=(object(), selection),
         ),
-        patch("app.agents.specialists._invoke_tool", return_value=trend) as invoke,
+        patch("app.agents.recovery.agent._invoke_tool", return_value=trend) as invoke,
         patch(
             "app.agents.specialists.agent_traces.invoke_llm",
             return_value=AIMessage(
@@ -512,7 +513,7 @@ def check_invalid_draft_is_fitted_before_return() -> None:
             side_effect=[invalid_draft, repaired],
         ) as invoke_llm,
         patch(
-            "app.agents.specialists.lookup_food_reference",
+            "app.agents.nutrition.planner.lookup_food_reference",
             side_effect=fake_food_resolver,
         ),
     ):

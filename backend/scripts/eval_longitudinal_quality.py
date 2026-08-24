@@ -235,6 +235,14 @@ def run_scenario(scenario: LongitudinalScenario, *, gold=None) -> dict:
         patch("app.tools.workout.get_supabase", return_value=store),
         patch("app.tools.calendar.get_supabase", return_value=store),
         patch("app.agents.specialists._invoke_tool", side_effect=tracking_invoke_tool),
+        patch(
+            "app.agents.nutrition.agent._invoke_tool",
+            side_effect=tracking_invoke_tool,
+        ),
+        patch(
+            "app.agents.recovery.agent._invoke_tool",
+            side_effect=tracking_invoke_tool,
+        ),
     ):
         for checkpoint in _selected_checkpoints(scenario):
             gold_case = find_gold_case(

@@ -1,5 +1,6 @@
 """LangGraph assembly for Athena's Router + specialist agent architecture."""
 
+from functools import lru_cache
 from typing import TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -7,7 +8,10 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agents.router import router_node
 from app.agents.retrieval import retriever_node
-from app.agents.specialists import general_node, nutrition_node, recovery_node, workout_node
+from app.agents.nutrition.agent import nutrition_node
+from app.agents.recovery.agent import recovery_node
+from app.agents.specialists import general_node
+from app.agents.workout.agent import workout_node
 from app.agents.state import AgentName, AgentState, ResolutionMode
 from app.config import settings
 
@@ -46,6 +50,12 @@ def build_agent_graph():
     return graph.compile()
 
 
+@lru_cache(maxsize=1)
+def get_agent_graph():
+    """Return the process-wide compiled graph shared by all agent turns."""
+    return build_agent_graph()
+
+
 def run_agent_turn_details(
     user_id: str,
     message: str,
@@ -54,7 +64,7 @@ def run_agent_turn_details(
     history: list[dict[str, str]] | None = None,
 ) -> AgentTurnResult:
     """Run one graph turn and return the answer plus the selected specialist."""
-    app = build_agent_graph()
+    app = get_agent_graph()
     prior_messages: list[BaseMessage] = []
     for item in history or []:
         message_class = AIMessage if item.get("role") == "assistant" else HumanMessage

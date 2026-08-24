@@ -10,7 +10,7 @@ from langchain_core.tools import StructuredTool
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.specialists import _invoke_tool  # noqa: E402
+from app.agents.common.tool_executor import _invoke_tool  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.model_routing import ModelSelection  # noqa: E402
 from app.resilience import (  # noqa: E402

@@ -1,0 +1,1 @@
+"""Workout specialist domain package."""

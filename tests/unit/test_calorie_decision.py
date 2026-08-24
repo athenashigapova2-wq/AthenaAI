@@ -3,7 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
-from app.agents.specialists import MIN_CALORIE_TARGET, _calorie_decision_tool
+from app.agents.nutrition.calorie_policy import (
+    MIN_CALORIE_TARGET,
+    _calorie_decision_tool,
+)
 from app.api.agent import AgentJobResponse
 
 
