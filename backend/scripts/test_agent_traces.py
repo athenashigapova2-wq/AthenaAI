@@ -23,20 +23,36 @@ def main() -> None:
     query.eq.return_value = query
     query.execute.return_value = SimpleNamespace(data=[{"id": "run-id"}])
 
-    with patch("app.services.agent_traces.get_supabase", return_value=query):
+    with (
+        patch("app.services.agent_traces.get_supabase", return_value=query),
+        patch.object(agent_traces.settings, "llm_provider", "gigachat"),
+        patch.object(agent_traces.settings, "trace_payload_policy", "full"),
+        patch.object(
+            agent_traces.settings,
+            "trace_raw_payload_retention_days",
+            7,
+        ),
+        patch(
+            "app.services.agent_traces.uuid4",
+            return_value="11111111-1111-4111-8111-111111111111",
+        ),
+    ):
         run_id = agent_traces.create_agent_run("user-id", "Что я сегодня съела?")
-        assert run_id == "run-id"
+        assert run_id == "11111111-1111-4111-8111-111111111111"
         insert_payload = query.insert.call_args.args[0]
+        assert insert_payload["id"] == run_id
         assert insert_payload["user_id"] == "user-id"
         assert insert_payload["status"] == "started"
         assert insert_payload["input_text"] == "Что я сегодня съела?"
         assert insert_payload["model_provider"] == "gigachat"
         assert insert_payload["baseline_version"] == "baseline-v1"
         assert insert_payload["resolution_mode"] == "main_llm"
+        assert insert_payload["payload_mode"] == "full"
+        assert insert_payload["raw_payload_expires_at"] is not None
 
         query.eq.reset_mock()
         agent_traces.succeed_agent_run(
-            run_id="run-id",
+            run_id=run_id,
             user_id="user-id",
             route="nutrition",
             output_text="Ответ",
@@ -45,7 +61,7 @@ def main() -> None:
         )
 
     filters = [call.args for call in query.eq.call_args_list]
-    assert ("id", "run-id") in filters
+    assert ("id", run_id) in filters
     assert ("user_id", "user-id") in filters
     update_payload = query.update.call_args.args[0]
     assert update_payload["status"] == "succeeded"

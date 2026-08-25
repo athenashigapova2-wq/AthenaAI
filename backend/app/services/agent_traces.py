@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any, TypeVar
 from uuid import uuid4
@@ -13,6 +13,14 @@ from app.model_routing import ModelSelection, model_name_for_tier
 from app.resilience import http_status_code
 from app.services.agent_jobs import publish_current_job_progress
 from app.services.supabase import get_supabase
+from app.trace_privacy import (
+    REDACTION_VERSION,
+    payload_expiry,
+    payload_mode_for_run,
+    protect_mapping,
+    protect_payload,
+    safe_error,
+)
 
 logger = logging.getLogger(__name__)
 _TraceResult = TypeVar("_TraceResult")
@@ -43,27 +51,33 @@ def create_agent_run(
     conversation_id: str | None = None,
 ) -> str:
     """Create a started run and return its database id."""
+    run_id = str(uuid4())
+    payload_mode = payload_mode_for_run(run_id)
     response = (
         get_supabase()
         .table("agent_runs")
         .insert(
             {
+                "id": run_id,
                 "user_id": user_id,
                 "route": "general",
                 "model_provider": _model_provider(),
                 "model_name": _model_name(),
-                "input_text": input_text,
+                "input_text": protect_payload(input_text, payload_mode),
                 "conversation_id": conversation_id,
                 "status": "started",
                 "resolution_mode": "main_llm",
                 "baseline_version": settings.agent_baseline_version,
+                "payload_mode": payload_mode,
+                "redaction_version": REDACTION_VERSION,
+                "raw_payload_expires_at": payload_expiry(payload_mode),
             }
         )
         .execute()
     )
     if not response.data:
         raise RuntimeError("Supabase не вернул созданный agent_run")
-    return str(response.data[0]["id"])
+    return run_id
 
 
 def succeed_agent_run(
@@ -76,9 +90,10 @@ def succeed_agent_run(
     routing_fallback_reason: str | None = None,
 ) -> None:
     """Mark one user-owned run as successfully completed."""
+    payload_mode = payload_mode_for_run(run_id)
     values: dict[str, Any] = {
         "route": route,
-        "output_text": output_text,
+        "output_text": protect_payload(output_text, payload_mode),
         "status": "succeeded",
         "latency_ms": latency_ms,
         "resolution_mode": resolution_mode,
@@ -100,7 +115,8 @@ def fail_agent_run(
     latency_ms: int,
 ) -> None:
     """Mark one user-owned run as failed without storing a traceback."""
-    error_message = f"{type(error).__name__}: {error}"[:1_000]
+    payload_mode = payload_mode_for_run(run_id)
+    error_message = safe_error(error, payload_mode)
     _update_owned_run(
         run_id,
         user_id,
@@ -143,6 +159,7 @@ def create_tool_call(
     tool_step: int = 1,
 ) -> str:
     """Create a started tool-call trace linked to its parent agent run."""
+    payload_mode = payload_mode_for_run(run_id)
     response = (
         get_supabase()
         .table("agent_tool_calls")
@@ -150,7 +167,7 @@ def create_tool_call(
             {
                 "run_id": run_id,
                 "tool_name": tool_name,
-                "tool_args": tool_args,
+                "tool_args": protect_mapping(tool_args, payload_mode),
                 "tool_step": tool_step,
                 "status": "started",
             }
@@ -276,12 +293,13 @@ def succeed_llm_call(llm_call_id: str, run_id: str, message: Any, latency_ms: in
 
 
 def fail_llm_call(llm_call_id: str, run_id: str, error: Exception, latency_ms: int) -> None:
+    payload_mode = payload_mode_for_run(run_id)
     _update_run_llm_call(
         llm_call_id,
         run_id,
         {
             "status": "failed",
-            "error_message": f"{type(error).__name__}: {error}"[:1_000],
+            "error_message": safe_error(error, payload_mode),
             "latency_ms": latency_ms,
             "completed_at": _completed_at(),
         },
@@ -397,11 +415,13 @@ def succeed_tool_call(
     latency_ms: int,
 ) -> None:
     """Mark a tool call as succeeded and store its structured result."""
+    payload_mode = payload_mode_for_run(run_id)
+    protected_result = protect_payload(tool_result, payload_mode)
     _update_run_tool_call(
         tool_call_id,
         run_id,
         {
-            "tool_result": tool_result,
+            "tool_result": {} if protected_result is None else protected_result,
             "status": "succeeded",
             "latency_ms": latency_ms,
             "completed_at": _completed_at(),
@@ -416,7 +436,8 @@ def fail_tool_call(
     latency_ms: int,
 ) -> None:
     """Mark a tool call as failed without persisting a traceback."""
-    error_message = f"{type(error).__name__}: {error}"[:1_000]
+    payload_mode = payload_mode_for_run(run_id)
+    error_message = safe_error(error, payload_mode)
     _update_run_tool_call(
         tool_call_id,
         run_id,
@@ -439,6 +460,92 @@ def _update_owned_run(run_id: str, user_id: str, values: dict[str, Any]) -> None
         .eq("user_id", user_id)
         .execute()
     )
+
+
+def export_user_traces(user_id: str) -> dict[str, Any]:
+    """Export the authenticated user's bounded trace history."""
+    client = get_supabase()
+    runs_response = (
+        client.table("agent_runs")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(settings.trace_export_max_runs + 1)
+        .execute()
+    )
+    runs = list(runs_response.data or [])
+    truncated = len(runs) > settings.trace_export_max_runs
+    runs = runs[: settings.trace_export_max_runs]
+    run_ids = [str(run["id"]) for run in runs]
+    tool_calls: list[dict[str, Any]] = []
+    llm_calls: list[dict[str, Any]] = []
+    if run_ids:
+        tool_calls = _export_child_traces(client, "agent_tool_calls", run_ids)
+        llm_calls = _export_child_traces(client, "agent_llm_calls", run_ids)
+    return {
+        "exported_at": _completed_at(),
+        "truncated": truncated,
+        "runs": runs,
+        "tool_calls": tool_calls,
+        "llm_calls": llm_calls,
+    }
+
+
+def delete_user_traces(user_id: str) -> int:
+    """Delete all runs owned by one user; child rows cascade in PostgreSQL."""
+    client = get_supabase()
+    owned = (
+        client.table("agent_runs")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    count = int(owned.count or 0)
+    if count:
+        client.table("agent_runs").delete().eq("user_id", user_id).execute()
+    return count
+
+
+def _export_child_traces(
+    client: Any,
+    table_name: str,
+    run_ids: list[str],
+) -> list[dict[str, Any]]:
+    """Export every child row for a bounded run set without PostgREST truncation."""
+    exported: list[dict[str, Any]] = []
+    page_size = 1_000
+    for batch_start in range(0, len(run_ids), 100):
+        batch = run_ids[batch_start : batch_start + 100]
+        page_start = 0
+        while True:
+            response = (
+                client.table(table_name)
+                .select("*")
+                .in_("run_id", batch)
+                .order("created_at")
+                .range(page_start, page_start + page_size - 1)
+                .execute()
+            )
+            rows = list(response.data or [])
+            exported.extend(rows)
+            if len(rows) < page_size:
+                break
+            page_start += page_size
+    return exported
+
+
+def enforce_trace_retention() -> None:
+    """Purge expired payloads first, then delete expired structured records."""
+    client = get_supabase()
+    client.rpc("purge_expired_agent_trace_payloads").execute()
+    before = datetime.now(timezone.utc) - timedelta(
+        days=settings.trace_record_retention_days
+    )
+    client.rpc(
+        "purge_expired_agent_traces",
+        {"p_before": before.isoformat()},
+    ).execute()
 
 
 def _update_run_tool_call(

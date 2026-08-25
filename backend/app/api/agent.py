@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
-from app.services import agent_jobs
+from app.services import agent_jobs, agent_traces
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -60,6 +60,11 @@ class AgentJobCancelled(BaseModel):
     job_id: str
     status: Literal["cancelled", "succeeded", "failed"]
     stage: str | None = None
+
+
+class TraceDeletionResponse(BaseModel):
+    status: Literal["deleted"]
+    runs_deleted: int = Field(ge=0)
 
 
 @router.post(
@@ -181,3 +186,20 @@ def cancel_agent_job(
     if job is None:
         raise HTTPException(status_code=404, detail="Задание не найдено")
     return AgentJobCancelled(**job)
+
+
+@router.get("/privacy/traces/export")
+def export_agent_traces(
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict:
+    """Export only trace rows owned by the authenticated user."""
+    return agent_traces.export_user_traces(user.user_id)
+
+
+@router.delete("/privacy/traces", response_model=TraceDeletionResponse)
+def delete_agent_traces(
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> TraceDeletionResponse:
+    """Delete the authenticated user's runs and all cascading child traces."""
+    deleted = agent_traces.delete_user_traces(user.user_id)
+    return TraceDeletionResponse(status="deleted", runs_deleted=deleted)

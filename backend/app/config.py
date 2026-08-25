@@ -40,6 +40,9 @@ class Settings(BaseSettings):
             "router.route_classification": "small",
             "nutrition.food_translation": "small",
             "memory.structured_extraction": "small",
+            "meal_estimation.parse_description": "small",
+            "meal_estimation.rerank_candidates": "small",
+            "habit_insight.generate_suggestion": "small",
             "*": "main",
         }
     )
@@ -137,6 +140,18 @@ class Settings(BaseSettings):
 
     app_env: str = "dev"
     test_user_id: str = "4c58346d-801f-4241-a349-02a2736361f0"
+
+    # Observability payload lifecycle. "auto" maps development to full,
+    # staging to sampled+redacted, and production to structured metrics only.
+    trace_payload_policy: Literal[
+        "auto", "full", "sampled_redacted", "structured_only"
+    ] = "auto"
+    trace_payload_sample_rate: float = Field(default=0.1, ge=0.0, le=1.0)
+    trace_raw_payload_retention_days: int = Field(default=7, ge=0, le=30)
+    trace_record_retention_days: int = Field(default=90, ge=1, le=3_650)
+    trace_payload_max_chars: int = Field(default=4_000, ge=100, le=100_000)
+    trace_payload_max_collection_items: int = Field(default=100, ge=1, le=1_000)
+    trace_export_max_runs: int = Field(default=1_000, ge=1, le=10_000)
 
     @property
     def is_dev(self) -> bool:

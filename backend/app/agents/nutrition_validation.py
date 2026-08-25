@@ -339,6 +339,11 @@ def _display_name_from_matched_food(matched_food: str, locale: str = "en") -> st
     return display_name[0].upper() + display_name[1:]
 
 
+def display_name_from_matched_food(matched_food: str, locale: str = "en") -> str:
+    """Public server-owned display name derived from the canonical DB match."""
+    return _display_name_from_matched_food(matched_food, locale)
+
+
 def _portion_bounds(ingredient: GroundedIngredient) -> tuple[float, float]:
     """Return practical household portion bounds for one catalogue food."""
     name = ingredient.matched_food.lower()

@@ -21,6 +21,14 @@ def test_legacy_generic_llm_gateway_is_removed() -> None:
     assert "invokeLLM" not in source
     assert "response_json_schema" not in source
     assert "functions.invoke('invoke-llm'" not in source
+    assert "functions.invoke('estimate-meal'" not in source
+    assert "functions.invoke('analyze-habits'" not in source
+    assert "functions.invoke('chat-with-coach'" not in source
+
+    athena_task = (ROOT / "supabase/functions/athena-task/index.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "meal_estimate:" not in athena_task
 
 
 def test_narrow_task_endpoint_owns_security_controls() -> None:

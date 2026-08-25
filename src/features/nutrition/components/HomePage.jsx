@@ -19,6 +19,7 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { toast } from "@/components/ui/use-toast";
 import { useLang } from "@/lib/i18n";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import { generateHabitInsight } from '@/features/nutrition/api/nutritionApi';
 
 const today = () => toLocalDateStr();
 
@@ -35,7 +36,6 @@ export default function Home() {
   const [aiTip, setAiTip] = useState(null);
   const [loadingTip, setLoadingTip] = useState(false);
   const [habitInsight, setHabitInsight] = useState(null); // { suggestion, insufficient_data }
-  const [loadingHabit, setLoadingHabit] = useState(false);
 
   const [loadError, setLoadError] = useState(false);
 
@@ -103,9 +103,9 @@ export default function Home() {
     if (profile && !loading) fetchTip(profile, meals);
   }, [profile, loading]);
 
-  // Проактивный анализ привычек: читаем закэшированный результат, и если он
-  // старше суток (или его вообще ещё нет) — просим Edge Function пересчитать.
-  const loadHabitInsight = useCallback(async (forceRefresh = false) => {
+  // Structured memory is refreshed by the canonical backend agent path.
+  // The browser only reads a recent high-confidence suggestion.
+  const loadHabitInsight = useCallback(async () => {
     if (!user?.id) return;
     try {
       const { data } = await supabase.from('agent_memory').select('*').eq('user_id', user.id).limit(1);
@@ -113,18 +113,19 @@ export default function Home() {
       const isStale = !mem?.suggestion_generated_at ||
         Date.now() - new Date(mem.suggestion_generated_at).getTime() > 24 * 60 * 60 * 1000;
 
-      if (mem?.suggestion && !isStale && !forceRefresh) {
+      if (mem?.suggestion && !isStale) {
         setHabitInsight({ suggestion: mem.suggestion, frequent_foods: mem.frequent_foods });
         return;
       }
-
-      setLoadingHabit(true);
-      const { data: res, error } = await supabase.functions.invoke('analyze-habits', { body: { language: lang } });
-      if (!error && res) setHabitInsight(res);
+      const generated = await generateHabitInsight(lang);
+      if (!generated.insufficient_data && generated.suggestion) {
+        setHabitInsight({
+          suggestion: generated.suggestion,
+          frequent_foods: generated.analytics?.frequent_foods || [],
+        });
+      }
     } catch {
       // тихо игнорируем — это дополнительная, не критичная фича
-    } finally {
-      setLoadingHabit(false);
     }
   }, [user?.id, lang]);
 
@@ -265,7 +266,7 @@ export default function Home() {
       </div>
 
       {/* Проактивный анализ привычек — не ждёт вопроса от пользователя */}
-      {(loadingHabit || habitInsight?.suggestion) && (
+      {habitInsight?.suggestion && (
         <div className="rounded-2xl border-2 border-accent/20 bg-gradient-to-br from-accent/5 to-transparent p-4">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="w-4 h-4 text-accent" />
@@ -273,13 +274,7 @@ export default function Home() {
               {t("home_noticed") || "Заметила"}
             </span>
           </div>
-          {loadingHabit ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t("home_analyzing") || "Анализирую привычки..."}
-            </div>
-          ) : (
-            <p className="text-sm font-heading leading-relaxed">{habitInsight.suggestion}</p>
-          )}
+          <p className="text-sm font-heading leading-relaxed">{habitInsight.suggestion}</p>
         </div>
       )}
 

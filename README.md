@@ -13,6 +13,8 @@ Athena AI — мобильное приложение для питания, т�
 - история и запись тренировок;
 - данные сна, энергии, веса и цикла;
 - AI-чат с маршрутизацией по specialist-агентам;
+- потоковые статусы AI-job через SSE и отмена выполняющегося ответа;
+- многоуровневая память диалога: recent messages, rolling summary и проверенные предпочтения;
 - RAG по проверенной базе знаний с каноническими ссылками;
 - трассировка LLM/tool calls и offline-eval сценарии на пяти языках.
 
@@ -52,7 +54,29 @@ Frontend в локальной разработке запускается от�
 4. Router выбирает `nutrition`, `workout`, `recovery` или `general`.
 5. Retriever добавляет релевантный RAG-контекст.
 6. Specialist вызывает GigaChat и доступные ему инструменты.
-7. Результат сохраняется в Redis и Supabase; frontend опрашивает job endpoint.
+7. API передаёт состояния `queued → running → tool_call → generating → completed`
+   через SSE endpoint `/chat/jobs/{job_id}/events`.
+8. Результат сохраняется в Redis и Supabase; frontend закрывает SSE-соединение и
+   обновляет разговор. Пользователь может остановить запрос через
+   `POST /chat/jobs/{job_id}/cancel`.
+
+Frontend использует `AbortController`, поэтому отмена закрывает соединение и
+отправляет cooperative cancellation backend. Redis хранит авторитетное состояние
+отмены, а Celery worker проверяет его между этапами выполнения.
+
+### Память разговора
+
+В prompt передаются не последние 20 сообщений целиком, а четыре слоя контекста:
+
+- ограниченное число свежих сообщений текущего разговора;
+- rolling `conversation_summary`;
+- структурированные `learned_preferences`, `avoided_foods` и `successful_meals`;
+- актуальное состояние пользователя из доверенных серверных данных.
+
+После успешного ответа отдельный structured extraction предлагает обновления
+памяти. Сервер принимает только факты выше порога confidence, валидирует и
+объединяет их с существующей памятью. Чтение и обновление памяти работают
+best-effort: отказ Supabase на этом пути не должен менять уже полученный ответ.
 
 ### Границы инструментов
 
@@ -400,6 +424,55 @@ npm run dev -- --host 127.0.0.1 --port 5175
 
 ## Проверки
 
+### Frontend unit/component tests
+
+Vitest выполняется в `jsdom`; React-компоненты проверяются через React Testing
+Library, `@testing-library/user-event` и `@testing-library/jest-dom`:
+
+```powershell
+npm run test:ui
+```
+
+Текущий набор проверяет форму входа, доступность composer, защиту от повторной
+отправки, SSE lifecycle, истёкшую сессию и ошибку Redis/worker. Тесты не требуют
+запущенных Docker-контейнеров и не обращаются к реальным Supabase или GigaChat.
+
+### Browser E2E
+
+Playwright запускает production-сборку приложения в Chromium. Supabase Auth/REST,
+FastAPI enqueue/SSE/cancel и внешние функции заменяются детерминированными сетевыми
+mock-ответами, поэтому тесты воспроизводимы и безопасны для CI.
+
+Один раз установите Chromium:
+
+```powershell
+npx playwright install chromium
+```
+
+Запуск критических сценариев:
+
+```powershell
+npm run test:e2e
+```
+
+Интерактивная отладка:
+
+```powershell
+npm run test:e2e:ui
+```
+
+Покрыты `login → onboarding → chat`, meal logging, expired JWT, отказ
+Redis/worker, duplicate submission, переключение разговоров, mobile viewport и
+автоматическая проверка серьёзных accessibility-нарушений через Axe. Production
+сборка и локальный E2E-сервер запускаются и завершаются автоматически.
+
+Сценарий подтверждения write-tool пока отмечен `fixme`: текущий Celery-контракт
+выполняет write tool до того, как клиент может подтвердить действие. Тест следует
+включить после появления server-side confirmation token/endpoint; пропуск нельзя
+считать подтверждением безопасности этой цепочки.
+
+### Backend и AI checks
+
 Offline-проверки не обращаются к GigaChat и не изменяют Supabase:
 
 ```powershell
@@ -426,6 +499,51 @@ python backend/scripts/eval_answer_quality.py
 
 Команды с `--live` выполняют реальные вызовы GigaChat, но используют фиктивные
 результаты инструментов и не должны записывать пользовательские данные.
+
+GitHub Actions автоматически запускает backend `pytest`/Ruff/mypy/migration
+checks, frontend ESLint/typecheck/Vitest/build, отдельный Playwright Chromium job,
+offline AI regressions и Docker build. Playwright HTML report сохраняется как
+artifact при ошибке. Live GigaChat regression остаётся только manual/scheduled и
+требует repository secret `GIGACHAT_AUTH_KEY`.
+
+### Privacy и observability
+
+Trace payloads проходят формальный lifecycle: **redaction → retention → export
+→ deletion**. `TRACE_PAYLOAD_POLICY=auto` выбирает безопасный режим по среде:
+
+- development — полный payload для локальной отладки;
+- staging — детерминированная выборка и редактирование email, телефонов, JWT,
+  bearer-токенов и полей секретов;
+- production — только структурированные метрики, маршрутизация, latency и token
+  usage; prompt, response и tool payload не сохраняются.
+
+Сырые payloads хранятся не более `TRACE_RAW_PAYLOAD_RETENTION_DAYS` (по умолчанию
+7 дней), структурированные trace records — `TRACE_RECORD_RETENTION_DAYS` (90
+дней). Ежедневная retention-задача:
+
+```powershell
+python backend/scripts/purge_agent_traces.py
+```
+
+Аутентифицированный пользователь может экспортировать или удалить только свои
+данные через `GET /api/v1/agent/privacy/traces/export` и
+`DELETE /api/v1/agent/privacy/traces`. Дочерние tool/LLM traces удаляются
+каскадно.
+
+Для браузерных LLM-задач разрешён только узкий `athena-task` с серверным
+allowlist use cases, quota, rate/request-size limits и фиксированными schemas.
+Диалоговый агент использует canonical path FastAPI → Redis/Celery → backend LLM.
+Generic `invoke-llm` retired; legacy Edge LLM functions должны быть удалены и из
+репозитория, и из deployed Supabase project.
+
+Retrieval-backed оценка блюда теперь живёт в Python как
+`MealEstimationService`: `parse_description → retrieve_candidates →
+rerank_candidates → calculate_macros`. Только parsing и reranking используют
+canonical routed LLM gateway; кандидаты берутся из `food_nutrients`, а КБЖУ
+рассчитываются детерминированно. Анализ привычек разделён на детерминированный
+`HabitAnalyticsService` и текстовый `HabitInsightGenerator`. HTTP-контракты:
+`POST /api/v1/nutrition/meal-estimate` и
+`POST /api/v1/nutrition/habit-insight`.
 
 ## Нагрузочное тестирование
 

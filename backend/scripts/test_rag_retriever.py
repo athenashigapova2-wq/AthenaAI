@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.agents.graph import build_agent_graph  # noqa: E402
 from app.agents.retrieval import retriever_node  # noqa: E402
 from app.agents.specialists import general_node  # noqa: E402
-from app.rag.contracts import RetrievedChunk  # noqa: E402
 from app.rag.retriever import format_retrieval_context, retrieve_knowledge  # noqa: E402
 
 

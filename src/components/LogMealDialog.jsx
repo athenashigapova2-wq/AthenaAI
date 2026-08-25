@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
-import { invokeAthenaTask } from '@/lib/athenaTasks';
-import { supabase } from '@/api/supabaseClient';
+import { estimateMeal } from '@/features/nutrition/api/nutritionApi';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { Loader2, Sparkles } from "lucide-react";
 import { useLang } from "@/lib/i18n";
+import { toast } from "@/components/ui/use-toast";
 
 const today = () => toLocalDateStr();
 
@@ -27,43 +27,33 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
     if (!desc.trim()) return;
     setEstimating(true);
     try {
-      // Сначала пробуем найти точное совпадение в базе (перевод + поиск на сервере)
-      const { data: dbResult, error: dbError } = await supabase.functions.invoke('estimate-meal', {
-        body: { description: desc, language: lang },
-      });
-
-      if (!dbError && dbResult?.matched) {
-        setForm((f) => ({
-          ...f,
-          name: dbResult.name || desc,
-          calories: String(dbResult.calories),
-          protein_g: String(dbResult.protein_g),
-          carbs_g: String(dbResult.carbs_g),
-          fat_g: String(dbResult.fat_g),
-        }));
-        setSource('db');
-        setEstimating(false);
+      const res = await estimateMeal(desc, lang);
+      if (!res.matched) {
+        toast({
+          title: t("log_estimateNotFound") || "Продукт не найден в справочнике",
+          description: t("log_estimateNotFoundHint") || "Уточните продукт и количество.",
+          variant: "destructive",
+        });
         return;
       }
-    } catch {
-      // Тихо падаем на фолбэк ниже — это не критично, просто теряем точность
+      setForm((f) => ({
+        ...f,
+        name: res.name || desc,
+        calories: String(Math.round(res.calories || 0)),
+        protein_g: String(Math.round(res.protein_g || 0)),
+        carbs_g: String(Math.round(res.carbs_g || 0)),
+        fat_g: String(Math.round(res.fat_g || 0)),
+      }));
+      setSource('db');
+    } catch (error) {
+      toast({
+        title: t("log_estimateFailed") || "Не удалось оценить блюдо",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setEstimating(false);
     }
-
-    // Не нашли в базе (или база недоступна) — как раньше, чистая оценка ИИ
-    const res = await invokeAthenaTask('meal_estimate', {
-      description: desc,
-      language: lang,
-    });
-    setForm((f) => ({
-      ...f,
-      name: res.name || desc,
-      calories: String(Math.round(res.calories || 0)),
-      protein_g: String(Math.round(res.protein_g || 0)),
-      carbs_g: String(Math.round(res.carbs_g || 0)),
-      fat_g: String(Math.round(res.fat_g || 0)),
-    }));
-    setSource('ai');
-    setEstimating(false);
   };
 
   const handleSave = async () => {
@@ -100,10 +90,7 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
             </Button>
           </div>
           {source === 'db' && (
-            <p className="text-[11px] text-emerald-600">✓ Точные данные из базы продуктов</p>
-          )}
-          {source === 'ai' && (
-            <p className="text-[11px] text-muted-foreground">Оценка ИИ (в базе не нашлось точного совпадения)</p>
+            <p className="text-[11px] text-muted-foreground">КБЖУ рассчитаны по найденному продукту — проверьте порцию</p>
           )}
         </div>
 
