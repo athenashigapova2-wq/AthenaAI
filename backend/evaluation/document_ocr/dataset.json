@@ -1,0 +1,154 @@
+[
+  {
+    "id": "ru-receipt-001",
+    "language": "ru",
+    "document_kind": "receipt",
+    "ocr_text": "ООО ТЕСТ МАРКЕТ\n21.08.2026\nМолоко 2 x 90.00 180.00\nХлеб 75.00\nИТОГ 255.00 RUB",
+    "expected": {
+      "document_kind": "receipt",
+      "issue_date": "2026-08-21",
+      "currency": "RUB",
+      "supplier": {"name": "ООО ТЕСТ МАРКЕТ"},
+      "line_items": [
+        {"description": "Молоко", "quantity": "2", "unit_price": "90.00", "line_total": "180.00"},
+        {"description": "Хлеб", "quantity": "1", "unit_price": "75.00", "line_total": "75.00"}
+      ],
+      "subtotal": "255.00",
+      "total": "255.00"
+    }
+  },
+  {
+    "id": "en-invoice-001",
+    "language": "en",
+    "document_kind": "invoice",
+    "ocr_text": "EXAMPLE LABS LTD\nINVOICE INV-2048\nDate 2026-08-20\nConsulting 3 x 100.00 300.00\nSubtotal 300.00\nTax 60.00\nTotal 360.00 USD",
+    "expected": {
+      "document_kind": "invoice",
+      "document_number": "INV-2048",
+      "issue_date": "2026-08-20",
+      "currency": "USD",
+      "supplier": {"name": "EXAMPLE LABS LTD"},
+      "line_items": [
+        {"description": "Consulting", "quantity": "3", "unit_price": "100.00", "line_total": "300.00"}
+      ],
+      "subtotal": "300.00",
+      "tax_total": "60.00",
+      "total": "360.00"
+    }
+  },
+  {
+    "id": "en-receipt-low-quality-001",
+    "language": "en",
+    "document_kind": "receipt",
+    "ocr_text": "DEMO CAFE\n2026/08/19\nCoffee 4.50\nSandwich 8.50\nTOTAL 13.00 EUR",
+    "expected": {
+      "document_kind": "receipt",
+      "issue_date": "2026-08-19",
+      "currency": "EUR",
+      "supplier": {"name": "DEMO CAFE"},
+      "line_items": [
+        {"description": "Coffee", "quantity": "1", "unit_price": "4.50", "line_total": "4.50"},
+        {"description": "Sandwich", "quantity": "1", "unit_price": "8.50", "line_total": "8.50"}
+      ],
+      "subtotal": "13.00",
+      "total": "13.00"
+    }
+  },
+  {
+    "id": "ru-invoice-002",
+    "language": "ru",
+    "document_kind": "invoice",
+    "ocr_text": "ООО ПРИМЕР\nСЧЕТ № A-42 от 18.08.2026\nУслуга 1 1000.00 1000.00\nНДС 200.00\nИТОГО 1200.00 RUB",
+    "expected": {
+      "document_kind": "invoice",
+      "document_number": "A-42",
+      "issue_date": "2026-08-18",
+      "currency": "RUB",
+      "supplier": {"name": "ООО ПРИМЕР"},
+      "line_items": [
+        {"description": "Услуга", "quantity": "1", "unit_price": "1000.00", "line_total": "1000.00"}
+      ],
+      "subtotal": "1000.00",
+      "tax_total": "200.00",
+      "total": "1200.00"
+    }
+  },
+  {
+    "id": "en-receipt-002",
+    "language": "en",
+    "document_kind": "receipt",
+    "ocr_text": "EXAMPLE BOOKS\n22 AUG 2026\nNotebook 2 x 3.25 6.50\nPen 1.50\nTOTAL GBP 8.00\nCARD",
+    "expected": {
+      "document_kind": "receipt",
+      "issue_date": "2026-08-22",
+      "currency": "GBP",
+      "supplier": {"name": "EXAMPLE BOOKS"},
+      "line_items": [
+        {"description": "Notebook", "quantity": "2", "unit_price": "3.25", "line_total": "6.50"},
+        {"description": "Pen", "quantity": "1", "unit_price": "1.50", "line_total": "1.50"}
+      ],
+      "subtotal": "8.00",
+      "total": "8.00",
+      "payment_method": "card"
+    }
+  },
+  {
+    "id": "ru-receipt-003",
+    "language": "ru",
+    "document_kind": "receipt",
+    "ocr_text": "ТЕСТ АПТЕКА\n17-08-2026\nТовар А 350,00\nТовар Б 125,50\nИТОГ 475,50 RUB\nКАРТА",
+    "expected": {
+      "document_kind": "receipt",
+      "issue_date": "2026-08-17",
+      "currency": "RUB",
+      "supplier": {"name": "ТЕСТ АПТЕКА"},
+      "line_items": [
+        {"description": "Товар А", "quantity": "1", "unit_price": "350.00", "line_total": "350.00"},
+        {"description": "Товар Б", "quantity": "1", "unit_price": "125.50", "line_total": "125.50"}
+      ],
+      "subtotal": "475.50",
+      "total": "475.50",
+      "payment_method": "card"
+    }
+  },
+  {
+    "id": "en-invoice-003",
+    "language": "en",
+    "document_kind": "invoice",
+    "ocr_text": "DEMO SOFTWARE LLC TAX ID US-0001\nINVOICE D-77 DATE 2026-08-16\nBILL TO EXAMPLE CLIENT LTD\nSubscription 1 80.00 80.00\nTax 8.00\nTOTAL USD 88.00",
+    "expected": {
+      "document_kind": "invoice",
+      "document_number": "D-77",
+      "issue_date": "2026-08-16",
+      "currency": "USD",
+      "supplier": {"name": "DEMO SOFTWARE LLC", "tax_id": "US-0001"},
+      "customer": {"name": "EXAMPLE CLIENT LTD"},
+      "line_items": [
+        {"description": "Subscription", "quantity": "1", "unit_price": "80.00", "line_total": "80.00"}
+      ],
+      "subtotal": "80.00",
+      "tax_total": "8.00",
+      "total": "88.00"
+    }
+  },
+  {
+    "id": "ru-invoice-004",
+    "language": "ru",
+    "document_kind": "invoice",
+    "ocr_text": "ООО ТЕСТ СЕРВИС ИНН 0000000000\nСЧЕТ T-15 ДАТА 15.08.2026\nКЛИЕНТ ООО ПРИМЕР КЛИЕНТ\nРабота А 2 500.00 1000.00\nРабота Б 1 300.00 300.00\nИТОГО 1300.00 RUB",
+    "expected": {
+      "document_kind": "invoice",
+      "document_number": "T-15",
+      "issue_date": "2026-08-15",
+      "currency": "RUB",
+      "supplier": {"name": "ООО ТЕСТ СЕРВИС", "tax_id": "0000000000"},
+      "customer": {"name": "ООО ПРИМЕР КЛИЕНТ"},
+      "line_items": [
+        {"description": "Работа А", "quantity": "2", "unit_price": "500.00", "line_total": "1000.00"},
+        {"description": "Работа Б", "quantity": "1", "unit_price": "300.00", "line_total": "300.00"}
+      ],
+      "subtotal": "1300.00",
+      "total": "1300.00"
+    }
+  }
+]

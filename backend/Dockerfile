@@ -9,8 +9,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # libgomp is required by the local sentence-transformers/scikit-learn stack.
+# Tesseract is the local OCR adapter; application code still depends on an
+# interface, so a managed OCR provider can replace it without changing policy.
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y libgomp1 \
+    && apt-get install --no-install-recommends -y \
+        libgomp1 \
+        poppler-utils \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        tesseract-ocr-rus \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt

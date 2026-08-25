@@ -94,3 +94,11 @@ def test_evaluation_experiment_migration_compares_quality_performance_and_cost()
         "agent_experiment_comparison",
     ):
         assert required_field in sql
+
+
+def test_document_ocr_is_an_allowlisted_observability_route() -> None:
+    sql = (MIGRATIONS / "0024_document_ocr_observability.sql").read_text(
+        encoding="utf-8"
+    )
+    assert "agent_runs_route_check" in sql
+    assert "document_ocr" in sql

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
             "meal_estimation.parse_description": "small",
             "meal_estimation.rerank_candidates": "small",
             "habit_insight.generate_suggestion": "small",
+            "document_ocr.extract_entities": "small",
             "ai_task.daily_tip": "small",
             "ai_task.meal_recommendations": "main",
             "ai_task.workout_plan": "main",
@@ -160,6 +161,15 @@ class Settings(BaseSettings):
     trace_payload_max_chars: int = Field(default=4_000, ge=100, le=100_000)
     trace_payload_max_collection_items: int = Field(default=100, ge=1, le=1_000)
     trace_export_max_runs: int = Field(default=1_000, ge=1, le=10_000)
+
+    # Receipt/invoice ingestion. Files are processed in memory and are not
+    # persisted by this pipeline; review storage is a separate explicit action.
+    document_ocr_max_bytes: int = Field(default=10_000_000, ge=1_024, le=50_000_000)
+    document_ocr_max_pdf_pages: int = Field(default=20, ge=1, le=100)
+    document_ocr_languages: str = "eng+rus"
+    document_ocr_tesseract_command: str = "tesseract"
+    document_ocr_human_review_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    document_ocr_live_eval_enabled: bool = False
 
     @model_validator(mode="after")
     def prevent_full_trace_content_outside_local_environments(self) -> "Settings":

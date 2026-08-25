@@ -598,6 +598,25 @@ canonical routed LLM gateway; кандидаты берутся из `food_nutri
 `POST /api/v1/nutrition/meal-estimate` и
 `POST /api/v1/nutrition/habit-insight`.
 
+## Receipt / invoice OCR
+
+Аутентифицированный endpoint `POST /api/v1/documents/extract` принимает bounded
+multipart upload (PDF, PNG, JPEG, WebP или TIFF). Pipeline устроен как
+`PDF/image → embedded text/OCR → schema-bound entity extraction → Pydantic
+validation → deterministic cross-field checks → confidence policy → accepted |
+needs_human_review`. Файл обрабатывается в памяти и автоматически не сохраняется.
+
+OCR изолирован адаптером; Docker image содержит локальный Tesseract для русского
+и английского. Entity extraction проходит через canonical `AIExecutionService`,
+а суммы строк, subtotal, tax и total проверяются независимо от модели. Отсутствие
+критических полей, арифметические противоречия или низкая confidence всегда
+возвращают `needs_human_review` с машинно-читаемыми причинами.
+
+Синтетический evaluation dataset и формат predictions описаны в
+[`backend/evaluation/document_ocr/README.md`](backend/evaluation/document_ocr/README.md).
+Скрипт `backend/scripts/evaluate_document_ocr.py` генерирует JSON/Markdown с
+field-level precision, recall и F1; этот offline contract также входит в CI.
+
 ## Нагрузочное тестирование
 
 Locust-сценарий измеряет параллельных пользователей, enqueue и полный цикл worker,
@@ -678,6 +697,7 @@ backend/app/
   model_routing.py  GigaChat model-routing policy
   rag/          retrieval и ingestion contracts
   services/     jobs, conversations, tracing, Supabase
+  document_ocr/ OCR adapters, schemas, consistency/confidence policy and eval
   tools/        read/write инструменты агента
   workers/      Celery application и tasks
 supabase/
