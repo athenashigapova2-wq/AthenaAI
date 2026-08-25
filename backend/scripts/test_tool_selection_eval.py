@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from langchain_core.messages import AIMessage
 
@@ -38,9 +39,20 @@ class FakeBoundModel:
         return next(self.responses)
 
 
+class FakeExecutionService:
+    def __init__(self) -> None:
+        self.model = FakeBoundModel()
+
+    def prepare(self, **kwargs):
+        return SimpleNamespace(model=self.model)
+
+    def invoke_prepared(self, prepared, *, messages, model=None):
+        return (model or prepared.model).invoke(messages)
+
+
 def main() -> None:
-    original_get_llm = eval_tool_selection.get_llm
-    eval_tool_selection.get_llm = FakeBoundModel
+    original_service = eval_tool_selection.ai_execution_service
+    eval_tool_selection.ai_execution_service = FakeExecutionService()
     try:
         selected = eval_tool_selection.select_tools(
             {
@@ -52,7 +64,7 @@ def main() -> None:
             }
         )
     finally:
-        eval_tool_selection.get_llm = original_get_llm
+        eval_tool_selection.ai_execution_service = original_service
 
     assert selected == ["get_my_profile", "log_workout"]
     print("Tool selection eval checks passed")

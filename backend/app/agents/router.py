@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.agents.prompts import ROUTER_SYSTEM
 from app.agents.state import AgentName, AgentState
-from app.ai_execution import ai_execution_layer
+from app.ai_execution import ai_execution_service
 from app.services import agent_traces
 
 logger = logging.getLogger(__name__)
@@ -116,11 +116,11 @@ def router_node(state: AgentState) -> dict[str, object]:
     """LangGraph node that writes `route` into the state."""
     text = _last_user_text(state)
     try:
-        response = ai_execution_layer.invoke(
+        response = ai_execution_service.invoke(
             messages=[SystemMessage(content=ROUTER_SYSTEM), HumanMessage(content=text)],
             node_name="router",
             purpose="route_classification",
-            run_id=state.get("run_id"),
+            run_id=state.get("trace_id"),
             default_tier="small",
             temperature=0.0,
         )
@@ -132,14 +132,14 @@ def router_node(state: AgentState) -> dict[str, object]:
         logger.warning(
             "Router LLM degraded; using keyword fallback",
             extra={
-                "run_id": state.get("run_id"),
+                "trace_id": state.get("trace_id"),
                 "routing_fallback_reason": reason,
                 "fallback_route": fallback_route,
             },
             exc_info=True,
         )
         agent_traces.record_routing_fallback(
-            run_id=state.get("run_id"),
+            run_id=state.get("trace_id"),
             user_id=state.get("user_id"),
             reason=reason,
         )
@@ -147,3 +147,4 @@ def router_node(state: AgentState) -> dict[str, object]:
             "route": fallback_route,
             "routing_fallback_reason": reason,
         }
+

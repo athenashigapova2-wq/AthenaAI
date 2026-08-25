@@ -17,7 +17,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.ai_execution import ai_execution_layer
+from app.ai_execution import ai_execution_service
 from app.config import settings
 from app.resilience import retry_transient
 from app.services.supabase import get_supabase
@@ -206,7 +206,7 @@ def _extract_memory(
         },
         ensure_ascii=False,
     )
-    response = ai_execution_layer.invoke(
+    response = ai_execution_service.invoke(
         messages=[
             SystemMessage(content=system_prompt),
             HumanMessage(content=extraction_input),

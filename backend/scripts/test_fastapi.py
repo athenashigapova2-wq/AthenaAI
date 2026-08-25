@@ -23,6 +23,7 @@ from app.services.agent_jobs import QueueUnavailableError  # noqa: E402
 
 client = TestClient(app)
 JOB_ID = "11111111-1111-4111-8111-111111111111"
+TRACE_ID = "22222222-2222-4222-8222-222222222222"
 
 
 def make_token(user_id: str = "test-user-id") -> str:
@@ -96,7 +97,10 @@ def check_job_api() -> None:
     missing_token = client.post("/api/v1/agent/chat", json={"message": "Hello"})
     assert missing_token.status_code == 401
 
-    with patch("app.api.agent.agent_jobs.enqueue_agent_job", return_value=JOB_ID) as enqueue:
+    with (
+        patch("app.api.agent.uuid4", return_value=TRACE_ID),
+        patch("app.api.agent.agent_jobs.enqueue_agent_job", return_value=JOB_ID) as enqueue,
+    ):
         response = client.post(
             "/api/v1/agent/chat",
             headers=auth_headers(),
@@ -105,14 +109,17 @@ def check_job_api() -> None:
     assert response.status_code == 202, response.text
     assert response.json() == {
         "job_id": JOB_ID,
+        "trace_id": TRACE_ID,
         "status": "queued",
         "status_url": f"http://testserver/api/v1/agent/chat/jobs/{JOB_ID}",
     }
+    assert response.headers["X-Trace-ID"] == TRACE_ID
     enqueue.assert_called_once_with(
         user_id="test-user-id",
         message="Hello",
         locale="en",
         conversation_id=None,
+        trace_id=TRACE_ID,
     )
 
     with patch(
@@ -128,6 +135,7 @@ def check_job_api() -> None:
 
     completed_job = {
         "job_id": JOB_ID,
+        "trace_id": TRACE_ID,
         "status": "succeeded",
         "answer": "Hello!",
         "route": "general",
@@ -168,6 +176,7 @@ def check_job_api() -> None:
 
     cancelled_job = {
         "job_id": JOB_ID,
+        "trace_id": TRACE_ID,
         "status": "cancelled",
         "stage": "cancelled",
     }

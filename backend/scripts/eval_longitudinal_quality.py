@@ -22,9 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app.agents.specialists as specialists  # noqa: E402
 from app.agents.graph import run_agent_turn_details  # noqa: E402
+from app.ai_execution import ai_execution_service  # noqa: E402
 from app.config import settings  # noqa: E402
-from app.llm import _get_gigachat, _get_mock_llm, get_router_llm  # noqa: E402
-from app.resilience import retry_transient  # noqa: E402
+from app.llm import _get_gigachat, _get_mock_llm  # noqa: E402
 from app.tools.registry import is_read_only_tool  # noqa: E402
 from simulation.evaluation import (  # noqa: E402
     SEMANTIC_JUDGE_ENV,
@@ -153,21 +153,21 @@ def _semantic_judge(payload: dict) -> str:
         "longitudinal_reasoning": {"score": "integer 1-5", "rationale": "string"},
         "usefulness": {"score": "integer 1-5", "rationale": "string"},
     }
-    model = _get_gigachat(settings.gigachat_model, temperature=0.0)
-    response = retry_transient(
-        lambda: model.invoke(
-            [
-                SystemMessage(
-                    content=(
-                        "You are a strict answer-quality evaluator. Evaluate semantics only; "
-                        "do not re-evaluate tool permissions or database writes. Return one JSON "
-                        f"object matching this schema exactly: {json.dumps(schema)}"
-                    )
-                ),
-                HumanMessage(content=json.dumps(payload, ensure_ascii=False)),
-            ]
-        ),
-        operation_name="llm.semantic_quality_judge",
+    response = ai_execution_service.invoke(
+        messages=[
+            SystemMessage(
+                content=(
+                    "You are a strict answer-quality evaluator. Evaluate semantics only; "
+                    "do not re-evaluate tool permissions or database writes. Return one JSON "
+                    f"object matching this schema exactly: {json.dumps(schema)}"
+                )
+            ),
+            HumanMessage(content=json.dumps(payload, ensure_ascii=False)),
+        ],
+        node_name="semantic_evaluator",
+        purpose="longitudinal_quality_judge",
+        default_tier="main",
+        temperature=0.0,
     )
     content = response.content
     return content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
@@ -383,7 +383,6 @@ def run_scenario(scenario: LongitudinalScenario, *, gold=None) -> dict:
 def run() -> dict:
     _get_gigachat.cache_clear()
     _get_mock_llm.cache_clear()
-    get_router_llm.cache_clear()
     scenarios = load_scenarios(env_name=LIVE_SCENARIO_SELECTION_ENV)
     gold = load_human_gold()
     coverage = gold_fixture_coverage(gold, load_scenarios(env_name=""))

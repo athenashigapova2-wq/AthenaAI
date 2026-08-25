@@ -321,7 +321,7 @@ def assert_successful_llm_is_not_retried_when_tracing_fails() -> None:
             "app.services.agent_traces.succeed_llm_call",
             side_effect=httpx.RemoteProtocolError("Supabase disconnected"),
         ) as succeed_call,
-        patch("app.services.agent_traces.logger.warning") as warning,
+        patch("app.ai_execution.gateway.logger.warning") as warning,
     ):
         result = agent_traces.invoke_llm(
             llm,
@@ -356,7 +356,7 @@ def assert_llm_runs_when_trace_creation_fails() -> None:
             side_effect=httpx.RemoteProtocolError("Supabase disconnected"),
         ) as create_call,
         patch("app.services.agent_traces.succeed_llm_call") as succeed_call,
-        patch("app.services.agent_traces.logger.warning") as warning,
+        patch("app.ai_execution.gateway.logger.warning") as warning,
     ):
         result = agent_traces.invoke_llm(
             llm,
@@ -390,7 +390,7 @@ def assert_trace_failure_does_not_mask_provider_failure() -> None:
             "app.services.agent_traces.fail_llm_call",
             side_effect=httpx.RemoteProtocolError("Supabase disconnected"),
         ) as fail_call,
-        patch("app.services.agent_traces.logger.warning") as warning,
+        patch("app.ai_execution.gateway.logger.warning") as warning,
     ):
         try:
             agent_traces.invoke_llm(

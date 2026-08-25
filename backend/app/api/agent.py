@@ -3,9 +3,9 @@
 import asyncio
 import json
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
@@ -23,6 +23,7 @@ class AgentChatRequest(BaseModel):
 
 class AgentChatAccepted(BaseModel):
     job_id: str
+    trace_id: str
     status: Literal["queued"]
     status_url: str
 
@@ -45,6 +46,7 @@ class CalorieDecisionResponse(BaseModel):
 
 class AgentJobResponse(BaseModel):
     job_id: str
+    trace_id: str
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     stage: Literal[
         "queued", "running", "tool_call", "generating", "completed", "failed", "cancelled"
@@ -58,6 +60,7 @@ class AgentJobResponse(BaseModel):
 
 class AgentJobCancelled(BaseModel):
     job_id: str
+    trace_id: str
     status: Literal["cancelled", "succeeded", "failed"]
     stage: str | None = None
 
@@ -75,15 +78,18 @@ class TraceDeletionResponse(BaseModel):
 def chat_with_agent(
     request: AgentChatRequest,
     http_request: Request,
+    response: Response,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentChatAccepted:
     """Validate the caller and enqueue a long-running agent turn."""
     try:
+        trace_id = str(uuid4())
         job_id = agent_jobs.enqueue_agent_job(
             user_id=user.user_id,
             message=request.message,
             locale=request.locale,
             conversation_id=str(request.conversation_id) if request.conversation_id else None,
+            trace_id=trace_id,
         )
     except agent_jobs.QueueUnavailableError as exc:
         raise HTTPException(
@@ -92,7 +98,13 @@ def chat_with_agent(
         ) from exc
 
     status_url = str(http_request.url_for("get_agent_job", job_id=job_id))
-    return AgentChatAccepted(job_id=job_id, status="queued", status_url=status_url)
+    response.headers["X-Trace-ID"] = trace_id
+    return AgentChatAccepted(
+        job_id=job_id,
+        trace_id=trace_id,
+        status="queued",
+        status_url=status_url,
+    )
 
 
 @router.get("/chat/jobs/{job_id}", response_model=AgentJobResponse)

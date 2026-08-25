@@ -18,8 +18,8 @@ database/OpenFoodFacts work. All AI use cases now use authenticated FastAPI:
 - `POST /api/v1/nutrition/meal-estimate` -> retrieval-backed meal estimation;
 - `POST /api/v1/nutrition/habit-insight` -> deterministic analytics plus insight.
 
-Those paths enter the Python AI Execution Layer, which applies privacy,
-routing, resilience and observability before the canonical provider gateway.
+Those paths enter the Python `AIExecutionService`, which applies routing,
+privacy, resilience and tracing before the canonical `LLMGateway`.
 Provider credentials exist only in the API/worker environment.
 
 ## Decommission deployed legacy functions
@@ -35,5 +35,10 @@ npx supabase functions delete invoke-llm --project-ref <project-ref>
 npx supabase functions delete chat-with-coach --project-ref <project-ref>
 npx supabase functions delete analyze-habits --project-ref <project-ref>
 npx supabase functions delete estimate-meal --project-ref <project-ref>
-npx supabase secrets unset GIGACHAT_AUTH_KEY GIGACHAT_MODEL --project-ref <project-ref>
 ```
+
+After deletion, inspect the project's secret names and remove every
+provider-specific credential from the Edge runtime. The CI architecture
+contract intentionally forbids provider endpoints, credential names and model
+completion paths anywhere below `supabase/functions/`, including documentation
+and configuration files.

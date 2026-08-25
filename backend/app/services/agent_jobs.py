@@ -63,6 +63,7 @@ def enqueue_agent_job(
     message: str,
     locale: str,
     conversation_id: str | None,
+    trace_id: str,
 ) -> str:
     """Create an owner-scoped Redis record, then enqueue the Celery task."""
     # Imported lazily so service and API unit tests do not need to initialize Celery.
@@ -71,16 +72,18 @@ def enqueue_agent_job(
     job_id = str(uuid4())
     key = _job_key(job_id)
     client = redis_client()
+    enqueued_at = _now()
     try:
         with client.pipeline() as pipe:
             pipe.hset(
                 key,
                 mapping={
                     "user_id": user_id,
+                    "trace_id": trace_id,
                     "status": "queued",
                     "stage": "queued",
-                    "created_at": _now(),
-                    "updated_at": _now(),
+                    "created_at": enqueued_at,
+                    "updated_at": enqueued_at,
                 },
             )
             pipe.expire(key, settings.agent_job_ttl_seconds)
@@ -92,6 +95,7 @@ def enqueue_agent_job(
                 "message": message,
                 "locale": locale,
                 "conversation_id": conversation_id,
+                "trace_id": trace_id,
             },
             task_id=job_id,
             queue=settings.agent_job_queue,
@@ -119,6 +123,8 @@ def get_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
     fallback_stage = "completed" if status == "succeeded" else status
     response: dict[str, Any] = {
         "job_id": job_id,
+        # Compatibility for jobs accepted before trace propagation was deployed.
+        "trace_id": record.get("trace_id") or job_id,
         "status": status,
         "stage": record.get("stage") or fallback_stage,
     }
@@ -129,8 +135,25 @@ def get_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
     return response
 
 
-def mark_job_running(job_id: str) -> None:
-    _update_job(job_id, status="running", stage="running", event="running")
+def mark_job_running(job_id: str) -> int:
+    """Mark worker start and return HTTP-to-worker queue latency."""
+    created_at = redis_client().hget(_job_key(job_id), "created_at")
+    queue_latency_ms = 0
+    if created_at:
+        queued = datetime.fromisoformat(created_at)
+        queue_latency_ms = max(
+            0,
+            round((datetime.now(timezone.utc) - queued).total_seconds() * 1_000),
+        )
+    _update_job(
+        job_id,
+        status="running",
+        stage="running",
+        queue_latency_ms=str(queue_latency_ms),
+        event="running",
+        event_details={"queue_latency_ms": queue_latency_ms},
+    )
+    return queue_latency_ms
 
 
 def mark_job_progress(job_id: str, stage: str, **details: Any) -> None:
@@ -217,6 +240,7 @@ def _publish_event(job_id: str, event: str, details: dict[str, Any] | None = Non
     job = redis_client().hgetall(_job_key(job_id))
     payload: dict[str, Any] = {
         "job_id": job_id,
+        "trace_id": job.get("trace_id") or job_id,
         "status": job.get("status", event),
         "stage": job.get("stage", event),
     }

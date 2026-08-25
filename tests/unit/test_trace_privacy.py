@@ -4,6 +4,9 @@ import pytest
 
 from app.config import Settings, settings
 from app.trace_privacy import (
+    DataClassification,
+    TracePayloadKind,
+    classify_field,
     effective_trace_content_mode,
     payload_mode_for_run,
     protect_mapping,
@@ -33,7 +36,7 @@ def test_redacted_mode_removes_sensitive_values(monkeypatch) -> None:
         mode,
     )
     assert protected["email"] == "[EMAIL_REDACTED]"
-    assert protected["authorization"] == "[REDACTED]"
+    assert protected["authorization"] == "[RESTRICTED_REDACTED]"
     assert protected["nested"]["phone"] == "[PHONE_REDACTED]"
 
 
@@ -54,6 +57,75 @@ def test_development_full_payload_is_bounded(monkeypatch) -> None:
     mode = payload_mode_for_run("33333333-3333-4333-8333-333333333333")
     assert mode == "full"
     assert protect_payload("x" * 200, mode) == "x" * 100
+
+
+def test_data_classification_covers_profile_conversation_and_tools() -> None:
+    assert (
+        classify_field("medical_condition", payload_kind=TracePayloadKind.PROFILE)
+        == DataClassification.SENSITIVE
+    )
+    assert (
+        classify_field("email", payload_kind=TracePayloadKind.PROFILE)
+        == DataClassification.PERSONAL
+    )
+    assert (
+        classify_field("access_token", payload_kind=TracePayloadKind.TOOL_ARGS)
+        == DataClassification.RESTRICTED
+    )
+    assert (
+        classify_field("row_count", payload_kind=TracePayloadKind.TOOL_RESULT)
+        == DataClassification.INTERNAL
+    )
+
+
+def test_sensitive_fields_never_enter_redacted_trace() -> None:
+    private_values = {
+        "weight": 72.5,
+        "calories": 1_800,
+        "medical_condition": "diabetes",
+        "email": "anna@example.com",
+        "access_token": "eyJabc.def.signature",
+        "nested": {"allergies": ["peanuts"]},
+    }
+    protected = protect_mapping(
+        private_values,
+        "redacted",
+        payload_kind=TracePayloadKind.TOOL_ARGS,
+    )
+    serialized = str(protected)
+    for sensitive_value in (
+        "72.5",
+        "1800",
+        "diabetes",
+        "anna@example.com",
+        "eyJabc.def.signature",
+        "peanuts",
+    ):
+        assert sensitive_value not in serialized
+
+
+def test_redacted_conversation_never_persists_free_form_text() -> None:
+    prompt = "Меня зовут Анна, мой вес 72.5 кг и у меня диабет"
+    assert protect_payload(
+        prompt,
+        "redacted",
+        payload_kind=TracePayloadKind.CONVERSATION,
+    ) == "[SENSITIVE_CONTENT_REDACTED]"
+
+
+def test_restricted_fields_never_enter_even_full_local_trace() -> None:
+    protected = protect_mapping(
+        {
+            "authorization": "Bearer private",
+            "query": "safe local value token=private-secret",
+        },
+        "full",
+        payload_kind=TracePayloadKind.TOOL_ARGS,
+    )
+    assert protected == {
+        "authorization": "[RESTRICTED_REDACTED]",
+        "query": "safe local value token=[REDACTED]",
+    }
 
 
 def test_tool_metadata_contains_no_argument_values() -> None:

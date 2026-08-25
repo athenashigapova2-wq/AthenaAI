@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.application_llm import invoke_structured_application_llm
+from app.ai_execution import ai_execution_service
 from app.services.supabase import get_supabase
 
 
@@ -138,7 +138,7 @@ class HabitAnalyticsService:
 
 class HabitInsightGenerator:
     def generate(self, analytics: HabitAnalytics, locale: Locale) -> str:
-        insight = invoke_structured_application_llm(
+        insight = ai_execution_service.invoke_structured(
             response_model=HabitInsight,
             node_name="habit_insight",
             purpose="generate_suggestion",

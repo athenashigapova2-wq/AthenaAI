@@ -16,7 +16,7 @@ from langchain_core.messages import (  # noqa: E402
 )
 
 from app.config import settings  # noqa: E402
-from app.llm import get_llm  # noqa: E402
+from app.ai_execution import ai_execution_service  # noqa: E402
 from app.tools.registry import build_tools  # noqa: E402
 
 SYSTEM = (
@@ -44,12 +44,20 @@ def run_case(question: str) -> None:
 
     tools = build_tools(settings.test_user_id)
     tools_by_name = {t.name: t for t in tools}
-    llm = get_llm().bind_tools(tools, tool_choice="auto")
+    prepared = ai_execution_service.prepare(
+        node_name="diagnostic",
+        purpose="agent_tools",
+    )
+    llm = prepared.model.bind_tools(tools, tool_choice="auto")
 
     messages = [SystemMessage(content=SYSTEM), HumanMessage(content=question)]
 
     for step in range(MAX_STEPS):
-        ai_msg: AIMessage = llm.invoke(messages)
+        ai_msg: AIMessage = ai_execution_service.invoke_prepared(
+            prepared,
+            messages=messages,
+            model=llm,
+        )
         messages.append(ai_msg)
 
         if not ai_msg.tool_calls:

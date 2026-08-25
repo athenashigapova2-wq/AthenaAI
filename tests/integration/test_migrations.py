@@ -33,3 +33,45 @@ def test_migration_is_nonempty_sql(migration: Path) -> None:
     assert sql
     assert ";" in sql, f"{migration.name} contains no complete SQL statement"
 
+
+def test_trace_privacy_migrations_define_lifecycle_and_classification() -> None:
+    lifecycle = (MIGRATIONS / "0019_trace_payload_privacy.sql").read_text(encoding="utf-8")
+    classification = (MIGRATIONS / "0021_trace_data_classification.sql").read_text(
+        encoding="utf-8"
+    )
+
+    for required_policy in (
+        "purge_expired_agent_trace_payloads",
+        "purge_expired_agent_traces",
+        "raw_payload_expires_at",
+    ):
+        assert required_policy in lifecycle
+    for required_label in (
+        "input_data_classification",
+        "output_data_classification",
+        "arg_data_classification",
+        "result_data_classification",
+    ):
+        assert required_label in classification
+
+
+def test_observability_2_migration_defines_trace_and_slo_metrics() -> None:
+    sql = (MIGRATIONS / "0022_observability_2_slo_metrics.sql").read_text(
+        encoding="utf-8"
+    )
+
+    for required_metric in (
+        "queue_latency_ms",
+        "provider_latency_ms",
+        "latency_p50_ms",
+        "latency_p95_ms",
+        "latency_p99_ms",
+        "success_rate_percent",
+        "total_tokens",
+        "retry_rate_percent",
+        "fallback_rate_percent",
+        "rag_hit_rate_percent",
+        "avg_eval_score",
+        "agent_slo_metrics_hourly",
+    ):
+        assert required_metric in sql

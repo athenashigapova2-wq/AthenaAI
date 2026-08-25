@@ -1,20 +1,18 @@
 """Persistence helpers for agent-run observability in Supabase."""
 
 import logging
-from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
-from typing import Any, TypeVar
+from typing import Any
 from uuid import uuid4
 
-from app.circuit_breaker import call_with_circuit_breaker
 from app.config import settings
 from app.model_routing import ModelSelection, model_name_for_tier
-from app.resilience import http_status_code
-from app.services.agent_jobs import publish_current_job_progress
 from app.services.supabase import get_supabase
 from app.trace_privacy import (
+    DataClassification,
     REDACTION_VERSION,
+    TracePayloadKind,
     payload_expiry,
     payload_mode_for_run,
     pseudonymous_actor_id,
@@ -26,7 +24,6 @@ from app.trace_privacy import (
 )
 
 logger = logging.getLogger(__name__)
-_TraceResult = TypeVar("_TraceResult")
 
 
 def _model_name(model_tier: str = "main") -> str:
@@ -52,9 +49,13 @@ def create_agent_run(
     user_id: str,
     input_text: str,
     conversation_id: str | None = None,
+    *,
+    run_id: str | None = None,
+    job_id: str | None = None,
+    queue_latency_ms: int = 0,
 ) -> str:
     """Create a started run and return its database id."""
-    run_id = str(uuid4())
+    run_id = run_id or str(uuid4())
     payload_mode = payload_mode_for_run(run_id)
     response = (
         get_supabase()
@@ -67,8 +68,15 @@ def create_agent_run(
                 "route": "general",
                 "model_provider": _model_provider(),
                 "model_name": _model_name(),
-                "input_text": protect_payload(input_text, payload_mode),
+                "input_text": protect_payload(
+                    input_text,
+                    payload_mode,
+                    payload_kind=TracePayloadKind.CONVERSATION,
+                ),
+                "input_data_classification": DataClassification.SENSITIVE.value,
                 "conversation_id": conversation_id,
+                "job_id": job_id,
+                "queue_latency_ms": queue_latency_ms,
                 "status": "started",
                 "resolution_mode": "main_llm",
                 "baseline_version": settings.agent_baseline_version,
@@ -97,7 +105,12 @@ def succeed_agent_run(
     payload_mode = payload_mode_for_run(run_id)
     values: dict[str, Any] = {
         "route": route,
-        "output_text": protect_payload(output_text, payload_mode),
+        "output_text": protect_payload(
+            output_text,
+            payload_mode,
+            payload_kind=TracePayloadKind.CONVERSATION,
+        ),
+        "output_data_classification": DataClassification.SENSITIVE.value,
         "status": "succeeded",
         "latency_ms": latency_ms,
         "resolution_mode": resolution_mode,
@@ -172,7 +185,12 @@ def create_tool_call(
             {
                 "run_id": run_id,
                 "tool_name": tool_name,
-                "tool_args": protect_mapping(tool_args, payload_mode),
+                "tool_args": protect_mapping(
+                    tool_args,
+                    payload_mode,
+                    payload_kind=TracePayloadKind.TOOL_ARGS,
+                ),
+                "arg_data_classification": DataClassification.SENSITIVE.value,
                 **tool_arg_summary(
                     tool_args,
                     schema_version=arg_schema_version,
@@ -296,6 +314,7 @@ def succeed_llm_call(llm_call_id: str, run_id: str, message: Any, latency_ms: in
             **token_usage(message),
             "status": "succeeded",
             "latency_ms": latency_ms,
+            "provider_latency_ms": latency_ms,
             "completed_at": _completed_at(),
         },
     )
@@ -310,26 +329,10 @@ def fail_llm_call(llm_call_id: str, run_id: str, error: Exception, latency_ms: i
             "status": "failed",
             "error_message": safe_error(error, payload_mode),
             "latency_ms": latency_ms,
+            "provider_latency_ms": latency_ms,
             "completed_at": _completed_at(),
         },
     )
-
-
-def _best_effort_llm_trace(
-    operation: Callable[[], _TraceResult],
-    *,
-    action: str,
-) -> _TraceResult | None:
-    """Run LLM observability work without changing the provider outcome."""
-    try:
-        return operation()
-    except Exception:
-        logger.warning(
-            "LLM tracing %s failed; preserving the provider outcome",
-            action,
-            exc_info=True,
-        )
-        return None
 
 
 def invoke_llm(
@@ -343,78 +346,19 @@ def invoke_llm(
     model_name: str | None = None,
     model_selection: ModelSelection | None = None,
 ) -> Any:
-    """Invoke an LLM and persist every actual provider attempt."""
-    invocation_id = str(uuid4())
-    attempt_number = 0
-    retry_reason: str | None = None
+    """Compatibility adapter; execution policy lives in AIExecutionService."""
+    from app.ai_execution import ai_execution_service
 
-    def invoke_attempt() -> Any:
-        nonlocal attempt_number, retry_reason
-        publish_current_job_progress("generating", node=node_name, purpose=purpose)
-        attempt_number += 1
-        if run_id is None:
-            return llm.invoke(messages)
-
-        llm_call_id = _best_effort_llm_trace(
-            lambda: create_llm_call(
-                run_id,
-                node_name,
-                purpose,
-                model_tier,
-                model_name=model_name,
-                invocation_id=invocation_id,
-                attempt_number=attempt_number,
-                model_selection=model_selection,
-                retry_reason=retry_reason,
-            ),
-            action="create",
-        )
-        started_at = perf_counter()
-        try:
-            message = llm.invoke(messages)
-        except Exception as error:
-            if llm_call_id is not None:
-                failed_call_id = llm_call_id
-                failed_error = error
-                _best_effort_llm_trace(
-                    lambda: fail_llm_call(
-                        failed_call_id,
-                        run_id,
-                        failed_error,
-                        elapsed_ms(started_at),
-                    ),
-                    action="mark_failed",
-                )
-            retry_reason = _retry_reason(error)
-            raise
-        if llm_call_id is not None:
-            _best_effort_llm_trace(
-                lambda: succeed_llm_call(
-                    llm_call_id,
-                    run_id,
-                    message,
-                    elapsed_ms(started_at),
-                ),
-                action="mark_succeeded",
-            )
-        return message
-
-    provider = _model_provider(model_selection)
-    if provider == "mock":
-        return invoke_attempt()
-
-    return call_with_circuit_breaker(
-        invoke_attempt,
-        circuit_name=provider,
-        operation_name=f"llm.{node_name}.{purpose}",
+    return ai_execution_service.invoke_model(
+        llm,
+        messages=messages,
+        run_id=run_id,
+        node_name=node_name,
+        purpose=purpose,
+        model_tier=model_tier,
+        model_name=model_name,
+        model_selection=model_selection,
     )
-
-
-def _retry_reason(error: BaseException) -> str:
-    status = http_status_code(error)
-    if status is not None:
-        return f"{type(error).__name__}:http_{status}"
-    return type(error).__name__
 
 
 def succeed_tool_call(
@@ -425,13 +369,18 @@ def succeed_tool_call(
 ) -> None:
     """Mark a tool call as succeeded and store its structured result."""
     payload_mode = payload_mode_for_run(run_id)
-    protected_result = protect_payload(tool_result, payload_mode)
+    protected_result = protect_payload(
+        tool_result,
+        payload_mode,
+        payload_kind=TracePayloadKind.TOOL_RESULT,
+    )
     result_summary = tool_result_summary(tool_result)
     _update_run_tool_call(
         tool_call_id,
         run_id,
         {
             "tool_result": {} if protected_result is None else protected_result,
+            "result_data_classification": DataClassification.SENSITIVE.value,
             **result_summary,
             "status": "succeeded",
             "latency_ms": latency_ms,
@@ -489,7 +438,44 @@ def record_evaluation_scores(
         if not key or not 0.0 <= score <= 1.0:
             raise ValueError("Evaluation scores require non-empty names and values in [0, 1]")
         normalized[key] = round(score, 6)
-    _update_owned_run(run_id, user_id, {"evaluation_scores": normalized})
+    aggregate = round(sum(normalized.values()) / len(normalized), 6) if normalized else None
+    _update_owned_run(
+        run_id,
+        user_id,
+        {"evaluation_scores": normalized, "eval_score": aggregate},
+    )
+
+
+def record_rag_metrics(
+    *,
+    run_id: str | None,
+    attempted: bool,
+    retrieved_chunk_count: int,
+    retrieval_latency_ms: int,
+    top_similarity: float | None,
+    context_chars: int,
+) -> None:
+    """Persist retrieval effectiveness without retaining query or chunk content."""
+    if run_id is None:
+        return
+    try:
+        (
+            get_supabase()
+            .table("agent_runs")
+            .update(
+                {
+                    "rag_attempted": attempted,
+                    "rag_retrieved_chunk_count": max(0, retrieved_chunk_count),
+                    "rag_retrieval_latency_ms": max(0, retrieval_latency_ms),
+                    "rag_top_similarity": top_similarity,
+                    "rag_context_chars": max(0, context_chars),
+                }
+            )
+            .eq("id", run_id)
+            .execute()
+        )
+    except Exception:
+        logger.warning("Could not persist RAG metrics for run %s", run_id, exc_info=True)
 
 
 def export_user_traces(user_id: str) -> dict[str, Any]:

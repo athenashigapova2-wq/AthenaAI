@@ -10,7 +10,7 @@ from pydantic import ValidationError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import Settings, settings  # noqa: E402
-from app.llm import get_routed_llm  # noqa: E402
+from app.ai_execution import AIExecutionService  # noqa: E402
 from app.model_routing import select_model  # noqa: E402
 
 
@@ -103,16 +103,20 @@ def check_routed_client_uses_selected_model() -> None:
             {"router.route_classification": "small", "*": "main"},
         ),
         patch.object(settings, "llm_router_model", "GigaChat-Lite"),
-        patch("app.llm._get_gigachat", return_value=sentinel) as get_model,
+        patch(
+            "app.ai_execution.gateway.create_provider_model",
+            return_value=sentinel,
+        ) as get_model,
     ):
-        llm, selection = get_routed_llm(
+        prepared = AIExecutionService().prepare(
             node_name="router",
             purpose="route_classification",
             temperature=0.0,
         )
-    assert llm is sentinel
-    assert selection.model_name == "GigaChat-Lite"
-    get_model.assert_called_once_with("GigaChat-Lite", temperature=0.0)
+    assert prepared.model is sentinel
+    assert prepared.selection.model_name == "GigaChat-Lite"
+    assert get_model.call_args.kwargs["selection"].model_name == "GigaChat-Lite"
+    assert get_model.call_args.kwargs["temperature"] == 0.0
 
 
 def check_invalid_policy_is_rejected() -> None:

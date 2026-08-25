@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import Settings, settings  # noqa: E402
 from app.agents.graph import run_agent_turn_details  # noqa: E402
-from app.llm import _get_mock_llm, get_routed_llm, get_router_llm  # noqa: E402
+from app.ai_execution import ai_execution_service  # noqa: E402
+from app.llm import _get_mock_llm  # noqa: E402
 from app.mock_llm import AthenaMockChatModel  # noqa: E402
 from app.services import agent_traces  # noqa: E402
 
@@ -33,11 +34,13 @@ def check_mock_routing_and_answers() -> None:
         patch.object(settings, "mock_llm_model", "athena-mock-test"),
         patch.object(settings, "mock_llm_latency_ms", 0),
     ):
-        router, selection = get_routed_llm(
+        router_prepared = ai_execution_service.prepare(
             node_name="router",
             purpose="route_classification",
             default_tier="small",
         )
+        router = router_prepared.model
+        selection = router_prepared.selection
         assert isinstance(router, AthenaMockChatModel)
         assert selection.provider == "mock"
         assert selection.model_name == "athena-mock-test"
@@ -45,10 +48,12 @@ def check_mock_routing_and_answers() -> None:
         route = router.invoke([HumanMessage(content="Сколько белка мне нужно?")])
         assert route.content == '{"route":"nutrition"}'
 
-        specialist, specialist_selection = get_routed_llm(
+        specialist_prepared = ai_execution_service.prepare(
             node_name="nutrition",
             purpose="tool_planning_or_answer",
         )
+        specialist = specialist_prepared.model
+        specialist_selection = specialist_prepared.selection
         bound = specialist.bind_tools(
             [{"type": "function", "function": {"name": "get_my_profile"}}]
         )
@@ -70,7 +75,7 @@ def check_mock_bypasses_gigachat_circuit_breaker() -> None:
     with (
         patch.object(settings, "llm_provider", "mock"),
         patch(
-            "app.services.agent_traces.call_with_circuit_breaker"
+            "app.ai_execution.gateway.call_with_circuit_breaker"
         ) as circuit_breaker,
     ):
         response = agent_traces.invoke_llm(
@@ -87,7 +92,6 @@ def check_mock_bypasses_gigachat_circuit_breaker() -> None:
 
 def check_full_agent_graph() -> None:
     _get_mock_llm.cache_clear()
-    get_router_llm.cache_clear()
     with (
         patch.object(settings, "llm_provider", "mock"),
         patch.object(settings, "mock_llm_model", "athena-mock-test"),

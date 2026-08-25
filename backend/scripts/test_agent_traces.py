@@ -49,6 +49,7 @@ def main() -> None:
         assert insert_payload["baseline_version"] == "baseline-v1"
         assert insert_payload["resolution_mode"] == "main_llm"
         assert insert_payload["payload_mode"] == "full"
+        assert insert_payload["input_data_classification"] == "sensitive"
         assert insert_payload["raw_payload_expires_at"] is not None
 
         query.eq.reset_mock()
@@ -88,7 +89,10 @@ def main() -> None:
     assert metadata_only_run["raw_payload_expires_at"] is None
 
     query.execute.return_value = SimpleNamespace(data=[{"id": "tool-call-id"}])
-    with patch("app.services.agent_traces.get_supabase", return_value=query):
+    with (
+        patch("app.services.agent_traces.get_supabase", return_value=query),
+        patch.object(agent_traces.settings, "trace_content_mode", "full"),
+    ):
         tool_call_id = agent_traces.create_tool_call(
             run_id="run-id",
             tool_name="get_daily_intake",
@@ -102,6 +106,7 @@ def main() -> None:
         assert tool_insert["tool_step"] == 1
         assert tool_insert["arg_schema_version"] == 1
         assert tool_insert["arg_count"] == 1
+        assert tool_insert["arg_data_classification"] == "sensitive"
 
         query.eq.reset_mock()
         agent_traces.succeed_tool_call(
@@ -117,6 +122,7 @@ def main() -> None:
     tool_update = query.update.call_args.args[0]
     assert tool_update["status"] == "succeeded"
     assert tool_update["tool_result"] == {"calories": 1_500}
+    assert tool_update["result_data_classification"] == "sensitive"
     assert tool_update["result_status"] == "success"
     assert tool_update["result_row_count"] is None
 

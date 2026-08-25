@@ -57,8 +57,8 @@ def check_worker_task() -> None:
     with (
         patch.object(settings, "agent_infrastructure_test_mode", False),
         patch("app.workers.tasks.raise_if_current_job_cancelled"),
-        patch("app.workers.tasks.mark_job_running") as running,
-        patch("app.workers.tasks.run_agent_chat", return_value=result),
+        patch("app.workers.tasks.mark_job_running", return_value=321) as running,
+        patch("app.workers.tasks.run_agent_chat", return_value=result) as agent_chat,
         patch("app.workers.tasks.mark_job_succeeded") as succeeded,
     ):
         run_agent_chat_task.run(
@@ -67,8 +67,18 @@ def check_worker_task() -> None:
             message="Hello",
             locale="en",
             conversation_id=None,
+            trace_id="trace-id",
         )
     running.assert_called_once_with("job-id")
+    agent_chat.assert_called_once_with(
+        user_id="user-id",
+        message="Hello",
+        locale="en",
+        conversation_id=None,
+        trace_id="trace-id",
+        job_id="job-id",
+        queue_latency_ms=321,
+    )
     succeeded.assert_called_once_with("job-id", result)
 
     with (
@@ -146,6 +156,7 @@ def check_job_ownership() -> None:
     client = MagicMock()
     client.hgetall.return_value = {
         "user_id": "owner-id",
+        "trace_id": "trace-id",
         "status": "succeeded",
         "result": (
             '{"answer":"Done","route":"general",'
@@ -157,6 +168,7 @@ def check_job_ownership() -> None:
         owned = get_agent_job("job-id", "owner-id")
     assert owned == {
         "job_id": "job-id",
+        "trace_id": "trace-id",
         "status": "succeeded",
         "stage": "completed",
         "answer": "Done",

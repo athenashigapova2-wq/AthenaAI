@@ -28,11 +28,11 @@ FastAPI :8001
   ├─ /agent/chat ─► Redis ─► Celery ─► LangGraph
   └─ /ai/tasks/{task} ───────────────────────┐
                                              ▼
-                                  AI Execution Layer
-                           privacy / routing / observability
+                                 AIExecutionService
+                     routing → privacy → resilience → tracing
                                              │
                                              ▼
-                                        LLM Gateway
+                                         LLMGateway
                                       ├─ GigaChat
                                       └─ future providers
 
@@ -516,7 +516,7 @@ Trace payloads проходят формальный lifecycle: **redaction → 
 
 ```env
 TRACE_CONTENT_MODE=off       # production-safe default
-TRACE_CONTENT_MODE=redacted  # bounded content with PII/secret redaction
+TRACE_CONTENT_MODE=redacted  # classified fields removed before persistence
 TRACE_CONTENT_MODE=full      # accepted only in local/dev/test
 ```
 
@@ -530,6 +530,14 @@ Tool calls в этом режиме сохраняют `arg_schema_version`, ч�
 результат `success|empty|error` и best-effort `result_row_count`, но не названия и
 не значения аргументов. Например, `get_weight_trend` может иметь `arg_count=3` и
 `result_row_count=12`, не раскрывая вес, калории или медицинские данные.
+
+Перед любой записью работает единый sanitizer с классификациями `public`,
+`internal`, `personal`, `sensitive`, `restricted`. Profile и conversation
+payloads считаются sensitive; tool args/results классифицируются по полям.
+`redacted` не хранит свободный текст разговора и удаляет personal/sensitive
+значения, а credentials (`restricted`) не сохраняются даже в локальном `full`.
+В БД вместе с допустимыми metadata записываются classification labels и версия
+redactor, чтобы политику можно было аудитировать.
 
 Сырые payloads хранятся не более `TRACE_RAW_PAYLOAD_RETENTION_DAYS` (по умолчанию
 7 дней), структурированные trace records — `TRACE_RECORD_RETENTION_DAYS` (90
@@ -547,9 +555,11 @@ python backend/scripts/purge_agent_traces.py
 Браузерные AI-задачи используют только
 `POST /api/v1/ai/tasks/{use_case}` с JWT, серверным allowlist use cases и
 фиксированными Pydantic schemas. Диалоговый агент использует canonical path
-FastAPI → Redis/Celery → LangGraph. Оба пути входят в Python AI Execution Layer,
-где до LLM Gateway применяются privacy, routing, resilience и observability
-policies. Клиент не может передать произвольный prompt, model или schema.
+FastAPI → Redis/Celery → LangGraph. Все Python use cases входят в единый
+`AIExecutionService`, который применяет routing → privacy → resilience → tracing
+и только затем вызывает provider через `LLMGateway`. `backend/app/llm.py`
+занимается исключительно созданием provider clients. Клиент не может передать
+произвольный prompt, model или schema.
 
 Edge Functions не знают LLM provider key и не выполняют inference. Там допустимы
 barcode lookup, Supabase-specific операции, небольшие детерминированные

@@ -45,14 +45,14 @@ def assert_routes() -> None:
         "messages": [HumanMessage(content="Есть ли у меня прогресс?")],
     }
     with patch(
-        "app.agents.router.ai_execution_layer.invoke",
+        "app.agents.router.ai_execution_service.invoke",
         return_value=AIMessage(content='{"route":"recovery"}'),
     ):
         decision = router_node(progress_state)
     assert decision == {"route": "recovery", "routing_fallback_reason": None}
 
     with patch(
-        "app.agents.router.ai_execution_layer.invoke",
+        "app.agents.router.ai_execution_service.invoke",
         return_value=AIMessage(content='{"route":"nutrition"}'),
     ):
         llm_override = router_node(progress_state)
@@ -60,7 +60,7 @@ def assert_routes() -> None:
 
     with (
         patch(
-            "app.agents.router.ai_execution_layer.invoke",
+            "app.agents.router.ai_execution_service.invoke",
             return_value=AIMessage(content="recovery because progress"),
         ),
         patch("app.agents.router.agent_traces.record_routing_fallback") as record,
@@ -74,12 +74,12 @@ def assert_routes() -> None:
 
     nutrition_state = {
         "user_id": USER_ID,
-        "run_id": "run-id",
+        "trace_id": "run-id",
         "messages": [HumanMessage(content="Сколько калорий в твороге?")],
     }
     with (
         patch(
-            "app.agents.router.ai_execution_layer.invoke",
+            "app.agents.router.ai_execution_service.invoke",
             side_effect=TimeoutError("router unavailable"),
         ),
         patch("app.agents.router.agent_traces.record_routing_fallback") as record,

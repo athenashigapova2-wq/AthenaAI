@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage  # noqa: E402
-from app.llm import get_llm  # noqa: E402
+from app.ai_execution import ai_execution_service  # noqa: E402
 from app.tools.registry import build_tools  # noqa: E402
 from app.config import settings  # noqa: E402
 
@@ -24,7 +24,11 @@ def main() -> None:
     tools = build_tools(USER_ID)
     tools_by_name = {t.name: t for t in tools}
 
-    llm = get_llm().bind_tools(tools, tool_choice="auto")
+    prepared = ai_execution_service.prepare(
+        node_name="diagnostic",
+        purpose="tool_call",
+    )
+    llm = prepared.model.bind_tools(tools, tool_choice="auto")
 
     messages = [
         SystemMessage(content=SYSTEM),
@@ -32,7 +36,11 @@ def main() -> None:
     ]
 
     # Шаг 1: модель решает, нужен ли инструмент
-    ai_msg = llm.invoke(messages)
+    ai_msg = ai_execution_service.invoke_prepared(
+        prepared,
+        messages=messages,
+        model=llm,
+    )
     print("--- Решение модели ---")
     print("Текст:", ai_msg.content or "(пусто, модель хочет вызвать инструмент)")
     print("Вызовы:", ai_msg.tool_calls)
@@ -54,7 +62,11 @@ def main() -> None:
         )
 
     # Шаг 3: модель формулирует ответ на основе данных
-    final = llm.invoke(messages)
+    final = ai_execution_service.invoke_prepared(
+        prepared,
+        messages=messages,
+        model=llm,
+    )
     print("\n--- Финальный ответ ---")
     print(final.content)
 

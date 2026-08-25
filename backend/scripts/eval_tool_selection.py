@@ -16,7 +16,7 @@ from app.agents.prompts import (  # noqa: E402
     WORKOUT_SYSTEM,
     localized_system_prompt,
 )
-from app.llm import get_llm  # noqa: E402
+from app.ai_execution import ai_execution_service  # noqa: E402
 from app.tools.registry import build_tools  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().parents[1] / "evals" / "tool_selection_cases.json"
@@ -79,7 +79,12 @@ def select_tools(case: dict, *, stop_on_expected: bool = True) -> list[str]:
     """Collect a multi-step tool plan using fake results; never execute a tool."""
     system_prompt, _ = ROUTE_CONFIG[case["route"]]
     tools = route_tools(case["route"])
-    llm = get_llm().bind_tools(tools, tool_choice="auto")
+    prepared = ai_execution_service.prepare(
+        node_name=case["route"],
+        purpose="tool_selection_eval",
+        default_tier="main",
+    )
+    llm = prepared.model.bind_tools(tools, tool_choice="auto")
     prompt = localized_system_prompt(system_prompt, case["locale"])
     messages = [SystemMessage(content=prompt), HumanMessage(content=case["query"])]
     selected: list[str] = []
@@ -87,7 +92,11 @@ def select_tools(case: dict, *, stop_on_expected: bool = True) -> list[str]:
     forbidden = set(case["forbidden_tools"])
 
     for _ in range(MAX_MODEL_STEPS):
-        response = llm.invoke(messages)
+        response = ai_execution_service.invoke_prepared(
+            prepared,
+            messages=messages,
+            model=llm,
+        )
         messages.append(response)
         calls = getattr(response, "tool_calls", [])
         if not calls:

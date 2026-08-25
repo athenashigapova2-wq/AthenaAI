@@ -379,12 +379,12 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
     with (
         patch.object(settings, "llm_provider", "mock"),
         patch(
-            "app.agents.specialists.ai_execution_layer.prepare",
+            "app.agents.specialists.ai_execution_service.prepare",
             return_value=SimpleNamespace(model=object()),
         ),
         patch("app.agents.recovery.agent._invoke_tool", return_value=trend) as invoke,
         patch(
-            "app.agents.specialists.ai_execution_layer.invoke_prepared",
+            "app.agents.specialists.ai_execution_service.invoke_prepared",
             return_value=AIMessage(
                 content=(
                     "За последний месяц ты хорошо продвинулась. "
@@ -503,11 +503,11 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     with (
         patch.object(settings, "llm_provider", "gigachat"),
         patch(
-            "app.agents.specialists.ai_execution_layer.prepare",
+            "app.agents.specialists.ai_execution_service.prepare",
             return_value=SimpleNamespace(model=base_llm),
         ),
         patch(
-            "app.agents.specialists.ai_execution_layer.invoke_prepared",
+            "app.agents.specialists.ai_execution_service.invoke_prepared",
             side_effect=[invalid_draft, repaired],
         ) as invoke_llm,
         patch(

@@ -16,7 +16,7 @@ from freezegun import freeze_time
 from app.agents.graph import run_agent_turn_details
 from app.agents.router import route_with_keywords
 from app.config import settings
-from app.llm import _get_mock_llm, get_router_llm
+from app.llm import _get_mock_llm
 from app.tools import nutrition, profile, recovery, workout
 from app.tools.registry import build_tools
 from simulation.profiles import SimulationProfile, generate_profiles, load_anchor_profiles
@@ -343,13 +343,12 @@ def replay_mock_agent(scenario: LongitudinalScenario) -> dict[str, Any]:
     histories: dict[str, list[dict[str, str]]] = {}
     turns: list[dict[str, Any]] = []
     _get_mock_llm.cache_clear()
-    get_router_llm.cache_clear()
 
     with (
         patch.object(settings, "llm_provider", "mock"),
         patch.object(settings, "mock_llm_latency_ms", 0),
         patch.object(settings, "rag_enabled", False),
-        patch("app.services.agent_traces.call_with_circuit_breaker") as breaker,
+        patch("app.ai_execution.gateway.call_with_circuit_breaker") as breaker,
         patch("app.tools.profile.get_supabase", return_value=store),
         patch("app.tools.nutrition.get_supabase", return_value=store),
         patch("app.tools.recovery.get_supabase", return_value=store),

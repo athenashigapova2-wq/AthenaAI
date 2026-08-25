@@ -117,7 +117,7 @@ def main() -> None:
     }
     with (
         patch(
-            "app.agents.specialists.ai_execution_layer.invoke",
+            "app.agents.specialists.ai_execution_service.invoke",
             return_value=AIMessage(content="grounded answer"),
         ) as invoke_llm,
     ):

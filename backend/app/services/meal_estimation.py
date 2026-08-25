@@ -7,8 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.ai_execution import ai_execution_service
 from app.agents.nutrition_validation import display_name_from_matched_food
-from app.services.application_llm import invoke_structured_application_llm
 from app.services.supabase import get_supabase
 
 
@@ -56,7 +56,7 @@ class MealEstimationService:
     def __init__(
         self,
         *,
-        structured_invoker: StructuredInvoker = invoke_structured_application_llm,
+        structured_invoker: StructuredInvoker = ai_execution_service.invoke_structured,
     ) -> None:
         self._invoke_structured = structured_invoker
 

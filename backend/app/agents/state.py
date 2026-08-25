@@ -13,7 +13,7 @@ class AgentState(TypedDict):
     """Conversation state passed between router and specialist agents."""
 
     user_id: str
-    run_id: str | None
+    trace_id: str | None
     locale: str
     messages: Annotated[list[BaseMessage], add_messages]
     route: AgentName

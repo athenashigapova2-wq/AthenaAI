@@ -46,12 +46,14 @@ def run_agent_chat_task(
     message: str,
     locale: str,
     conversation_id: str | None,
+    trace_id: str | None = None,
 ) -> None:
     """Run one chat request without retrying potentially state-changing tools."""
+    trace_id = trace_id or job_id
     with agent_job_context(job_id):
         try:
             raise_if_current_job_cancelled()
-            mark_job_running(job_id)
+            queue_latency_ms = mark_job_running(job_id)
             if settings.agent_infrastructure_test_mode:
                 publish_current_job_progress("generating")
                 result = _run_infrastructure_test_job(
@@ -64,6 +66,9 @@ def run_agent_chat_task(
                     message=message,
                     locale=locale,
                     conversation_id=conversation_id,
+                    trace_id=trace_id,
+                    job_id=job_id,
+                    queue_latency_ms=queue_latency_ms,
                 )
             raise_if_current_job_cancelled()
             mark_job_succeeded(job_id, result)

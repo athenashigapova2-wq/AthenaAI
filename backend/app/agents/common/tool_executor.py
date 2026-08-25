@@ -38,7 +38,7 @@ def _invoke_tool(
     normalized_args = _normalize_tool_call_keys(call.get("args", {}))
     agent_jobs.publish_current_job_progress("tool_call", tool_name=call["name"])
     tool = tools_by_name.get(call["name"])
-    run_id = state.get("run_id")
+    run_id = state.get("trace_id")
     if tool is None:
         error = ValueError(f"Unknown tool: {call['name']}")
         if run_id is not None:

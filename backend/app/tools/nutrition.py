@@ -112,10 +112,10 @@ def _translate_to_english(query: str) -> str:
     """
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    from app.ai_execution import ai_execution_layer
+    from app.ai_execution import ai_execution_service
 
     try:
-        response = ai_execution_layer.invoke(
+        response = ai_execution_service.invoke(
             messages=[
                 SystemMessage(content=(
                     "Translate the food name to English. "

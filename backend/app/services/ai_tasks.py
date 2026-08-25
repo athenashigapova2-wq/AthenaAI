@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.ai_execution import ai_execution_layer
+from app.ai_execution import ai_execution_service
 from app.services import agent_traces
 
 
@@ -199,7 +199,7 @@ class AITaskService:
         value: StrictModel,
         run_id: str,
     ) -> StrictModel:
-        return ai_execution_layer.invoke_structured(
+        return ai_execution_service.invoke_structured(
             response_model=response_model,
             node_name="ai_task",
             purpose=purpose,

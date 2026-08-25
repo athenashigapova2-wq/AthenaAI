@@ -9,7 +9,7 @@ import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
 
-from app.ai_execution import ai_execution_layer
+from app.ai_execution import ai_execution_service
 from app.agents.common.response_pipeline import _finalize_answer, _weight_trend_evidence
 from app.agents.common.tool_executor import _invoke_tool
 from app.agents.nutrition.agent import _required_nutrition_context, nutrition_node
@@ -53,7 +53,7 @@ def _invoke_tool_agent(
 ) -> dict:
     """Run the shared bounded tool loop for one specialist route."""
     tools_by_name = {tool.name: tool for tool in tools}
-    prepared = ai_execution_layer.prepare(
+    prepared = ai_execution_service.prepare(
         node_name=state["route"],
         purpose="tool_planning_or_answer",
         default_tier="main",
@@ -122,10 +122,10 @@ def _invoke_tool_agent(
 
     max_steps = MAX_PLAN_SUBMISSIONS if needs_plan_validation else MAX_TOOL_STEPS
     for tool_step in range(1, max_steps + 1):
-        ai_msg = ai_execution_layer.invoke_prepared(
+        ai_msg = ai_execution_service.invoke_prepared(
             prepared,
             messages=messages,
-            run_id=state.get("run_id"),
+            run_id=state.get("trace_id"),
             model=llm,
         )
         messages.append(ai_msg)
@@ -207,7 +207,7 @@ def _invoke_tool_agent(
 
 def general_node(state: AgentState) -> dict:
     prompt = localized_system_prompt(GENERAL_SYSTEM, state["locale"])
-    response = ai_execution_layer.invoke(
+    response = ai_execution_service.invoke(
         messages=[
             SystemMessage(content=prompt),
             *_memory_messages(state),
@@ -216,7 +216,7 @@ def general_node(state: AgentState) -> dict:
         ],
         node_name="general",
         purpose="answer",
-        run_id=state.get("run_id"),
+        run_id=state.get("trace_id"),
         default_tier="main",
     )
     return {
@@ -233,3 +233,4 @@ __all__ = [
     "recovery_node",
     "workout_node",
 ]
+

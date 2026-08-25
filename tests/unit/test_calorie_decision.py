@@ -94,6 +94,7 @@ def test_job_response_exposes_a_typed_calorie_decision() -> None:
     response = AgentJobResponse.model_validate(
         {
             "job_id": "job-1",
+            "trace_id": "trace-1",
             "status": "succeeded",
             "calorie_decision": {
                 "action": "decrease",
@@ -121,6 +122,7 @@ def test_job_response_rejects_an_unknown_calorie_action() -> None:
         AgentJobResponse.model_validate(
             {
                 "job_id": "job-1",
+                "trace_id": "trace-1",
                 "status": "succeeded",
                 "calorie_decision": {
                     "action": "recalculate",

@@ -1,6 +1,7 @@
-"""GigaChat models used by Athena agents.
+"""Provider factory for Athena LLMs.
 
-Agents depend on BaseChatModel while credentials and model selection stay here.
+This module knows how to construct provider clients. Routing, privacy,
+resilience, tracing and invocation belong to ``app.ai_execution``.
 """
 
 from functools import lru_cache
@@ -8,7 +9,7 @@ from functools import lru_cache
 from langchain_core.language_models import BaseChatModel
 
 from app.config import settings
-from app.model_routing import ModelSelection, ModelTier, model_name_for_tier, select_model
+from app.model_routing import ModelSelection
 from app.mock_llm import AthenaMockChatModel
 
 
@@ -48,48 +49,18 @@ def _get_mock_llm(
     )
 
 
-def get_llm() -> BaseChatModel:
-    """Основная модель: диалог, вызов инструментов."""
-    if settings.llm_provider == "mock":
-        return _get_mock_llm(
-            settings.mock_llm_model,
-            node_name="general",
-            purpose="answer",
-        )
-    return _get_gigachat(settings.gigachat_model)
-
-
-@lru_cache(maxsize=1)
-def get_router_llm() -> BaseChatModel:
-    """Лёгкая модель для роутера: одна классификация, нужна скорость."""
-    if settings.llm_provider == "mock":
-        return _get_mock_llm(
-            settings.mock_llm_model,
-            node_name="router",
-            purpose="route_classification",
-        )
-    return _get_gigachat(model_name_for_tier("small"), temperature=0.0)
-
-
-def get_routed_llm(
+def create_provider_model(
     *,
+    selection: ModelSelection,
     node_name: str,
     purpose: str,
-    default_tier: ModelTier = "main",
     temperature: float | None = None,
-) -> tuple[BaseChatModel, ModelSelection]:
-    """Return both the selected model and the decision recorded in traces."""
-    selection = select_model(
-        node_name=node_name,
-        purpose=purpose,
-        default_tier=default_tier,
-    )
+) -> BaseChatModel:
+    """Construct the selected provider model without invoking it."""
     if selection.provider == "mock":
-        model = _get_mock_llm(
+        return _get_mock_llm(
             selection.model_name,
             node_name=node_name,
             purpose=purpose,
         )
-    else:
-        model = _get_gigachat(selection.model_name, temperature=temperature)
-    return model, selection
+    return _get_gigachat(selection.model_name, temperature=temperature)

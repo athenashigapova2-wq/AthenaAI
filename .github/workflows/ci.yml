@@ -31,6 +31,8 @@ jobs:
         run: python -m ruff check backend/app tests
       - name: Python type checking
         run: python -m mypy
+      - name: Legacy AI surface contract
+        run: python -m pytest tests/integration/test_edge_llm_contract.py -q
       - name: Pytest core
         run: python -m pytest tests/unit tests/integration -q
       - name: Migration chain checks

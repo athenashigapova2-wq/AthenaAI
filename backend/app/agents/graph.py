@@ -61,7 +61,7 @@ def run_agent_turn_details(
     user_id: str,
     message: str,
     locale: str = "ru",
-    run_id: str | None = None,
+    trace_id: str | None = None,
     history: list[dict[str, str]] | None = None,
     memory_context: str = "",
 ) -> AgentTurnResult:
@@ -73,7 +73,7 @@ def run_agent_turn_details(
         prior_messages.append(message_class(content=item.get("content", "")))
     initial_state: AgentState = {
         "user_id": user_id,
-        "run_id": run_id,
+        "trace_id": trace_id,
         "locale": locale,
         "messages": [*prior_messages, HumanMessage(content=message)],
         "route": "general",

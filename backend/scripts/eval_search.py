@@ -34,16 +34,22 @@ def search_translated(query: str, limit: int = 5) -> dict:
     """Перевод запроса на английский, затем векторный поиск."""
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    from app.llm import get_llm
+    from app.ai_execution import ai_execution_service
 
-    response = get_llm().invoke([
-        SystemMessage(content=(
-            "Translate the food name to English. "
-            "If it is already English, return it unchanged. "
-            "Reply with ONLY the English name, 1-2 words, no explanation."
-        )),
-        HumanMessage(content=query),
-    ])
+    response = ai_execution_service.invoke(
+        messages=[
+            SystemMessage(content=(
+                "Translate the food name to English. "
+                "If it is already English, return it unchanged. "
+                "Reply with ONLY the English name, 1-2 words, no explanation."
+            )),
+            HumanMessage(content=query),
+        ],
+        node_name="search_eval",
+        purpose="food_translation",
+        default_tier="small",
+        temperature=0.0,
+    )
     english = response.content.strip().strip('."')
     print(f"       {query} -> {english}")
     return search_food(english, limit=limit)
