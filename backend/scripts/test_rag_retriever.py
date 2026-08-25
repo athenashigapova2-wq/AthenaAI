@@ -117,19 +117,12 @@ def main() -> None:
     }
     with (
         patch(
-            "app.agents.specialists.get_routed_llm",
-            return_value=(
-                object(),
-                SimpleNamespace(model_tier="main", model_name="GigaChat-2"),
-            ),
-        ),
-        patch(
-            "app.agents.specialists.agent_traces.invoke_llm",
+            "app.agents.specialists.ai_execution_layer.invoke",
             return_value=AIMessage(content="grounded answer"),
         ) as invoke_llm,
     ):
         general_node(specialist_state)
-    llm_messages = invoke_llm.call_args.args[1]
+    llm_messages = invoke_llm.call_args.kwargs["messages"]
     assert llm_messages[1].content == node_result["rag_context"]
     print("RAG retriever checks passed")
 

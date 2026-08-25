@@ -9,6 +9,7 @@ import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
 
+from app.ai_execution import ai_execution_layer
 from app.agents.common.response_pipeline import _finalize_answer, _weight_trend_evidence
 from app.agents.common.tool_executor import _invoke_tool
 from app.agents.nutrition.agent import _required_nutrition_context, nutrition_node
@@ -23,8 +24,6 @@ from app.agents.prompts import GENERAL_SYSTEM, localized_system_prompt
 from app.agents.recovery.agent import _required_recovery_context, recovery_node
 from app.agents.state import AgentState
 from app.agents.workout.agent import workout_node
-from app.llm import get_routed_llm
-from app.services import agent_traces
 
 MAX_TOOL_STEPS = 6
 MAX_PLAN_SUBMISSIONS = 8
@@ -54,11 +53,12 @@ def _invoke_tool_agent(
 ) -> dict:
     """Run the shared bounded tool loop for one specialist route."""
     tools_by_name = {tool.name: tool for tool in tools}
-    base_llm, selection = get_routed_llm(
+    prepared = ai_execution_layer.prepare(
         node_name=state["route"],
         purpose="tool_planning_or_answer",
         default_tier="main",
     )
+    base_llm = prepared.model
     localized_prompt = localized_system_prompt(system_prompt, state["locale"])
     required_context: list[SystemMessage] = []
     required_results: dict[str, object] = {}
@@ -122,14 +122,11 @@ def _invoke_tool_agent(
 
     max_steps = MAX_PLAN_SUBMISSIONS if needs_plan_validation else MAX_TOOL_STEPS
     for tool_step in range(1, max_steps + 1):
-        ai_msg = agent_traces.invoke_llm(
-            llm,
-            messages,
+        ai_msg = ai_execution_layer.invoke_prepared(
+            prepared,
+            messages=messages,
             run_id=state.get("run_id"),
-            node_name=state["route"],
-            purpose="tool_planning_or_answer",
-            model_tier=selection.model_tier,
-            model_selection=selection,
+            model=llm,
         )
         messages.append(ai_msg)
         if not getattr(ai_msg, "tool_calls", None):
@@ -210,24 +207,17 @@ def _invoke_tool_agent(
 
 def general_node(state: AgentState) -> dict:
     prompt = localized_system_prompt(GENERAL_SYSTEM, state["locale"])
-    llm, selection = get_routed_llm(
-        node_name="general",
-        purpose="answer",
-        default_tier="main",
-    )
-    response = agent_traces.invoke_llm(
-        llm,
-        [
+    response = ai_execution_layer.invoke(
+        messages=[
             SystemMessage(content=prompt),
             *_memory_messages(state),
             *_rag_messages(state),
             *state["messages"],
         ],
-        run_id=state.get("run_id"),
         node_name="general",
         purpose="answer",
-        model_tier=selection.model_tier,
-        model_selection=selection,
+        run_id=state.get("run_id"),
+        default_tier="main",
     )
     return {
         "messages": [

@@ -17,9 +17,12 @@ from app.trace_privacy import (
     REDACTION_VERSION,
     payload_expiry,
     payload_mode_for_run,
+    pseudonymous_actor_id,
     protect_mapping,
     protect_payload,
     safe_error,
+    tool_arg_summary,
+    tool_result_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +63,7 @@ def create_agent_run(
             {
                 "id": run_id,
                 "user_id": user_id,
+                "actor_id": pseudonymous_actor_id(user_id),
                 "route": "general",
                 "model_provider": _model_provider(),
                 "model_name": _model_name(),
@@ -157,6 +161,7 @@ def create_tool_call(
     tool_name: str,
     tool_args: dict[str, Any],
     tool_step: int = 1,
+    arg_schema_version: int = 1,
 ) -> str:
     """Create a started tool-call trace linked to its parent agent run."""
     payload_mode = payload_mode_for_run(run_id)
@@ -168,6 +173,10 @@ def create_tool_call(
                 "run_id": run_id,
                 "tool_name": tool_name,
                 "tool_args": protect_mapping(tool_args, payload_mode),
+                **tool_arg_summary(
+                    tool_args,
+                    schema_version=arg_schema_version,
+                ),
                 "tool_step": tool_step,
                 "status": "started",
             }
@@ -417,11 +426,13 @@ def succeed_tool_call(
     """Mark a tool call as succeeded and store its structured result."""
     payload_mode = payload_mode_for_run(run_id)
     protected_result = protect_payload(tool_result, payload_mode)
+    result_summary = tool_result_summary(tool_result)
     _update_run_tool_call(
         tool_call_id,
         run_id,
         {
             "tool_result": {} if protected_result is None else protected_result,
+            **result_summary,
             "status": "succeeded",
             "latency_ms": latency_ms,
             "completed_at": _completed_at(),
@@ -443,6 +454,8 @@ def fail_tool_call(
         run_id,
         {
             "status": "failed",
+            "result_status": "error",
+            "result_row_count": None,
             "error_message": error_message,
             "latency_ms": latency_ms,
             "completed_at": _completed_at(),
@@ -460,6 +473,23 @@ def _update_owned_run(run_id: str, user_id: str, values: dict[str, Any]) -> None
         .eq("user_id", user_id)
         .execute()
     )
+
+
+def record_evaluation_scores(
+    *,
+    run_id: str,
+    user_id: str,
+    scores: dict[str, float],
+) -> None:
+    """Persist bounded numeric scores without evaluation prompts or explanations."""
+    normalized: dict[str, float] = {}
+    for name, value in scores.items():
+        key = str(name).strip()[:80]
+        score = float(value)
+        if not key or not 0.0 <= score <= 1.0:
+            raise ValueError("Evaluation scores require non-empty names and values in [0, 1]")
+        normalized[key] = round(score, 6)
+    _update_owned_run(run_id, user_id, {"evaluation_scores": normalized})
 
 
 def export_user_traces(user_id: str) -> dict[str, Any]:

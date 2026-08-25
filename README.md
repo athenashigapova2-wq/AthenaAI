@@ -25,15 +25,18 @@ React / Vite / Capacitor
         │ Supabase JWT
         ▼
 FastAPI :8001
-        │ создаёт job
-        ▼
-Redis :6379 ─────► Celery worker
-  │                    │
-  │ status/result      ├─ LangGraph router
-  │                    ├─ RAG retriever
-  └────────────────────┼─ Nutrition / Workout / Recovery / General
-                       ├─ GigaChat
-                       └─ Supabase PostgreSQL + pgvector
+  ├─ /agent/chat ─► Redis ─► Celery ─► LangGraph
+  └─ /ai/tasks/{task} ───────────────────────┐
+                                             ▼
+                                  AI Execution Layer
+                           privacy / routing / observability
+                                             │
+                                             ▼
+                                        LLM Gateway
+                                      ├─ GigaChat
+                                      └─ future providers
+
+Supabase Edge Functions: barcode lookup / Supabase-specific deterministic work
 ```
 
 В Docker запускаются три сервиса:
@@ -509,13 +512,24 @@ artifact при ошибке. Live GigaChat regression остаётся толь
 ### Privacy и observability
 
 Trace payloads проходят формальный lifecycle: **redaction → retention → export
-→ deletion**. `TRACE_PAYLOAD_POLICY=auto` выбирает безопасный режим по среде:
+→ deletion**. Content управляется одним явным переключателем:
 
-- development — полный payload для локальной отладки;
-- staging — детерминированная выборка и редактирование email, телефонов, JWT,
-  bearer-токенов и полей секретов;
-- production — только структурированные метрики, маршрутизация, latency и token
-  usage; prompt, response и tool payload не сохраняются.
+```env
+TRACE_CONTENT_MODE=off       # production-safe default
+TRACE_CONTENT_MODE=redacted  # bounded content with PII/secret redaction
+TRACE_CONTENT_MODE=full      # accepted only in local/dev/test
+```
+
+При `off` prompt, response, tool arguments/results и подробный текст ошибок не
+сохраняются. Production trace содержит только структурированные поля: run/user
+ownership и pseudonymous actor id, conversation, route, provider/model/tier,
+status, latency, token usage, retry/fallback metadata, tool name/status,
+evaluation scores и timestamps.
+
+Tool calls в этом режиме сохраняют `arg_schema_version`, число аргументов,
+результат `success|empty|error` и best-effort `result_row_count`, но не названия и
+не значения аргументов. Например, `get_weight_trend` может иметь `arg_count=3` и
+`result_row_count=12`, не раскрывая вес, калории или медицинские данные.
 
 Сырые payloads хранятся не более `TRACE_RAW_PAYLOAD_RETENTION_DAYS` (по умолчанию
 7 дней), структурированные trace records — `TRACE_RECORD_RETENTION_DAYS` (90
@@ -530,11 +544,19 @@ python backend/scripts/purge_agent_traces.py
 `DELETE /api/v1/agent/privacy/traces`. Дочерние tool/LLM traces удаляются
 каскадно.
 
-Для браузерных LLM-задач разрешён только узкий `athena-task` с серверным
-allowlist use cases, quota, rate/request-size limits и фиксированными schemas.
-Диалоговый агент использует canonical path FastAPI → Redis/Celery → backend LLM.
-Generic `invoke-llm` retired; legacy Edge LLM functions должны быть удалены и из
-репозитория, и из deployed Supabase project.
+Браузерные AI-задачи используют только
+`POST /api/v1/ai/tasks/{use_case}` с JWT, серверным allowlist use cases и
+фиксированными Pydantic schemas. Диалоговый агент использует canonical path
+FastAPI → Redis/Celery → LangGraph. Оба пути входят в Python AI Execution Layer,
+где до LLM Gateway применяются privacy, routing, resilience и observability
+policies. Клиент не может передать произвольный prompt, model или schema.
+
+Edge Functions не знают LLM provider key и не выполняют inference. Там допустимы
+barcode lookup, Supabase-specific операции, небольшие детерминированные
+трансформации и thin authenticated proxies без вызова модели. Исходники
+`athena-task`, `invoke-llm`, `chat-with-coach`, `estimate-meal` и
+`analyze-habits` удалены; ранее deployed функции нужно отдельно удалить через
+Supabase CLI, поскольку удаление каталога не undeploy-ит облачный endpoint.
 
 Retrieval-backed оценка блюда теперь живёт в Python как
 `MealEstimationService`: `parse_description → retrieve_candidates →

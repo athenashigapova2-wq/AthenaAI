@@ -17,10 +17,9 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.ai_execution import ai_execution_layer
 from app.config import settings
-from app.llm import get_routed_llm
 from app.resilience import retry_transient
-from app.services import agent_traces
 from app.services.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -183,12 +182,6 @@ def _extract_memory(
     locale: str,
     run_id: str | None,
 ) -> MemoryExtraction:
-    llm, selection = get_routed_llm(
-        node_name="memory",
-        purpose="structured_extraction",
-        default_tier="small",
-        temperature=0.0,
-    )
     schema = json.dumps(MemoryExtraction.model_json_schema(), ensure_ascii=False)
     system_prompt = (
         "Extract durable conversation memory into the exact JSON schema below. "
@@ -213,17 +206,16 @@ def _extract_memory(
         },
         ensure_ascii=False,
     )
-    response = agent_traces.invoke_llm(
-        llm,
-        [
+    response = ai_execution_layer.invoke(
+        messages=[
             SystemMessage(content=system_prompt),
             HumanMessage(content=extraction_input),
         ],
-        run_id=run_id,
         node_name="memory",
         purpose="structured_extraction",
-        model_tier=selection.model_tier,
-        model_selection=selection,
+        run_id=run_id,
+        default_tier="small",
+        temperature=0.0,
     )
     return _parse_extraction(getattr(response, "content", response))
 

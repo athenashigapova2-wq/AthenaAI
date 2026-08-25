@@ -21,29 +21,45 @@ _SECRET_RE = re.compile(
 _PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d[\s().-]*){10,15}(?!\w)")
 
 
-def effective_trace_payload_policy() -> str:
-    """Resolve the explicit policy or the safe environment default."""
-    configured = settings.trace_payload_policy
-    if configured != "auto":
-        return configured
-    environment = settings.app_env.strip().lower()
-    if environment in {"dev", "development", "local", "test"}:
-        return "full"
-    if environment in {"stage", "staging"}:
-        return "sampled_redacted"
-    return "structured_only"
+def pseudonymous_actor_id(user_id: str) -> str:
+    """Return a stable non-reversible analytics identifier for one actor."""
+    return hashlib.sha256(f"athena-trace-actor:v1:{user_id}".encode()).hexdigest()[:32]
+
+
+def tool_arg_summary(tool_args: dict[str, Any], *, schema_version: int) -> dict[str, int]:
+    """Describe a tool input without retaining argument names or values."""
+    return {
+        "arg_schema_version": schema_version,
+        "arg_count": len(tool_args),
+    }
+
+
+def tool_result_summary(tool_result: Any) -> dict[str, int | str | None]:
+    """Describe result cardinality without retaining domain payload values."""
+    row_count = _result_row_count(tool_result)
+    empty = tool_result is None or tool_result == {} or tool_result == []
+    return {
+        "result_status": "empty" if empty else "success",
+        "result_row_count": row_count,
+    }
+
+
+def effective_trace_content_mode() -> str:
+    """Return the explicit content switch; safe metadata is stored separately."""
+    return settings.trace_content_mode
 
 
 def payload_mode_for_run(run_id: str) -> TracePayloadMode:
     """Choose one stable payload mode for all events in a run."""
+    del run_id
     if settings.trace_raw_payload_retention_days == 0:
         return "none"
-    policy = effective_trace_payload_policy()
-    if policy == "full":
+    content_mode = effective_trace_content_mode()
+    if content_mode == "full":
         return "full"
-    if policy == "structured_only":
-        return "none"
-    return "redacted" if _sampled(run_id, settings.trace_payload_sample_rate) else "none"
+    if content_mode == "redacted":
+        return "redacted"
+    return "none"
 
 
 def payload_expiry(mode: TracePayloadMode) -> str | None:
@@ -74,14 +90,20 @@ def safe_error(error: BaseException, mode: TracePayloadMode) -> str:
     return str(_protect(f"{type(error).__name__}: {error}", redact=True))
 
 
-def _sampled(run_id: str, rate: float) -> bool:
-    if rate <= 0:
-        return False
-    if rate >= 1:
-        return True
-    digest = hashlib.sha256(run_id.encode("utf-8")).digest()
-    bucket = int.from_bytes(digest[:8], "big") / float(2**64)
-    return bucket < rate
+def _result_row_count(value: Any) -> int | None:
+    if isinstance(value, (list, tuple)):
+        return len(value)
+    if not isinstance(value, dict):
+        return None
+    for key in ("row_count", "count", "total_count"):
+        count = value.get(key)
+        if isinstance(count, int) and count >= 0:
+            return count
+    for key in ("rows", "records", "entries", "items", "meals", "weights", "data"):
+        rows = value.get(key)
+        if isinstance(rows, list):
+            return len(rows)
+    return None
 
 
 def _protect(value: Any, *, redact: bool) -> Any:

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.agent import router as agent_router
+from app.api.ai_tasks import router as ai_tasks_router
 from app.api.nutrition import router as nutrition_router
 from app.config import settings
 from app.services.agent_jobs import redis_is_ready
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(agent_router, prefix="/api/v1")
+app.include_router(ai_tasks_router, prefix="/api/v1")
 app.include_router(nutrition_router, prefix="/api/v1")
 
 

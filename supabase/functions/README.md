@@ -1,43 +1,39 @@
 # Supabase Edge Functions
 
-## Narrow browser AI tasks
+## Allowed Edge Function responsibilities
 
-`athena-task` replaces the retired generic `invoke-llm` gateway. Its public
-contract accepts only `{ "use_case": "...", "input": { ... } }`. Prompts,
-models, output schemas, request limits, and per-user quotas are owned by the
-server implementation.
+Edge Functions must not perform model inference and must never receive an LLM
+provider credential. Their allowed scope is deliberately narrow:
 
-This is the only public browser-to-LLM Edge Function. Agent chat, tools,
-conversation memory, and longitudinal reasoning use the canonical
-FastAPI -> Redis/Celery -> backend LLM path. `analyzeFoodProduct` is retained
-because it performs deterministic database/OpenFoodFacts work and does not call
-an LLM.
+- barcode and external food-database lookup;
+- Supabase-specific operations that benefit from running next to the database;
+- small deterministic data transformations;
+- thin authenticated proxies that do not call an LLM provider.
 
-Legacy LLM functions must not be deployed: `invoke-llm`, `chat-with-coach`,
-`analyze-habits`, and `estimate-meal`.
+`analyzeFoodProduct` is retained because it performs deterministic
+database/OpenFoodFacts work. All AI use cases now use authenticated FastAPI:
 
-`estimate-meal` is replaced by the retrieval-backed Python
-`MealEstimationService` (`POST /api/v1/nutrition/meal-estimate`). Its parsing and
-reranking stages use the canonical routed LLM gateway; candidate retrieval and
-macro calculation are deterministic. `analyze-habits` is replaced by
-`HabitAnalyticsService` plus `HabitInsightGenerator`
-(`POST /api/v1/nutrition/habit-insight`).
+- `POST /api/v1/agent/chat` -> Redis/Celery -> LangGraph;
+- `POST /api/v1/ai/tasks/{use_case}` -> narrow server-owned AI task;
+- `POST /api/v1/nutrition/meal-estimate` -> retrieval-backed meal estimation;
+- `POST /api/v1/nutrition/habit-insight` -> deterministic analytics plus insight.
 
-Before deployment:
+Those paths enter the Python AI Execution Layer, which applies privacy,
+routing, resilience and observability before the canonical provider gateway.
+Provider credentials exist only in the API/worker environment.
 
-1. Apply migration `0017_edge_llm_quota.sql`.
-2. Set `GIGACHAT_AUTH_KEY` and, for deployed web clients, set
-   `ATHENA_ALLOWED_ORIGINS` to a comma-separated exact origin allowlist.
-3. Deploy the replacement and remove the already-deployed legacy endpoint:
+## Decommission deployed legacy functions
+
+The source directories have been removed from the repository. Supabase does not
+undeploy a function when its local source disappears, so audit and delete any
+deployed legacy AI functions explicitly:
 
 ```powershell
-npx supabase db push
-npx supabase functions deploy athena-task
-npx supabase functions delete invoke-llm
-npx supabase functions delete chat-with-coach
-npx supabase functions delete analyze-habits
-npx supabase functions delete estimate-meal
+npx supabase functions list --project-ref <project-ref>
+npx supabase functions delete athena-task --project-ref <project-ref>
+npx supabase functions delete invoke-llm --project-ref <project-ref>
+npx supabase functions delete chat-with-coach --project-ref <project-ref>
+npx supabase functions delete analyze-habits --project-ref <project-ref>
+npx supabase functions delete estimate-meal --project-ref <project-ref>
+npx supabase secrets unset GIGACHAT_AUTH_KEY GIGACHAT_MODEL --project-ref <project-ref>
 ```
-
-Deleting the local source directory alone does not disable an Edge Function
-that has already been deployed.

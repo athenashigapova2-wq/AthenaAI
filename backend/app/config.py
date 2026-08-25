@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -43,6 +43,10 @@ class Settings(BaseSettings):
             "meal_estimation.parse_description": "small",
             "meal_estimation.rerank_candidates": "small",
             "habit_insight.generate_suggestion": "small",
+            "ai_task.daily_tip": "small",
+            "ai_task.meal_recommendations": "main",
+            "ai_task.workout_plan": "main",
+            "ai_task.health_macro_adjustment": "main",
             "*": "main",
         }
     )
@@ -141,17 +145,26 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     test_user_id: str = "4c58346d-801f-4241-a349-02a2736361f0"
 
-    # Observability payload lifecycle. "auto" maps development to full,
-    # staging to sampled+redacted, and production to structured metrics only.
-    trace_payload_policy: Literal[
-        "auto", "full", "sampled_redacted", "structured_only"
-    ] = "auto"
-    trace_payload_sample_rate: float = Field(default=0.1, ge=0.0, le=1.0)
+    # Content is opt-in. Production-safe structured metadata is always stored;
+    # prompt, response and tool values are disabled by default.
+    trace_content_mode: Literal["off", "redacted", "full"] = "off"
     trace_raw_payload_retention_days: int = Field(default=7, ge=0, le=30)
     trace_record_retention_days: int = Field(default=90, ge=1, le=3_650)
     trace_payload_max_chars: int = Field(default=4_000, ge=100, le=100_000)
     trace_payload_max_collection_items: int = Field(default=100, ge=1, le=1_000)
     trace_export_max_runs: int = Field(default=1_000, ge=1, le=10_000)
+
+    @model_validator(mode="after")
+    def prevent_full_trace_content_outside_local_environments(self) -> "Settings":
+        environment = self.app_env.strip().lower()
+        if self.trace_content_mode == "full" and environment not in {
+            "dev",
+            "development",
+            "local",
+            "test",
+        }:
+            raise ValueError("TRACE_CONTENT_MODE=full is allowed only in local/dev/test")
+        return self
 
     @property
     def is_dev(self) -> bool:

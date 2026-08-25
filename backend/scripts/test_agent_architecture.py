@@ -6,7 +6,6 @@ user_id remains closed over inside tools instead of being exposed to the model s
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -40,36 +39,28 @@ def assert_routes() -> None:
     assert is_progress_request("Покажи мою динамику")
     assert not is_progress_request("Сколько калорий в твороге?")
 
-    selection = SimpleNamespace(model_tier="small")
     progress_state = {
         "user_id": USER_ID,
         "run_id": None,
         "messages": [HumanMessage(content="Есть ли у меня прогресс?")],
     }
-    with (
-        patch("app.agents.router.get_routed_llm", return_value=(object(), selection)),
-        patch(
-            "app.agents.router.agent_traces.invoke_llm",
-            return_value=AIMessage(content='{"route":"recovery"}'),
-        ),
+    with patch(
+        "app.agents.router.ai_execution_layer.invoke",
+        return_value=AIMessage(content='{"route":"recovery"}'),
     ):
         decision = router_node(progress_state)
     assert decision == {"route": "recovery", "routing_fallback_reason": None}
 
-    with (
-        patch("app.agents.router.get_routed_llm", return_value=(object(), selection)),
-        patch(
-            "app.agents.router.agent_traces.invoke_llm",
-            return_value=AIMessage(content='{"route":"nutrition"}'),
-        ),
+    with patch(
+        "app.agents.router.ai_execution_layer.invoke",
+        return_value=AIMessage(content='{"route":"nutrition"}'),
     ):
         llm_override = router_node(progress_state)
     assert llm_override["route"] == "nutrition"
 
     with (
-        patch("app.agents.router.get_routed_llm", return_value=(object(), selection)),
         patch(
-            "app.agents.router.agent_traces.invoke_llm",
+            "app.agents.router.ai_execution_layer.invoke",
             return_value=AIMessage(content="recovery because progress"),
         ),
         patch("app.agents.router.agent_traces.record_routing_fallback") as record,
@@ -88,7 +79,7 @@ def assert_routes() -> None:
     }
     with (
         patch(
-            "app.agents.router.get_routed_llm",
+            "app.agents.router.ai_execution_layer.invoke",
             side_effect=TimeoutError("router unavailable"),
         ),
         patch("app.agents.router.agent_traces.record_routing_fallback") as record,

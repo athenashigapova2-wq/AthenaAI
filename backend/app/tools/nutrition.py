@@ -112,19 +112,11 @@ def _translate_to_english(query: str) -> str:
     """
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    from app.llm import get_routed_llm
-    from app.services import agent_traces
+    from app.ai_execution import ai_execution_layer
 
     try:
-        llm, selection = get_routed_llm(
-            node_name="nutrition",
-            purpose="food_translation",
-            default_tier="small",
-            temperature=0.0,
-        )
-        response = agent_traces.invoke_llm(
-            llm,
-            [
+        response = ai_execution_layer.invoke(
+            messages=[
                 SystemMessage(content=(
                     "Translate the food name to English. "
                     "If it is already English, return it unchanged. "
@@ -132,11 +124,11 @@ def _translate_to_english(query: str) -> str:
                 )),
                 HumanMessage(content=query),
             ],
-            run_id=None,
             node_name="nutrition",
             purpose="food_translation",
-            model_tier=selection.model_tier,
-            model_selection=selection,
+            run_id=None,
+            default_tier="small",
+            temperature=0.0,
         )
         translated = response.content.strip().strip('."')
         return translated or query

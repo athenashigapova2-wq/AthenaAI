@@ -376,16 +376,15 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
     assert results["get_weight_trend"]["delta_kg"] == -0.8
     assert "REQUIRED_SERVER_FACT get_weight_trend" in context[0].content
 
-    selection = SimpleNamespace(model_tier="main")
     with (
         patch.object(settings, "llm_provider", "mock"),
         patch(
-            "app.agents.specialists.get_routed_llm",
-            return_value=(object(), selection),
+            "app.agents.specialists.ai_execution_layer.prepare",
+            return_value=SimpleNamespace(model=object()),
         ),
         patch("app.agents.recovery.agent._invoke_tool", return_value=trend) as invoke,
         patch(
-            "app.agents.specialists.agent_traces.invoke_llm",
+            "app.agents.specialists.ai_execution_layer.invoke_prepared",
             return_value=AIMessage(
                 content=(
                     "За последний месяц ты хорошо продвинулась. "
@@ -398,7 +397,7 @@ def check_progress_request_forces_weight_trend_in_recovery() -> None:
 
     assert invoke.call_count == 1
     assert invoke.call_args.args[1]["name"] == "get_weight_trend"
-    system_message = invoke_llm.call_args.args[1][0].content
+    system_message = invoke_llm.call_args.kwargs["messages"][0].content
     assert "REQUIRED_SERVER_FACT get_weight_trend" in system_message
     assert "74 кг" in answer["messages"][0].content
     assert "73.2 кг" in answer["messages"][0].content
@@ -425,7 +424,6 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     base_llm = SimpleNamespace()
     bound_llm = object()
     base_llm.bind_tools = lambda *_args, **_kwargs: bound_llm
-    selection = SimpleNamespace(model_tier="main")
     foods = {
         "oats": (400, 30, 12, 43),
         "chicken breast raw": (600, 45, 18, 64.5),
@@ -505,11 +503,11 @@ def check_invalid_draft_is_fitted_before_return() -> None:
     with (
         patch.object(settings, "llm_provider", "gigachat"),
         patch(
-            "app.agents.specialists.get_routed_llm",
-            return_value=(base_llm, selection),
+            "app.agents.specialists.ai_execution_layer.prepare",
+            return_value=SimpleNamespace(model=base_llm),
         ),
         patch(
-            "app.agents.specialists.agent_traces.invoke_llm",
+            "app.agents.specialists.ai_execution_layer.invoke_prepared",
             side_effect=[invalid_draft, repaired],
         ) as invoke_llm,
         patch(

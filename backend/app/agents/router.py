@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.agents.prompts import ROUTER_SYSTEM
 from app.agents.state import AgentName, AgentState
-from app.llm import get_routed_llm
+from app.ai_execution import ai_execution_layer
 from app.services import agent_traces
 
 logger = logging.getLogger(__name__)
@@ -116,20 +116,13 @@ def router_node(state: AgentState) -> dict[str, object]:
     """LangGraph node that writes `route` into the state."""
     text = _last_user_text(state)
     try:
-        llm, selection = get_routed_llm(
+        response = ai_execution_layer.invoke(
+            messages=[SystemMessage(content=ROUTER_SYSTEM), HumanMessage(content=text)],
             node_name="router",
             purpose="route_classification",
+            run_id=state.get("run_id"),
             default_tier="small",
             temperature=0.0,
-        )
-        response = agent_traces.invoke_llm(
-            llm,
-            [SystemMessage(content=ROUTER_SYSTEM), HumanMessage(content=text)],
-            run_id=state.get("run_id"),
-            node_name="router",
-            purpose="route_classification",
-            model_tier=selection.model_tier,
-            model_selection=selection,
         )
         decision = _parse_routing_decision(response)
         return {"route": decision.route, "routing_fallback_reason": None}

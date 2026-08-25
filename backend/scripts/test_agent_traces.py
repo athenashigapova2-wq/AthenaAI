@@ -26,7 +26,7 @@ def main() -> None:
     with (
         patch("app.services.agent_traces.get_supabase", return_value=query),
         patch.object(agent_traces.settings, "llm_provider", "gigachat"),
-        patch.object(agent_traces.settings, "trace_payload_policy", "full"),
+        patch.object(agent_traces.settings, "trace_content_mode", "full"),
         patch.object(
             agent_traces.settings,
             "trace_raw_payload_retention_days",
@@ -42,6 +42,7 @@ def main() -> None:
         insert_payload = query.insert.call_args.args[0]
         assert insert_payload["id"] == run_id
         assert insert_payload["user_id"] == "user-id"
+        assert len(insert_payload["actor_id"]) == 32
         assert insert_payload["status"] == "started"
         assert insert_payload["input_text"] == "Что я сегодня съела?"
         assert insert_payload["model_provider"] == "gigachat"
@@ -72,6 +73,20 @@ def main() -> None:
         "router_llm_exception:TimeoutError"
     )
 
+    with (
+        patch("app.services.agent_traces.get_supabase", return_value=query),
+        patch.object(agent_traces.settings, "trace_content_mode", "off"),
+        patch(
+            "app.services.agent_traces.uuid4",
+            return_value="22222222-2222-4222-8222-222222222222",
+        ),
+    ):
+        agent_traces.create_agent_run("user-id", "private prompt")
+    metadata_only_run = query.insert.call_args.args[0]
+    assert metadata_only_run["input_text"] is None
+    assert metadata_only_run["payload_mode"] == "none"
+    assert metadata_only_run["raw_payload_expires_at"] is None
+
     query.execute.return_value = SimpleNamespace(data=[{"id": "tool-call-id"}])
     with patch("app.services.agent_traces.get_supabase", return_value=query):
         tool_call_id = agent_traces.create_tool_call(
@@ -85,6 +100,8 @@ def main() -> None:
         assert tool_insert["tool_name"] == "get_daily_intake"
         assert tool_insert["status"] == "started"
         assert tool_insert["tool_step"] == 1
+        assert tool_insert["arg_schema_version"] == 1
+        assert tool_insert["arg_count"] == 1
 
         query.eq.reset_mock()
         agent_traces.succeed_tool_call(
@@ -100,6 +117,50 @@ def main() -> None:
     tool_update = query.update.call_args.args[0]
     assert tool_update["status"] == "succeeded"
     assert tool_update["tool_result"] == {"calories": 1_500}
+    assert tool_update["result_status"] == "success"
+    assert tool_update["result_row_count"] is None
+
+    query.execute.return_value = SimpleNamespace(data=[{"id": "safe-tool-call-id"}])
+    with (
+        patch("app.services.agent_traces.get_supabase", return_value=query),
+        patch.object(agent_traces.settings, "trace_content_mode", "off"),
+    ):
+        agent_traces.create_tool_call(
+            run_id="run-id",
+            tool_name="get_weight_trend",
+            tool_args={
+                "weight": 72.5,
+                "calories": 1_800,
+                "medical_condition": "private",
+            },
+            arg_schema_version=2,
+        )
+        safe_insert = query.insert.call_args.args[0]
+        assert safe_insert["tool_args"] == {}
+        assert safe_insert["arg_schema_version"] == 2
+        assert safe_insert["arg_count"] == 3
+
+        agent_traces.succeed_tool_call(
+            tool_call_id="safe-tool-call-id",
+            run_id="run-id",
+            tool_result={"records": [{} for _ in range(12)]},
+            latency_ms=20,
+        )
+        safe_update = query.update.call_args.args[0]
+        assert safe_update["tool_result"] == {}
+        assert safe_update["result_status"] == "success"
+        assert safe_update["result_row_count"] == 12
+
+        agent_traces.record_evaluation_scores(
+            run_id="run-id",
+            user_id="user-id",
+            scores={"factual_consistency": 0.95, "safety": 1.0},
+        )
+        score_update = query.update.call_args.args[0]
+        assert score_update["evaluation_scores"] == {
+            "factual_consistency": 0.95,
+            "safety": 1.0,
+        }
 
     llm_message = AIMessage(
         content="Готово",
