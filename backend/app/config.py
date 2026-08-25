@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     gigachat_auth_key: str = ""
     gigachat_scope: str = "GIGACHAT_API_PERS"
     gigachat_model: str = "GigaChat-2"
+    # Optional PEM bundle for environments whose system trust store does not
+    # contain the CA chain used by the provider. TLS verification stays enabled.
+    gigachat_ca_bundle_file: str = ""
 
     # Retries are used only around idempotent LLM and read operations.
     safe_retry_max_attempts: int = Field(default=3, ge=1, le=10)

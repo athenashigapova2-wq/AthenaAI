@@ -598,6 +598,8 @@ multilingual embeddings и доменного ранжирования пока�
 ## Безопасность
 
 - GigaChat key и Supabase `service_role` существуют только на backend;
+- TLS-проверка GigaChat всегда включена; при необходимости дополнительная цепочка
+  доверия передаётся через `GIGACHAT_CA_BUNDLE_FILE`, а не отключением проверки;
 - frontend передаёт Supabase access token в `Authorization: Bearer ...`;
 - FastAPI получает `user_id` только из проверенного JWT;
 - пользовательские запросы Supabase фильтруются по доверенному `user_id`;

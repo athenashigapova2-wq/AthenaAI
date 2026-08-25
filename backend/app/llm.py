@@ -22,10 +22,12 @@ def _get_gigachat(model: str, *, temperature: float | None = None) -> BaseChatMo
         "credentials": settings.gigachat_auth_key,
         "scope": settings.gigachat_scope,
         "model": model,
-        "verify_ssl_certs": False,  # TODO: заменить на ca_bundle_file перед продакшеном
+        "verify_ssl_certs": True,
         "profanity_check": False,
         "timeout": 60,
     }
+    if settings.gigachat_ca_bundle_file.strip():
+        kwargs["ca_bundle_file"] = settings.gigachat_ca_bundle_file.strip()
     if temperature is not None:
         kwargs["temperature"] = temperature
     return GigaChat(**kwargs)
