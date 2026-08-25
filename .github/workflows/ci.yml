@@ -33,6 +33,14 @@ jobs:
         run: python -m mypy
       - name: Legacy AI surface contract
         run: python -m pytest tests/integration/test_edge_llm_contract.py -q
+      - name: Observability 2.0 and evaluation experiment contract
+        run: >-
+          python -m pytest
+          tests/unit/test_trace_persistence_privacy.py
+          tests/unit/test_ai_execution_control_plane.py
+          tests/unit/test_evaluation_experiments.py
+          tests/integration/test_experiment_propagation.py
+          tests/integration/test_migrations.py -q
       - name: Pytest core
         run: python -m pytest tests/unit tests/integration -q
       - name: Migration chain checks

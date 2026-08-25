@@ -15,6 +15,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ValidationError
 
 from app.circuit_breaker import call_with_circuit_breaker
+from app.evaluation.experiments import current_experiment
 from app.llm import create_provider_model
 from app.model_routing import ModelSelection, ModelTier, select_model
 from app.resilience import http_status_code
@@ -73,16 +74,23 @@ class AIExecutionService:
         default_tier: ModelTier = "main",
         temperature: float | None = None,
     ) -> PreparedLLM:
+        assignment = current_experiment()
+        effective_temperature = (
+            assignment.temperature
+            if assignment is not None and assignment.temperature is not None
+            else temperature
+        )
         selection = select_model(
             node_name=node_name,
             purpose=purpose,
             default_tier=default_tier,
+            forced_tier=assignment.model_tier if assignment is not None else None,
         )
         model = self._gateway.model_for(
             selection=selection,
             node_name=node_name,
             purpose=purpose,
-            temperature=temperature,
+            temperature=effective_temperature,
         )
         return PreparedLLM(model, selection, node_name, purpose)
 

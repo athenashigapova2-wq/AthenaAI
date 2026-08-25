@@ -75,3 +75,22 @@ def test_observability_2_migration_defines_trace_and_slo_metrics() -> None:
         "agent_slo_metrics_hourly",
     ):
         assert required_metric in sql
+
+
+def test_evaluation_experiment_migration_compares_quality_performance_and_cost() -> None:
+    sql = (MIGRATIONS / "0023_evaluation_experiments.sql").read_text(encoding="utf-8")
+    for required_field in (
+        "experiment_id",
+        "variant_id",
+        "experiment_assignment_bucket",
+        "experiment_config_hash",
+        "avg_quality_score",
+        "latency_p50_ms",
+        "latency_p95_ms",
+        "latency_p99_ms",
+        "avg_tokens_per_run",
+        "estimated_cost_usd",
+        "cost_coverage_percent",
+        "agent_experiment_comparison",
+    ):
+        assert required_field in sql

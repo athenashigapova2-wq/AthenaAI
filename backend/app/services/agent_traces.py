@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.config import settings
+from app.evaluation.experiments import current_experiment
 from app.model_routing import ModelSelection, model_name_for_tier
 from app.services.supabase import get_supabase
 from app.trace_privacy import (
@@ -53,9 +54,15 @@ def create_agent_run(
     run_id: str | None = None,
     job_id: str | None = None,
     queue_latency_ms: int = 0,
+    experiment_id: str | None = None,
+    variant_id: str | None = None,
 ) -> str:
     """Create a started run and return its database id."""
     run_id = run_id or str(uuid4())
+    assignment = current_experiment()
+    if assignment is not None:
+        experiment_id = experiment_id or assignment.experiment_id
+        variant_id = variant_id or assignment.variant_id
     payload_mode = payload_mode_for_run(run_id)
     response = (
         get_supabase()
@@ -77,6 +84,14 @@ def create_agent_run(
                 "conversation_id": conversation_id,
                 "job_id": job_id,
                 "queue_latency_ms": queue_latency_ms,
+                "experiment_id": experiment_id,
+                "variant_id": variant_id,
+                "experiment_assignment_bucket": (
+                    assignment.assignment_bucket if assignment is not None else None
+                ),
+                "experiment_config_hash": (
+                    assignment.config_hash if assignment is not None else None
+                ),
                 "status": "started",
                 "resolution_mode": "main_llm",
                 "baseline_version": settings.agent_baseline_version,
@@ -224,6 +239,7 @@ def create_llm_call(
         model_tier=model_tier,
         model_name=model_name,
     )
+    assignment = current_experiment()
     response = (
         get_supabase()
         .table("agent_llm_calls")
@@ -237,6 +253,14 @@ def create_llm_call(
                 "invocation_id": invocation_id or str(uuid4()),
                 "attempt_number": attempt_number,
                 "retry_reason": retry_reason,
+                "experiment_id": assignment.experiment_id if assignment else None,
+                "variant_id": assignment.variant_id if assignment else None,
+                "input_cost_per_million_usd": (
+                    assignment.input_cost_per_million_usd if assignment else None
+                ),
+                "output_cost_per_million_usd": (
+                    assignment.output_cost_per_million_usd if assignment else None
+                ),
                 "status": "started",
             }
         )
@@ -307,11 +331,22 @@ def token_usage(message: Any) -> dict[str, int | bool]:
 
 
 def succeed_llm_call(llm_call_id: str, run_id: str, message: Any, latency_ms: int) -> None:
+    usage = token_usage(message)
+    assignment = current_experiment()
+    estimated_cost = (
+        assignment.estimated_cost_usd(
+            int(usage["input_tokens"]),
+            int(usage["output_tokens"]),
+        )
+        if assignment is not None
+        else None
+    )
     _update_run_llm_call(
         llm_call_id,
         run_id,
         {
-            **token_usage(message),
+            **usage,
+            "estimated_cost_usd": estimated_cost,
             "status": "succeeded",
             "latency_ms": latency_ms,
             "provider_latency_ms": latency_ms,

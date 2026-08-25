@@ -110,6 +110,8 @@ def check_job_api() -> None:
     assert response.json() == {
         "job_id": JOB_ID,
         "trace_id": TRACE_ID,
+        "experiment_id": None,
+        "variant_id": None,
         "status": "queued",
         "status_url": f"http://testserver/api/v1/agent/chat/jobs/{JOB_ID}",
     }
@@ -120,6 +122,8 @@ def check_job_api() -> None:
         locale="en",
         conversation_id=None,
         trace_id=TRACE_ID,
+        experiment_id=None,
+        variant_id=None,
     )
 
     with patch(
@@ -177,6 +181,8 @@ def check_job_api() -> None:
     cancelled_job = {
         "job_id": JOB_ID,
         "trace_id": TRACE_ID,
+        "experiment_id": None,
+        "variant_id": None,
         "status": "cancelled",
         "stage": "cancelled",
     }

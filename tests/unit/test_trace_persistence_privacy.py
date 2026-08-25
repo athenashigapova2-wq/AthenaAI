@@ -3,7 +3,10 @@
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from langchain_core.messages import AIMessage
+
 from app.config import settings
+from app.evaluation.experiments import ExperimentAssignment, experiment_context
 from app.services import agent_traces
 
 
@@ -85,7 +88,7 @@ def test_http_trace_id_and_slo_metadata_enter_run_without_content(monkeypatch) -
     assert payload["id"] == returned
     assert payload["job_id"] == "11111111-1111-4111-8111-111111111111"
     assert payload["queue_latency_ms"] == 87
-    assert payload["input_text"] == ""
+    assert payload["input_text"] is None
     assert "private conversation" not in str(payload)
 
 
@@ -109,3 +112,44 @@ def test_rag_metrics_are_metadata_only() -> None:
         "rag_top_similarity": 0.91,
         "rag_context_chars": 1_204,
     }
+
+
+def test_experiment_and_cost_metadata_follow_the_llm_attempt() -> None:
+    query = _query()
+    assignment = ExperimentAssignment(
+        experiment_id="quality-v1",
+        variant_id="small",
+        assignment_bucket=1234,
+        config_hash="a" * 64,
+        model_tier="small",
+        input_cost_per_million_usd=2,
+        output_cost_per_million_usd=4,
+    )
+    message = AIMessage(
+        content="ok",
+        usage_metadata={
+            "input_tokens": 1_000,
+            "output_tokens": 500,
+            "total_tokens": 1_500,
+        },
+    )
+
+    with (
+        experiment_context(assignment),
+        patch("app.services.agent_traces.get_supabase", return_value=query),
+    ):
+        agent_traces.create_llm_call(
+            "trace-id",
+            "general",
+            "answer",
+            "small",
+        )
+        llm_payload = query.insert.call_args.args[0]
+        agent_traces.succeed_llm_call("trace-row-id", "trace-id", message, 42)
+        completion = query.update.call_args.args[0]
+
+    assert llm_payload["experiment_id"] == "quality-v1"
+    assert llm_payload["variant_id"] == "small"
+    assert llm_payload["input_cost_per_million_usd"] == 2
+    assert completion["provider_latency_ms"] == 42
+    assert completion["estimated_cost_usd"] == 0.004

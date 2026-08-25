@@ -42,6 +42,8 @@ def run_agent_chat(
     trace_id: str | None = None,
     job_id: str | None = None,
     queue_latency_ms: int = 0,
+    experiment_id: str | None = None,
+    variant_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute and persist an agent turn. Safe to call from a Celery worker."""
     started_at = perf_counter()
@@ -65,6 +67,8 @@ def run_agent_chat(
             run_id=trace_id,
             job_id=job_id,
             queue_latency_ms=queue_latency_ms,
+            experiment_id=experiment_id,
+            variant_id=variant_id,
         )
     except Exception:
         # Observability must not make the user-facing chat unavailable.
@@ -78,6 +82,8 @@ def run_agent_chat(
             trace_id=run_id,
             history=history,
             memory_context=memory_snapshot.prompt(),
+            experiment_id=experiment_id,
+            variant_id=variant_id,
         )
         agent_conversations.save_turn(
             resolved_conversation_id,

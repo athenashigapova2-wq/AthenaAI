@@ -26,7 +26,10 @@ def check_agent_service() -> None:
             "app.services.agent_chat.agent_memory.update_agent_memory_best_effort"
         ) as update_memory,
         patch("app.services.agent_chat.agent_conversations.save_turn") as save_turn,
-        patch("app.services.agent_chat.agent_traces.create_agent_run", return_value="run-id"),
+        patch(
+            "app.services.agent_chat.agent_traces.create_agent_run",
+            return_value="trace-id",
+        ) as create_run,
         patch("app.services.agent_chat.agent_traces.succeed_agent_run") as succeed_run,
         patch("app.services.agent_chat.agent_graph.run_agent_turn_details") as run_turn,
     ):
@@ -40,6 +43,9 @@ def check_agent_service() -> None:
             message="Add breakfast",
             locale="en",
             conversation_id=None,
+            trace_id="trace-id",
+            job_id="job-id",
+            queue_latency_ms=87,
         )
     assert result == {
         "answer": "Done",
@@ -48,6 +54,17 @@ def check_agent_service() -> None:
     }
     save_turn.assert_called_once_with("conversation-id", "Add breakfast", "Done")
     assert run_turn.call_args.kwargs["memory_context"] == "memory-context"
+    assert run_turn.call_args.kwargs["trace_id"] == "trace-id"
+    create_run.assert_called_once_with(
+        "user-id",
+        "Add breakfast",
+        conversation_id="conversation-id",
+        run_id="trace-id",
+        job_id="job-id",
+        queue_latency_ms=87,
+        experiment_id=None,
+        variant_id=None,
+    )
     update_memory.assert_called_once()
     succeed_run.assert_called_once()
 
@@ -78,6 +95,8 @@ def check_worker_task() -> None:
         trace_id="trace-id",
         job_id="job-id",
         queue_latency_ms=321,
+        experiment_id=None,
+        variant_id=None,
     )
     succeeded.assert_called_once_with("job-id", result)
 
@@ -169,6 +188,8 @@ def check_job_ownership() -> None:
     assert owned == {
         "job_id": "job-id",
         "trace_id": "trace-id",
+        "experiment_id": None,
+        "variant_id": None,
         "status": "succeeded",
         "stage": "completed",
         "answer": "Done",

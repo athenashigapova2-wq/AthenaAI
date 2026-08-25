@@ -4,6 +4,7 @@ import logging
 from time import sleep
 
 from app.config import settings
+from app.evaluation.experiments import experiment_context, resolve_assignment
 from app.services.agent_chat import ConversationNotFoundError, run_agent_chat
 from app.services.agent_jobs import (
     AgentJobCancelledError,
@@ -47,10 +48,17 @@ def run_agent_chat_task(
     locale: str,
     conversation_id: str | None,
     trace_id: str | None = None,
+    experiment_id: str | None = None,
+    variant_id: str | None = None,
 ) -> None:
     """Run one chat request without retrying potentially state-changing tools."""
     trace_id = trace_id or job_id
-    with agent_job_context(job_id):
+    assignment = resolve_assignment(
+        actor_id=user_id,
+        experiment_id=experiment_id,
+        variant_id=variant_id,
+    )
+    with agent_job_context(job_id), experiment_context(assignment):
         try:
             raise_if_current_job_cancelled()
             queue_latency_ms = mark_job_running(job_id)
@@ -69,6 +77,8 @@ def run_agent_chat_task(
                     trace_id=trace_id,
                     job_id=job_id,
                     queue_latency_ms=queue_latency_ms,
+                    experiment_id=assignment.experiment_id if assignment else None,
+                    variant_id=assignment.variant_id if assignment else None,
                 )
             raise_if_current_job_cancelled()
             mark_job_succeeded(job_id, result)

@@ -24,3 +24,5 @@ class AgentState(TypedDict):
     memory_context: str
     calorie_decision: NotRequired[dict[str, object] | None]
     routing_fallback_reason: NotRequired[str | None]
+    experiment_id: str | None
+    variant_id: str | None

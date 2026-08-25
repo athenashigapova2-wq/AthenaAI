@@ -41,6 +41,7 @@ def select_model(
     node_name: str,
     purpose: str,
     default_tier: ModelTier = "main",
+    forced_tier: ModelTier | None = None,
 ) -> ModelSelection:
     """Select a model using exact, node, purpose, and global rules in order."""
     node = node_name.strip().lower()
@@ -48,9 +49,9 @@ def select_model(
     if not node or not operation:
         raise ValueError("node_name and purpose must not be empty")
 
-    requested_tier = default_tier
-    matched_rule = "default"
-    if settings.llm_model_routing_enabled:
+    requested_tier = forced_tier or default_tier
+    matched_rule = "evaluation_experiment" if forced_tier is not None else "default"
+    if forced_tier is None and settings.llm_model_routing_enabled:
         policy = settings.llm_model_routing_policy
         candidates = (
             f"{node}.{operation}",
@@ -65,7 +66,11 @@ def select_model(
                 matched_rule = rule
                 break
 
-    if matched_rule != "default":
+    if forced_tier is not None:
+        selection_reason = (
+            f"evaluation experiment forced tier {requested_tier!r}"
+        )
+    elif matched_rule != "default":
         selection_reason = (
             f"matched routing rule {matched_rule!r}, selecting tier "
             f"{requested_tier!r}"

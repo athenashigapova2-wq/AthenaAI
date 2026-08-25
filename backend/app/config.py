@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     )
     agent_baseline_version: str = "baseline-v1"
 
+    # Server-owned evaluation experiments. Clients never select a variant.
+    evaluation_experiment_config_file: str = ""
+    evaluation_experiment_id: str = ""
+
     # GigaChat
     gigachat_auth_key: str = ""
     gigachat_scope: str = "GIGACHAT_API_PERS"

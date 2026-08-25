@@ -64,6 +64,8 @@ def enqueue_agent_job(
     locale: str,
     conversation_id: str | None,
     trace_id: str,
+    experiment_id: str | None = None,
+    variant_id: str | None = None,
 ) -> str:
     """Create an owner-scoped Redis record, then enqueue the Celery task."""
     # Imported lazily so service and API unit tests do not need to initialize Celery.
@@ -80,6 +82,8 @@ def enqueue_agent_job(
                 mapping={
                     "user_id": user_id,
                     "trace_id": trace_id,
+                    "experiment_id": experiment_id or "",
+                    "variant_id": variant_id or "",
                     "status": "queued",
                     "stage": "queued",
                     "created_at": enqueued_at,
@@ -96,6 +100,8 @@ def enqueue_agent_job(
                 "locale": locale,
                 "conversation_id": conversation_id,
                 "trace_id": trace_id,
+                "experiment_id": experiment_id,
+                "variant_id": variant_id,
             },
             task_id=job_id,
             queue=settings.agent_job_queue,
@@ -125,6 +131,8 @@ def get_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
         "job_id": job_id,
         # Compatibility for jobs accepted before trace propagation was deployed.
         "trace_id": record.get("trace_id") or job_id,
+        "experiment_id": record.get("experiment_id") or None,
+        "variant_id": record.get("variant_id") or None,
         "status": status,
         "stage": record.get("stage") or fallback_stage,
     }
@@ -241,6 +249,8 @@ def _publish_event(job_id: str, event: str, details: dict[str, Any] | None = Non
     payload: dict[str, Any] = {
         "job_id": job_id,
         "trace_id": job.get("trace_id") or job_id,
+        "experiment_id": job.get("experiment_id") or None,
+        "variant_id": job.get("variant_id") or None,
         "status": job.get("status", event),
         "stage": job.get("stage", event),
     }

@@ -526,6 +526,27 @@ ownership и pseudonymous actor id, conversation, route, provider/model/tier,
 status, latency, token usage, retry/fallback metadata, tool name/status,
 evaluation scores и timestamps.
 
+Observability 2.0 использует один server-generated `trace_id` на всём пути:
+HTTP response/header → Redis job → Celery argument → LangGraph state → tool call
+→ каждый LLM attempt. Для chat runs `agent_runs.id` является этим canonical
+`trace_id`, а `job_id` хранится отдельно для correlation с очередью.
+
+Миграция `0022_observability_2_slo_metrics.sql` добавляет metadata-only измерения
+queue/provider/RAG latency, retrieval hit/count/similarity/context size и
+агрегированный eval score. View `agent_slo_metrics_hourly` публикует success rate,
+p50/p95/p99, tokens, retry/fallback rate, queue/provider latency, RAG и eval
+метрики по часу, route и модели.
+
+Evaluation experiments работают без клиентского A/B-переключателя. Backend
+детерминированно назначает authenticated user в вариант из version-controlled
+JSON registry и переносит `experiment_id`, `variant_id`, assignment bucket и
+config hash вместе с trace. Вариант может менять только allowlisted server
+policy (`model_tier`, `temperature`) и содержит optional pricing snapshot.
+`agent_experiment_comparison` сравнивает варианты по quality, success,
+p50/p95/p99 latency, tokens, retry/fallback, queue/provider latency и estimated
+cost с явным `cost_coverage_percent`. Настройка и процедура запуска описаны в
+`backend/experiments/README.md`.
+
 Tool calls в этом режиме сохраняют `arg_schema_version`, число аргументов,
 результат `success|empty|error` и best-effort `result_row_count`, но не названия и
 не значения аргументов. Например, `get_weight_trend` может иметь `arg_count=3` и

@@ -6,16 +6,19 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import StreamingResponse
 
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
+from app.evaluation.experiments import assign_active_experiment
 from app.services import agent_jobs, agent_traces
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 class AgentChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     message: str = Field(min_length=1, max_length=4_000)
     locale: Literal["ru", "en", "fr", "es", "zh"] = "ru"
     conversation_id: UUID | None = None
@@ -24,6 +27,8 @@ class AgentChatRequest(BaseModel):
 class AgentChatAccepted(BaseModel):
     job_id: str
     trace_id: str
+    experiment_id: str | None = None
+    variant_id: str | None = None
     status: Literal["queued"]
     status_url: str
 
@@ -47,6 +52,8 @@ class CalorieDecisionResponse(BaseModel):
 class AgentJobResponse(BaseModel):
     job_id: str
     trace_id: str
+    experiment_id: str | None = None
+    variant_id: str | None = None
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     stage: Literal[
         "queued", "running", "tool_call", "generating", "completed", "failed", "cancelled"
@@ -61,6 +68,8 @@ class AgentJobResponse(BaseModel):
 class AgentJobCancelled(BaseModel):
     job_id: str
     trace_id: str
+    experiment_id: str | None = None
+    variant_id: str | None = None
     status: Literal["cancelled", "succeeded", "failed"]
     stage: str | None = None
 
@@ -82,6 +91,7 @@ def chat_with_agent(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentChatAccepted:
     """Validate the caller and enqueue a long-running agent turn."""
+    assignment = assign_active_experiment(user.user_id)
     try:
         trace_id = str(uuid4())
         job_id = agent_jobs.enqueue_agent_job(
@@ -90,6 +100,8 @@ def chat_with_agent(
             locale=request.locale,
             conversation_id=str(request.conversation_id) if request.conversation_id else None,
             trace_id=trace_id,
+            experiment_id=assignment.experiment_id if assignment else None,
+            variant_id=assignment.variant_id if assignment else None,
         )
     except agent_jobs.QueueUnavailableError as exc:
         raise HTTPException(
@@ -102,6 +114,8 @@ def chat_with_agent(
     return AgentChatAccepted(
         job_id=job_id,
         trace_id=trace_id,
+        experiment_id=assignment.experiment_id if assignment else None,
+        variant_id=assignment.variant_id if assignment else None,
         status="queued",
         status_url=status_url,
     )

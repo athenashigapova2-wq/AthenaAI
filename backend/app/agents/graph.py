@@ -64,6 +64,8 @@ def run_agent_turn_details(
     trace_id: str | None = None,
     history: list[dict[str, str]] | None = None,
     memory_context: str = "",
+    experiment_id: str | None = None,
+    variant_id: str | None = None,
 ) -> AgentTurnResult:
     """Run one graph turn and return the answer plus the selected specialist."""
     app = get_agent_graph()
@@ -83,6 +85,8 @@ def run_agent_turn_details(
         "retrieved_chunks": [],
         "memory_context": memory_context,
         "routing_fallback_reason": None,
+        "experiment_id": experiment_id,
+        "variant_id": variant_id,
     }
     result = app.invoke(initial_state)
     return {
