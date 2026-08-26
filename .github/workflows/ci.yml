@@ -110,7 +110,9 @@ jobs:
         run: >-
           python -m pytest
           tests/unit/test_document_ocr_pipeline.py
-          tests/evals/test_document_ocr_evaluation.py -q
+          tests/unit/test_ocr_backends.py
+          tests/evals/test_document_ocr_evaluation.py
+          tests/evals/test_ocr_backend_benchmark.py -q
       - name: Tool access boundaries
         run: python -m pytest tests/unit/test_agent_policy.py::test_tool_access_boundaries -q
       - name: Nutrition invariants and safety regression

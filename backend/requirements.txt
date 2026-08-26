@@ -16,3 +16,5 @@ scipy==1.17.1
 sentence-transformers==3.3.1
 pypdf==5.1.0
 python-multipart==0.0.20
+boto3==1.40.21
+Pillow==12.3.0

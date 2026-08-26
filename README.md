@@ -616,6 +616,11 @@ OCR изолирован адаптером; Docker image содержит ло�
 [`backend/evaluation/document_ocr/README.md`](backend/evaluation/document_ocr/README.md).
 Скрипт `backend/scripts/evaluate_document_ocr.py` генерирует JSON/Markdown с
 field-level precision, recall и F1; этот offline contract также входит в CI.
+Отдельный paired benchmark сравнивает local Tesseract и AWS Textract на одних
+пикселях, после чего применяет общий LLM `normalize_entities`. Он измеряет OCR
+character accuracy, итоговый field F1, p50/p95 и покрытую часть стоимости;
+инструкции находятся в evaluation README. AWS и live LLM запускаются только при
+явном opt-in и никогда автоматически в CI.
 
 ## Нагрузочное тестирование
 

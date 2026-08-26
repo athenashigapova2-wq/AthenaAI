@@ -67,3 +67,16 @@ def test_upload_requires_authentication() -> None:
         files={"file": ("receipt.png", b"fake-png", "image/png")},
     )
     assert response.status_code == 401
+
+
+def test_upload_rejects_locale_without_an_installed_ocr_language_pack() -> None:
+    app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser("owner-1")
+    try:
+        response = TestClient(app).post(
+            "/api/v1/documents/extract",
+            files={"file": ("receipt.png", b"fake-png", "image/png")},
+            data={"locale": "de"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 422

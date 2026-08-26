@@ -14,8 +14,12 @@ class StubExtractor:
     def __init__(self, confidence: float = 0.98, text: str = "TOTAL 120.00 USD") -> None:
         self.confidence = confidence
         self.text = text
+        self.language = None
 
-    def extract(self, _content: bytes, _content_type: str) -> OCRDocument:
+    def extract(
+        self, _content: bytes, _content_type: str, *, language: str | None = None
+    ) -> OCRDocument:
+        self.language = language
         return OCRDocument(
             pages=[OCRPage(page_number=1, text=self.text, confidence=self.confidence)],
             engine="stub",
@@ -52,14 +56,16 @@ def test_consistent_high_confidence_document_is_accepted() -> None:
     def invoke(**_kwargs):
         return complete_document()
 
+    extractor = StubExtractor()
     pipeline = DocumentOCRPipeline(
-        text_extractor=StubExtractor(),  # type: ignore[arg-type]
+        text_extractor=extractor,  # type: ignore[arg-type]
         structured_invoker=invoke,
     )
     result = pipeline.process(b"image", "image/png", trace_id="trace-1")
     assert result.status == "accepted"
     assert result.confidence > 0.95
     assert result.consistency_issues == []
+    assert extractor.language == "ru"
 
 
 def test_arithmetic_mismatch_forces_human_review() -> None:

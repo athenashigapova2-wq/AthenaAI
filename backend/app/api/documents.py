@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
@@ -22,6 +23,7 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp",
     "image/tiff",
 }
+OCRLocale = Literal["ru", "en"]
 
 
 def get_document_ocr_service() -> DocumentOCRService:
@@ -32,7 +34,7 @@ def get_document_ocr_service() -> DocumentOCRService:
 async def extract_document(
     response: Response,
     file: UploadFile = File(...),
-    locale: str = Form(default="ru", min_length=2, max_length=5),
+    locale: OCRLocale = Form(default="ru"),
     user: AuthenticatedUser = Depends(get_current_user),
     service: DocumentOCRService = Depends(get_document_ocr_service),
 ) -> DocumentOCRResult:

@@ -6,7 +6,7 @@ import io
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -23,17 +23,26 @@ class OCRBackendError(RuntimeError):
     pass
 
 
+class UnsupportedOCRLanguageError(OCRBackendError):
+    pass
+
+
 class OCRBackend(Protocol):
+    engine_name: str
+
     def recognize_image(self, image: bytes, *, language: str) -> tuple[str, float]: ...
 
 
 class TesseractCLIBackend:
     """Local adapter; sends no receipt data to an external service."""
 
+    engine_name = "local_tesseract"
+
     def __init__(self, command: str | None = None) -> None:
         self.command = command or settings.document_ocr_tesseract_command
 
     def recognize_image(self, image: bytes, *, language: str) -> tuple[str, float]:
+        language = {"ru": "rus", "en": "eng"}.get(language, language)
         with tempfile.TemporaryDirectory(prefix="athena-ocr-") as directory:
             source = Path(directory) / "page.png"
             source.write_bytes(image)
@@ -72,13 +81,73 @@ class TesseractCLIBackend:
         return text, mean_confidence
 
 
+class TextractOCRBackend:
+    """AWS DetectDocumentText adapter; AWS credentials stay in the SDK chain."""
+
+    engine_name = "aws_textract"
+    supported_languages = frozenset({"en", "fr", "de", "it", "pt", "es"})
+
+    def __init__(self, client: Any | None = None, *, region: str | None = None) -> None:
+        if client is None:
+            if not settings.document_ocr_aws_enabled:
+                raise OCRBackendError("AWS Textract is not explicitly enabled")
+            import boto3
+
+            client = boto3.client(
+                "textract",
+                region_name=region or settings.document_ocr_aws_region,
+            )
+        self.client = client
+
+    def recognize_image(self, image: bytes, *, language: str) -> tuple[str, float]:
+        if language not in self.supported_languages:
+            raise UnsupportedOCRLanguageError(
+                f"AWS Textract does not support OCR language: {language}"
+            )
+        try:
+            response = self.client.detect_document_text(Document={"Bytes": image})
+        except Exception as exc:
+            raise OCRBackendError("AWS Textract DetectDocumentText failed") from exc
+        lines = [
+            block
+            for block in response.get("Blocks", [])
+            if block.get("BlockType") == "LINE" and block.get("Text")
+        ]
+        text = "\n".join(str(block["Text"]) for block in lines)
+        confidence_values = [
+            float(block["Confidence"]) / 100.0
+            for block in lines
+            if block.get("Confidence") is not None
+        ]
+        confidence = (
+            sum(confidence_values) / len(confidence_values) if confidence_values else 0.0
+        )
+        return text, confidence
+
+
+def create_ocr_backend(name: str | None = None) -> OCRBackend:
+    selected = name or settings.document_ocr_backend
+    if selected == "tesseract":
+        return TesseractCLIBackend()
+    if selected == "aws_textract":
+        return TextractOCRBackend()
+    raise ValueError(f"Unsupported OCR backend: {selected}")
+
+
 class DocumentTextExtractor:
     def __init__(self, backend: OCRBackend | None = None) -> None:
-        self.backend = backend or TesseractCLIBackend()
+        self.backend = backend or create_ocr_backend()
 
-    def extract(self, content: bytes, content_type: str) -> OCRDocument:
+    def extract(
+        self,
+        content: bytes,
+        content_type: str,
+        *,
+        language: str | None = None,
+    ) -> OCRDocument:
+        language = language or settings.document_ocr_languages
         if content_type == "application/pdf":
-            return self._extract_pdf(content)
+            return self._extract_pdf(content, language=language)
         if content_type in {
             "image/png",
             "image/jpeg",
@@ -89,15 +158,15 @@ class DocumentTextExtractor:
                 raise UnsupportedDocumentError("File content does not match its image type")
             text, confidence = self.backend.recognize_image(
                 content,
-                language=settings.document_ocr_languages,
+                language=language,
             )
             return OCRDocument(
                 pages=[OCRPage(page_number=1, text=text, confidence=confidence)],
-                engine="tesseract",
+                engine=self.backend.engine_name,
             )
         raise UnsupportedDocumentError(f"Unsupported content type: {content_type}")
 
-    def _extract_pdf(self, content: bytes) -> OCRDocument:
+    def _extract_pdf(self, content: bytes, *, language: str) -> OCRDocument:
         if not content.startswith(b"%PDF-"):
             raise UnsupportedDocumentError("File content is not a PDF")
         try:
@@ -141,12 +210,12 @@ class DocumentTextExtractor:
                     raise OCRBackendError("PDF rendering failed") from exc
                 text, confidence = self.backend.recognize_image(
                     target.with_suffix(".png").read_bytes(),
-                    language=settings.document_ocr_languages,
+                    language=language,
                 )
                 pages.append(
                     OCRPage(page_number=index + 1, text=text, confidence=confidence)
                 )
-        return OCRDocument(pages=pages, engine="embedded-text+tesseract")
+        return OCRDocument(pages=pages, engine=f"embedded-text+{self.backend.engine_name}")
 
 
 def _matches_image_signature(content: bytes, content_type: str) -> bool:

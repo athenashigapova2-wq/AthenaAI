@@ -43,7 +43,7 @@ class Settings(BaseSettings):
             "meal_estimation.parse_description": "small",
             "meal_estimation.rerank_candidates": "small",
             "habit_insight.generate_suggestion": "small",
-            "document_ocr.extract_entities": "small",
+            "document_ocr.normalize_entities": "small",
             "ai_task.daily_tip": "small",
             "ai_task.meal_recommendations": "main",
             "ai_task.workout_plan": "main",
@@ -170,6 +170,14 @@ class Settings(BaseSettings):
     document_ocr_tesseract_command: str = "tesseract"
     document_ocr_human_review_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     document_ocr_live_eval_enabled: bool = False
+    document_ocr_backend: Literal["tesseract", "aws_textract"] = "tesseract"
+    document_ocr_aws_enabled: bool = False
+    document_ocr_aws_region: str = "us-west-2"
+    document_ocr_benchmark_enabled: bool = False
+    # Pricing snapshot for DetectDocumentText, first 1M pages. Override for the
+    # actual benchmark region/date instead of silently assuming a global price.
+    document_ocr_aws_price_per_page_usd: float = Field(default=0.0015, ge=0)
+    document_ocr_aws_pricing_snapshot: str = "2026-08-26"
 
     @model_validator(mode="after")
     def prevent_full_trace_content_outside_local_environments(self) -> "Settings":

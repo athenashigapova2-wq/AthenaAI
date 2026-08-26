@@ -34,11 +34,11 @@ class DocumentOCRPipeline:
         locale: str = "ru",
         trace_id: str | None = None,
     ) -> DocumentOCRResult:
-        ocr = self._text_extractor.extract(content, content_type)
+        ocr = self._text_extractor.extract(content, content_type, language=locale)
         if not ocr.text:
             return self._review_without_document(ocr.engine, len(ocr.pages), "ocr_text_empty")
         try:
-            extracted = self.extract_entities(ocr.text, locale=locale, trace_id=trace_id)
+            extracted = self.normalize_entities(ocr.text, locale=locale, trace_id=trace_id)
         except ValidationError:
             return self._review_without_document(
                 ocr.engine,
@@ -61,7 +61,7 @@ class DocumentOCRPipeline:
             page_count=len(ocr.pages),
         )
 
-    def extract_entities(
+    def normalize_entities(
         self,
         ocr_text: str,
         *,
@@ -72,7 +72,7 @@ class DocumentOCRPipeline:
             self._invoke_structured(
                 response_model=ExtractedDocument,
                 node_name="document_ocr",
-                purpose="extract_entities",
+                purpose="normalize_entities",
                 system_prompt=(
                     "Extract receipt or invoice entities only when supported by OCR text. "
                     "Never repair arithmetic or invent missing values. Use ISO date and ISO "
@@ -83,6 +83,16 @@ class DocumentOCRPipeline:
                 run_id=trace_id,
             )
         )
+
+    def extract_entities(
+        self,
+        ocr_text: str,
+        *,
+        locale: str,
+        trace_id: str | None = None,
+    ) -> ExtractedDocument:
+        """Compatibility alias for the canonical normalization stage."""
+        return self.normalize_entities(ocr_text, locale=locale, trace_id=trace_id)
 
     @staticmethod
     def _review_without_document(
