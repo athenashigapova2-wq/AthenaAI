@@ -121,8 +121,11 @@ class OCRComparisonBenchmark:
             "normalization_model": {
                 "provider": model.provider,
                 "model": model.model_name,
+                "requested_tier": model.requested_model_tier,
                 "tier": model.model_tier,
                 "routing_rule": model.matched_rule,
+                "is_fallback": model.is_fallback,
+                "fallback_reason": model.fallback_reason,
             },
             "cost_note": (
                 "OCR API cost only. Local compute and common LLM normalization cost are "

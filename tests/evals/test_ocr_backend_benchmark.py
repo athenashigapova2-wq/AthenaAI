@@ -59,7 +59,14 @@ def test_paired_benchmark_compares_quality_latency_and_provider_cost() -> None:
     assert local["cost"]["ocr_estimated_cost_usd"] == 0
     assert aws["cost"]["ocr_estimated_cost_usd"] == 0.0015
     assert report["tradeoff"]["recommendation"] == "aws_quality_candidate"
-    assert report["normalization_model"]["tier"] == "small"
+    # The routing policy requests the economical tier. In a credential-free CI
+    # environment LLM_ROUTER_MODEL is intentionally empty, so model routing may
+    # report the configured main model as the effective fallback.
+    assert report["normalization_model"]["requested_tier"] == "small"
+    assert report["normalization_model"]["tier"] in {"small", "main"}
+    assert report["normalization_model"]["is_fallback"] == (
+        report["normalization_model"]["tier"] == "main"
+    )
 
 
 def test_character_accuracy_is_normalized_and_bounded() -> None:

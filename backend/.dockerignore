@@ -8,4 +8,6 @@ __pycache__/
 data/
 evals/
 knowledge/
-scripts/
+scripts/*
+!scripts/evaluate_document_ocr.py
+!scripts/run_ocr_backend_benchmark.py
