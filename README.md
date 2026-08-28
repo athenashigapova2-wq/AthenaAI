@@ -311,6 +311,41 @@ AGENT_PROXY_TARGET=http://127.0.0.1:8001
 `VITE_`-переменные попадают в клиентский bundle. Никогда не помещайте туда
 `service_role` или GigaChat Authorization key.
 
+### Android APK для ручного тестирования
+
+Android-приложение загружает упакованный frontend с origin `https://localhost`
+и обращается к FastAPI напрямую. Поэтому backend должен быть доступен телефону
+по публичному HTTPS origin; `127.0.0.1`, `localhost`, `10.0.2.2` и обычный HTTP
+для APK запрещены.
+
+Требуются Android SDK и JDK 21+. В PowerShell задайте origin без пути `/api/v1`:
+
+```powershell
+$env:VITE_AGENT_API_URL = "https://api.example.com"
+Remove-Item Env:SKIP_BACKEND_PREFLIGHT -ErrorAction SilentlyContinue
+npm run android:apk
+```
+
+Скрипт проверяет `${VITE_AGENT_API_URL}/health/ready`, собирает frontend,
+отклоняет bundle с локальным HTTP backend, синхронизирует Capacitor и создаёт
+debug APK:
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Подключите Android-телефон по USB, включите Developer options и USB debugging,
+затем установите или обновите приложение:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r ".\android\app\build\outputs\apk\debug\app-debug.apk"
+```
+
+Backend должен разрешать Capacitor origin `https://localhost` в
+`API_CORS_ORIGINS`. Debug APK предназначен для ручного тестирования и не
+подходит для публикации в Google Play.
+
 ### Backend
 
 ```powershell
@@ -335,7 +370,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_JWT_SECRET=
 SUPABASE_JWT_AUDIENCE=authenticated
 
-API_CORS_ORIGINS=http://localhost:5175,http://127.0.0.1:5175
+API_CORS_ORIGINS=http://localhost:5175,http://127.0.0.1:5175,https://localhost
 REDIS_URL=redis://127.0.0.1:6379/0
 ```
 
