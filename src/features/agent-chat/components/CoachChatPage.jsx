@@ -3,7 +3,12 @@ import { Loader2 } from "lucide-react";
 
 import { useAuth } from "@/lib/AuthContext";
 import { useLang } from "@/lib/i18n";
-import { agentFetchErrorMessage, startAgentMessage } from "@/features/agent-chat/api/agentChatApi";
+import {
+  agentFetchErrorMessage,
+  confirmWriteAction,
+  rejectWriteAction,
+  startAgentMessage,
+} from "@/features/agent-chat/api/agentChatApi";
 import {
   fetchConversations,
   fetchMessages,
@@ -15,6 +20,14 @@ import ChatHeader from "@/features/agent-chat/components/ChatHeader";
 import ChatMessages from "@/features/agent-chat/components/ChatMessages";
 import ConversationHistoryDrawer from "@/features/agent-chat/components/ConversationHistoryDrawer";
 
+function createIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  const entropy = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `write:${Date.now()}:${entropy || "client"}`;
+}
+
 export default function CoachChat() {
   const { t, lang } = useLang();
   const { user } = useAuth();
@@ -25,6 +38,9 @@ export default function CoachChat() {
   const [progress, setProgress] = useState(null);
   const [sendError, setSendError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [pendingWriteAction, setPendingWriteAction] = useState(null);
+  const [confirmationBusy, setConfirmationBusy] = useState(false);
+  const [confirmationError, setConfirmationError] = useState("");
   const [conversations, setConversations] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const textareaRef = useRef(null);
@@ -85,6 +101,12 @@ export default function CoachChat() {
       });
       activeRequestRef.current = request;
       const result = await request.promise;
+      if (result.pending_write_action) {
+        setPendingWriteAction({
+          ...result.pending_write_action,
+          idempotencyKey: createIdempotencyKey(),
+        });
+      }
       if (!conversation) {
         const data = await loadConversations();
         setConversation(data.find((item) => item.id === result.conversation_id) || null);
@@ -100,6 +122,38 @@ export default function CoachChat() {
       activeRequestRef.current = null;
       setProgress(null);
       setSending(false);
+    }
+  };
+
+  const confirmPendingWrite = async () => {
+    if (!pendingWriteAction || confirmationBusy) return;
+    setConfirmationBusy(true);
+    setConfirmationError("");
+    try {
+      const result = await confirmWriteAction(
+        pendingWriteAction,
+        pendingWriteAction.idempotencyKey,
+      );
+      setPendingWriteAction(null);
+      if (result.conversation_id) await loadMessages(result.conversation_id);
+    } catch (error) {
+      setConfirmationError(error instanceof Error ? error.message : t("chat_writeFailed"));
+    } finally {
+      setConfirmationBusy(false);
+    }
+  };
+
+  const rejectPendingWrite = async () => {
+    if (!pendingWriteAction || confirmationBusy) return;
+    setConfirmationBusy(true);
+    setConfirmationError("");
+    try {
+      await rejectWriteAction(pendingWriteAction);
+      setPendingWriteAction(null);
+    } catch (error) {
+      setConfirmationError(error instanceof Error ? error.message : t("chat_writeFailed"));
+    } finally {
+      setConfirmationBusy(false);
     }
   };
 
@@ -154,6 +208,11 @@ export default function CoachChat() {
         t={t}
         onSuggestion={sendText}
         onCancel={() => activeRequestRef.current?.cancel()}
+        pendingWriteAction={pendingWriteAction}
+        confirmationBusy={confirmationBusy}
+        confirmationError={confirmationError}
+        onConfirmWrite={confirmPendingWrite}
+        onRejectWrite={rejectPendingWrite}
         scrollRef={scrollRef}
       />
       <ChatComposer

@@ -102,3 +102,14 @@ def test_document_ocr_is_an_allowlisted_observability_route() -> None:
     )
     assert "agent_runs_route_check" in sql
     assert "document_ocr" in sql
+
+
+def test_write_tools_have_database_backed_idempotency() -> None:
+    sql = (MIGRATIONS / "0025_write_tool_idempotency.sql").read_text(encoding="utf-8")
+    for required_contract in (
+        "meal_logs_user_idempotency_idx",
+        "workout_logs_user_idempotency_idx",
+        "idempotency_key",
+        "idempotency_fingerprint",
+    ):
+        assert required_contract in sql

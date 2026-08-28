@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "snapshot_date": "2026-08-28",
+  "source": "read-only snapshot of configured food_nutrients catalogue",
+  "units": "per 100 g",
+  "foods": [
+    {"food_name": "oats", "calories_per_100g": 357.8, "protein_g": 15.6, "carbs_g": 60.6, "fat_g": 6.4},
+    {"food_name": "egg raw", "calories_per_100g": 144.7, "protein_g": 12.7, "carbs_g": 0.7, "fat_g": 9.6},
+    {"food_name": "greek yogurt", "calories_per_100g": 59.2, "protein_g": 10.2, "carbs_g": 3.6, "fat_g": 0.4},
+    {"food_name": "yogurt", "calories_per_100g": 61.7, "protein_g": 3.5, "carbs_g": 4.7, "fat_g": 3.3},
+    {"food_name": "banana", "calories_per_100g": 87.8, "protein_g": 1.0, "carbs_g": 22.5, "fat_g": 0.3},
+    {"food_name": "cottage cheese nonfat", "calories_per_100g": 72.9, "protein_g": 10.5, "carbs_g": 6.8, "fat_g": 0.3},
+    {"food_name": "chicken breast raw", "calories_per_100g": 172.5, "protein_g": 20.9, "carbs_g": 0.0, "fat_g": 9.3},
+    {"food_name": "turkey breast roasted", "calories_per_100g": 190.3, "protein_g": 28.9, "carbs_g": 0.0, "fat_g": 7.5},
+    {"food_name": "beef tenderloin steak cooked", "calories_per_100g": 268.1, "protein_g": 26.5, "carbs_g": 0.0, "fat_g": 17.2},
+    {"food_name": "cod cooked", "calories_per_100g": 105.4, "protein_g": 22.9, "carbs_g": 0.0, "fat_g": 0.8},
+    {"food_name": "salmon raw", "calories_per_100g": 210.7, "protein_g": 20.7, "carbs_g": 0.0, "fat_g": 13.6},
+    {"food_name": "white rice cooked", "calories_per_100g": 129.8, "protein_g": 2.7, "carbs_g": 28.2, "fat_g": 0.3},
+    {"food_name": "white rice raw", "calories_per_100g": 362.5, "protein_g": 7.1, "carbs_g": 79.4, "fat_g": 0.6},
+    {"food_name": "buckwheat raw", "calories_per_100g": 315.4, "protein_g": 12.3, "carbs_g": 66.2, "fat_g": 3.1},
+    {"food_name": "potato raw", "calories_per_100g": 76.1, "protein_g": 2.0, "carbs_g": 17.3, "fat_g": 0.1},
+    {"food_name": "cucumber", "calories_per_100g": 15.3, "protein_g": 0.7, "carbs_g": 3.6, "fat_g": 0.1},
+    {"food_name": "carrots raw", "calories_per_100g": 40.3, "protein_g": 1.0, "carbs_g": 9.3, "fat_g": 0.2},
+    {"food_name": "broccoli cooked", "calories_per_100g": 34.1, "protein_g": 2.3, "carbs_g": 7.0, "fat_g": 0.4},
+    {"food_name": "spinach raw", "calories_per_100g": 23.2, "protein_g": 3.0, "carbs_g": 3.6, "fat_g": 0.3},
+    {"food_name": "vegetable salad", "calories_per_100g": 15.9, "protein_g": 1.2, "carbs_g": 3.2, "fat_g": 0.0},
+    {"food_name": "olive oil", "calories_per_100g": 881.5, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 100.0}
+  ]
+}

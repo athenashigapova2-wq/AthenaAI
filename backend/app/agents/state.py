@@ -22,6 +22,8 @@ class AgentState(TypedDict):
     rag_context: str
     retrieved_chunks: list[dict[str, object]]
     memory_context: str
+    conversation_id: str | None
+    pending_write_action: NotRequired[dict[str, object] | None]
     calorie_decision: NotRequired[dict[str, object] | None]
     routing_fallback_reason: NotRequired[str | None]
     experiment_id: str | None

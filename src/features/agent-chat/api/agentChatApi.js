@@ -70,6 +70,41 @@ async function cancelJob(jobId, token) {
   }).catch(() => null);
 }
 
+export async function confirmWriteAction(action, idempotencyKey) {
+  if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
+  const token = await accessToken();
+  const response = await fetch(
+    `${AGENT_API_URL}/api/v1/agent/write-actions/${action.action_id}/confirm`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify({ confirmation_token: action.confirmation_token }),
+    },
+  );
+  return parseResponse(response);
+}
+
+export async function rejectWriteAction(action) {
+  if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
+  const token = await accessToken();
+  const response = await fetch(
+    `${AGENT_API_URL}/api/v1/agent/write-actions/${action.action_id}/reject`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ confirmation_token: action.confirmation_token }),
+    },
+  );
+  return parseResponse(response);
+}
+
 export function startAgentMessage({ conversationId, message, locale, onProgress }) {
   const controller = new AbortController();
   let jobId = null;

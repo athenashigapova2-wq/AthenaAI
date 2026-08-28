@@ -163,7 +163,10 @@ def check_food_lookup_never_substitutes_a_different_food() -> None:
         def rpc(self, _name, _params):
             return Query(deepcopy(rows))
 
-    with patch("app.services.supabase.get_supabase", return_value=FakeSupabase()):
+    with patch(
+        "app.tools.nutrition.get_food_reference_database",
+        return_value=FakeSupabase(),
+    ):
         oats = lookup_food_reference("oats")
         assert oats["food_name"] == "oats"
         assert oats["calories_per_100g"] == 357.8
@@ -229,6 +232,7 @@ def check_tool_call_keys_are_normalized_before_validation() -> None:
         func=lambda reference_food: {"status": "ok", "food": reference_food},
         name="lookup_reference",
         description="lookup",
+        metadata={"read_only": True},
     )
     result = _invoke_tool(
         _state("test"),
@@ -415,11 +419,13 @@ def check_invalid_draft_is_fitted_before_return() -> None:
         func=lambda: PROFILE_RESULT,
         name="get_my_profile",
         description="profile",
+        metadata={"read_only": True},
     )
     intake_tool = StructuredTool.from_function(
         func=lambda day=None: {"status": "ok", "totals": {}, "meals": []},
         name="get_daily_intake",
         description="daily intake",
+        metadata={"read_only": True},
     )
     base_llm = SimpleNamespace()
     bound_llm = object()

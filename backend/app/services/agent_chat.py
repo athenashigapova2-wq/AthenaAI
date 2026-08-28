@@ -82,6 +82,7 @@ def run_agent_chat(
             trace_id=run_id,
             history=history,
             memory_context=memory_snapshot.prompt(),
+            conversation_id=resolved_conversation_id,
             experiment_id=experiment_id,
             variant_id=variant_id,
         )
@@ -124,4 +125,6 @@ def run_agent_chat(
     }
     if result.get("calorie_decision") is not None:
         response["calorie_decision"] = result["calorie_decision"]
+    if result.get("pending_write_action") is not None:
+        response["pending_write_action"] = result["pending_write_action"]
     return response

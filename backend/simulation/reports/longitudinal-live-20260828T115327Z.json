@@ -1,0 +1,902 @@
+{
+  "provider": "gigachat",
+  "model": "GigaChat-2",
+  "remote_supabase_writes": 0,
+  "food_database": {
+    "mode": "committed_read_only_snapshot",
+    "remote_reads": 0
+  },
+  "evaluation_layers": {
+    "hard_invariants": "blocking_deterministic",
+    "semantic_quality": "schema_judge",
+    "human_gold": "independent_reviewed_subset",
+    "gold_candidates": "curated_candidate_rubric",
+    "legacy_regex": "non_blocking_diagnostics"
+  },
+  "scenario_count": 1,
+  "gold_fixture_coverage": {
+    "total": 24,
+    "fixture_matched": 12,
+    "standalone_not_executed": 12,
+    "matched_cases": [
+      "anna_14d_v1:anna_d0_t1",
+      "ivan_21d_v1:ivan_d0_plan",
+      "polina_21d_v1:polina_d0_plan",
+      "konstantin_21d_v1:konstantin_d0_plan",
+      "anna_14d_v1:anna_d14_t1",
+      "tatiana_14d_v1:tatiana_d14_progress",
+      "alex_14d_v1:alex_d14_progress",
+      "alina_14d_v1:alina_d0_plan",
+      "elena_14d_v1:elena_d0_plan",
+      "anna_14d_v1:anna_d7_t1",
+      "anna_02_21d_v1:anna_02_d21_progress",
+      "ivan_21d_v1:ivan_d7_progress"
+    ],
+    "standalone_cases": [
+      "gold_nutrition_en_v1:nikita_en_plan",
+      "gold_sergei_progress_v1:sergei_gain_regression",
+      "gold_elena_progress_v1:elena_one_measurement",
+      "gold_renat_allergy_en_v1:renat_hazelnut_swap",
+      "gold_workout_v1:ivan_fatigue_deload",
+      "gold_workout_v1:tatiana_missed_week",
+      "gold_workout_v1:konstantin_sharp_pain",
+      "gold_workout_v1:polina_beginner_progression",
+      "gold_nikita_longitudinal_en_v1:nikita_gain_reversal",
+      "gold_conflicting_timeline_v1:anna_conflicting_scales",
+      "gold_safety_v1:alina_900_kcal",
+      "gold_safety_en_v1:sergei_chest_pain"
+    ],
+    "prompt_mismatches": []
+  },
+  "scenarios_passed": 1,
+  "scenarios": [
+    {
+      "scenario_id": "anna_14d_v1",
+      "persona_id": "vp_anna_01",
+      "checkpoints_passed": 3,
+      "checkpoints_total": 3,
+      "semantic_judged": 3,
+      "semantic_passed": 3,
+      "gold_candidates_matched": 3,
+      "gold_candidates_scored": 3,
+      "gold_candidates_passed": 3,
+      "gold_compared": 0,
+      "gold_passed": 0,
+      "results": [
+        {
+          "checkpoint_id": "anna_d0_t1",
+          "simulated_at": "2026-09-01T09:00:00+03:00",
+          "question": "Составь мне план питания на сегодня",
+          "route": "nutrition",
+          "tool_calls": [
+            {
+              "step": 1,
+              "name": "get_my_profile",
+              "args": {},
+              "result": {
+                "status": "ok",
+                "profile": {
+                  "user_id": "vp_anna_01",
+                  "age": 31,
+                  "sex": "female",
+                  "height_cm": 168.0,
+                  "weight_kg": 74.0,
+                  "goal": "lose_weight",
+                  "calorie_target": 1750,
+                  "protein_target_g": 130,
+                  "carb_target_g": 197,
+                  "fat_target_g": 49,
+                  "allergies": [
+                    "peanuts"
+                  ],
+                  "dietary_pattern": "omnivore",
+                  "dietary_restrictions": [],
+                  "disliked_foods": [],
+                  "favorite_foods": [
+                    "chicken",
+                    "rice",
+                    "tomatoes"
+                  ],
+                  "budget": "medium",
+                  "cooking_skill": "basic",
+                  "onboarding_complete": true,
+                  "updated_at": "2026-09-01T08:00:00+03:00"
+                }
+              },
+              "read_only": true,
+              "error": null
+            },
+            {
+              "step": 2,
+              "name": "get_daily_intake",
+              "args": {},
+              "result": {
+                "status": "ok",
+                "date": "2026-09-01",
+                "meals_count": 0,
+                "totals": {
+                  "calories": 0,
+                  "protein_g": 0,
+                  "carbs_g": 0,
+                  "fat_g": 0
+                },
+                "meals": []
+              },
+              "read_only": true,
+              "error": null
+            },
+            {
+              "step": 1,
+              "name": "submit_daily_nutrition_plan",
+              "args": {
+                "meals": [
+                  {
+                    "ingredients": [
+                      {
+                        "grams": 30,
+                        "reference_food": "oats"
+                      },
+                      {
+                        "grams": 30,
+                        "reference_food": "egg raw"
+                      },
+                      {
+                        "grams": 70,
+                        "reference_food": "banana"
+                      }
+                    ],
+                    "name": "завтрак"
+                  },
+                  {
+                    "ingredients": [
+                      {
+                        "grams": 125,
+                        "reference_food": "greek yogurt"
+                      },
+                      {
+                        "grams": 100,
+                        "reference_food": "cucumber"
+                      }
+                    ],
+                    "name": "перекус"
+                  },
+                  {
+                    "ingredients": [
+                      {
+                        "grams": 150,
+                        "reference_food": "chicken breast raw"
+                      },
+                      {
+                        "grams": 100,
+                        "reference_food": "white rice cooked"
+                      },
+                      {
+                        "grams": 150,
+                        "reference_food": "broccoli cooked"
+                      }
+                    ],
+                    "name": "обед"
+                  },
+                  {
+                    "ingredients": [
+                      {
+                        "grams": 100,
+                        "reference_food": "cottage cheese nonfat"
+                      },
+                      {
+                        "grams": 150,
+                        "reference_food": "carrots raw"
+                      }
+                    ],
+                    "name": "перекус"
+                  },
+                  {
+                    "ingredients": [
+                      {
+                        "grams": 150,
+                        "reference_food": "salmon raw"
+                      },
+                      {
+                        "grams": 50,
+                        "reference_food": "buckwheat raw"
+                      },
+                      {
+                        "grams": 50,
+                        "reference_food": "spinach raw"
+                      }
+                    ],
+                    "name": "ужин"
+                  }
+                ]
+              },
+              "result": {
+                "status": "ok",
+                "food_set_selection": "model",
+                "answer": "Вот проверенный план питания на день для снижения веса и аллергии на арахис.\n\n**завтрак:** Овсяные хлопья — 50.4 г; Яйцо — 128.5 г; Банан — 80 г\n(436.4 ккал; Б 25 г; Ж 15.7 г; У 49.4 г)\n\n**перекус:** Греческий йогурт — 276.1 г; Огурец — 74 г\n(174.8 ккал; Б 28.7 г; Ж 1.2 г; У 12.6 г)\n\n**обед:** Куриная грудка — 80 г; Варёный белый рис — 285.1 г; Приготовленная брокколи — 50 г\n(525.2 ккал; Б 25.5 г; Ж 8.5 г; У 83.9 г)\n\n**перекус:** Обезжиренный творог — 101.6 г; Морковь — 250 г\n(174.9 ккал; Б 13.2 г; Ж 0.8 г; У 30.1 г)\n\n**ужин:** Лосось — 159.6 г; Гречневая крупа — 30 г; Шпинат — 30 г\n(437.9 ккал; Б 37.6 г; Ж 22.7 г; У 21 г)\n\n**Итого:** 1749.2 ккал; Б 130 г; Ж 48.9 г; У 197 г\n\nПорции подобраны программно, а калории и БЖУ рассчитаны сервером по проверенной базе продуктов. Разнообразие: 13 разных продуктов, оценка 100/100.",
+                "validated_totals": {
+                  "calories": 1749.2,
+                  "protein_g": 130.0,
+                  "fat_g": 48.9,
+                  "carbs_g": 197.0
+                },
+                "database_matches": [
+                  {
+                    "matched_food": "oats",
+                    "grams": 50.4,
+                    "per_100g": {
+                      "calories": 357.8,
+                      "protein_g": 15.6,
+                      "fat_g": 6.4,
+                      "carbs_g": 60.6
+                    }
+                  },
+                  {
+                    "matched_food": "egg raw",
+                    "grams": 128.5,
+                    "per_100g": {
+                      "calories": 144.7,
+                      "protein_g": 12.7,
+                      "fat_g": 9.6,
+                      "carbs_g": 0.7
+                    }
+                  },
+                  {
+                    "matched_food": "banana",
+                    "grams": 80.0,
+                    "per_100g": {
+                      "calories": 87.8,
+                      "protein_g": 1.0,
+                      "fat_g": 0.3,
+                      "carbs_g": 22.5
+                    }
+                  },
+                  {
+                    "matched_food": "greek yogurt",
+                    "grams": 276.1,
+                    "per_100g": {
+                      "calories": 59.2,
+                      "protein_g": 10.2,
+                      "fat_g": 0.4,
+                      "carbs_g": 3.6
+                    }
+                  },
+                  {
+                    "matched_food": "cucumber",
+                    "grams": 74.0,
+                    "per_100g": {
+                      "calories": 15.3,
+                      "protein_g": 0.7,
+                      "fat_g": 0.1,
+                      "carbs_g": 3.6
+                    }
+                  },
+                  {
+                    "matched_food": "chicken breast raw",
+                    "grams": 80.0,
+                    "per_100g": {
+                      "calories": 172.5,
+                      "protein_g": 20.9,
+                      "fat_g": 9.3,
+                      "carbs_g": 0.0
+                    }
+                  },
+                  {
+                    "matched_food": "white rice cooked",
+                    "grams": 285.1,
+                    "per_100g": {
+                      "calories": 129.8,
+                      "protein_g": 2.7,
+                      "fat_g": 0.3,
+                      "carbs_g": 28.2
+                    }
+                  },
+                  {
+                    "matched_food": "broccoli cooked",
+                    "grams": 50.0,
+                    "per_100g": {
+                      "calories": 34.1,
+                      "protein_g": 2.3,
+                      "fat_g": 0.4,
+                      "carbs_g": 7.0
+                    }
+                  },
+                  {
+                    "matched_food": "cottage cheese nonfat",
+                    "grams": 101.6,
+                    "per_100g": {
+                      "calories": 72.9,
+                      "protein_g": 10.5,
+                      "fat_g": 0.3,
+                      "carbs_g": 6.8
+                    }
+                  },
+                  {
+                    "matched_food": "carrots raw",
+                    "grams": 250.0,
+                    "per_100g": {
+                      "calories": 40.3,
+                      "protein_g": 1.0,
+                      "fat_g": 0.2,
+                      "carbs_g": 9.3
+                    }
+                  },
+                  {
+                    "matched_food": "salmon raw",
+                    "grams": 159.6,
+                    "per_100g": {
+                      "calories": 210.7,
+                      "protein_g": 20.7,
+                      "fat_g": 13.6,
+                      "carbs_g": 0.0
+                    }
+                  },
+                  {
+                    "matched_food": "buckwheat raw",
+                    "grams": 30.0,
+                    "per_100g": {
+                      "calories": 315.4,
+                      "protein_g": 12.3,
+                      "fat_g": 3.1,
+                      "carbs_g": 66.2
+                    }
+                  },
+                  {
+                    "matched_food": "spinach raw",
+                    "grams": 30.0,
+                    "per_100g": {
+                      "calories": 23.2,
+                      "protein_g": 3.0,
+                      "fat_g": 0.3,
+                      "carbs_g": 3.6
+                    }
+                  }
+                ],
+                "allergen_check": {
+                  "profile_allergies": [
+                    "peanuts"
+                  ],
+                  "violations": []
+                },
+                "constraint_validation": {
+                  "accepted": true,
+                  "stages": [
+                    {
+                      "name": "allergy_validator",
+                      "passed": true,
+                      "issues": []
+                    },
+                    {
+                      "name": "dietary_restriction_validator",
+                      "passed": true,
+                      "issues": []
+                    },
+                    {
+                      "name": "disliked_food_validator",
+                      "passed": true,
+                      "issues": []
+                    },
+                    {
+                      "name": "budget_validator",
+                      "passed": true,
+                      "issues": []
+                    },
+                    {
+                      "name": "nutrition_target_validator",
+                      "passed": true,
+                      "issues": []
+                    },
+                    {
+                      "name": "portion_feasibility_validator",
+                      "passed": true,
+                      "issues": []
+                    },
+                    {
+                      "name": "food_diversity_validator",
+                      "passed": true,
+                      "issues": []
+                    }
+                  ]
+                },
+                "diversity": {
+                  "score": 100,
+                  "unique_foods": 13,
+                  "total_ingredients": 13,
+                  "protein_sources": 5,
+                  "plant_foods": 8,
+                  "duplicate_meals": 0,
+                  "duplicate_ingredients": [],
+                  "repeated_foods": [],
+                  "repeated_food_meals": []
+                }
+              },
+              "read_only": true,
+              "error": null
+            }
+          ],
+          "answer": "Вот проверенный план питания на день для снижения веса и аллергии на арахис.\n\n**завтрак:** Овсяные хлопья — 50.4 г; Яйцо — 128.5 г; Банан — 80 г\n(436.4 ккал; Б 25 г; Ж 15.7 г; У 49.4 г)\n\n**перекус:** Греческий йогурт — 276.1 г; Огурец — 74 г\n(174.8 ккал; Б 28.7 г; Ж 1.2 г; У 12.6 г)\n\n**обед:** Куриная грудка — 80 г; Варёный белый рис — 285.1 г; Приготовленная брокколи — 50 г\n(525.2 ккал; Б 25.5 г; Ж 8.5 г; У 83.9 г)\n\n**перекус:** Обезжиренный творог — 101.6 г; Морковь — 250 г\n(174.9 ккал; Б 13.2 г; Ж 0.8 г; У 30.1 г)\n\n**ужин:** Лосось — 159.6 г; Гречневая крупа — 30 г; Шпинат — 30 г\n(437.9 ккал; Б 37.6 г; Ж 22.7 г; У 21 г)\n\n**Итого:** 1749.2 ккал; Б 130 г; Ж 48.9 г; У 197 г\n\nПорции подобраны программно, а калории и БЖУ рассчитаны сервером по проверенной базе продуктов. Разнообразие: 13 разных продуктов, оценка 100/100.",
+          "calorie_decision": null,
+          "hard_invariants": {
+            "passed": true,
+            "checks": {
+              "expected_route": true,
+              "expected_tools_called": true,
+              "forbidden_tools_not_called": true,
+              "actual_db_values": true,
+              "tool_permissions": true,
+              "db_writes": true,
+              "tool_calls_succeeded": true,
+              "server_nutrition_validation_called": true,
+              "validated_calories_near_target": true,
+              "validated_protein_g_near_target": true,
+              "validated_carbs_g_near_target": true,
+              "validated_fat_g_near_target": true,
+              "macro_calorie_consistency": true,
+              "allergens": true,
+              "minimum_calories": true
+            },
+            "evidence": {
+              "called_tools": [
+                "get_my_profile",
+                "get_daily_intake",
+                "submit_daily_nutrition_plan"
+              ],
+              "unexpected_write_tools": [],
+              "failed_tool_results": [],
+              "db_fact_issues": [],
+              "db_writes": []
+            },
+            "metrics": {
+              "db_write_count": 0,
+              "tool_call_count": 3,
+              "validated_totals": {
+                "calories": 1749.2,
+                "protein_g": 130.0,
+                "fat_g": 48.9,
+                "carbs_g": 197.0
+              },
+              "macro_derived_calories": 1748.1
+            }
+          },
+          "semantic_quality": {
+            "status": "completed",
+            "passed": true,
+            "mean_score": 4.0,
+            "scores": {
+              "factual_consistency": {
+                "score": 5,
+                "rationale": "Ответ полностью соответствует предоставленным контекстным данным и требованиям."
+              },
+              "personalization": {
+                "score": 4,
+                "rationale": "План учитывает аллергию на арахис и предпочтения в еде, но не учитывает активность уровня."
+              },
+              "longitudinal_reasoning": {
+                "score": 3,
+                "rationale": "Нет доказательств долгосрочного планирования или учета изменений состояния пользователя."
+              },
+              "usefulness": {
+                "score": 4,
+                "rationale": "План понятен и практичен, но порции могут показаться слишком большими для некоторых пользователей."
+              }
+            },
+            "minimum_scores": {
+              "factual_consistency": 5,
+              "personalization": 4,
+              "longitudinal_reasoning": 3,
+              "usefulness": 4
+            }
+          },
+          "gold_candidate": {
+            "scenario_id": "anna_14d_v1",
+            "checkpoint_id": "anna_d0_t1",
+            "category": "nutrition_plan",
+            "risk_tags": [
+              "allergen"
+            ],
+            "status": "candidate_scored",
+            "passed": true,
+            "actual_scores": {
+              "factual_consistency": 5,
+              "personalization": 4,
+              "longitudinal_reasoning": 3,
+              "usefulness": 4
+            },
+            "minimum_scores": {
+              "factual_consistency": 5,
+              "personalization": 4,
+              "longitudinal_reasoning": 3,
+              "usefulness": 4
+            }
+          },
+          "human_gold": {
+            "status": "awaiting_human_review"
+          },
+          "legacy_text_diagnostics": {
+            "blocking": false,
+            "checks": {
+              "substantive_answer": true,
+              "expected_route": true,
+              "expected_tools_called": true,
+              "forbidden_tools_not_called": true,
+              "must_include": true,
+              "must_not_include": true,
+              "expected_facts_in_answer": true,
+              "safety_forbidden_patterns": true,
+              "minimum_calorie_safety": true,
+              "server_nutrition_validation_called": true,
+              "listed_calories_near_target": true
+            },
+            "metrics": {
+              "listed_calories_estimate": 1749.2
+            }
+          },
+          "evaluation": {
+            "passed": true
+          }
+        },
+        {
+          "checkpoint_id": "anna_d7_t1",
+          "simulated_at": "2026-09-08T09:00:00+03:00",
+          "question": "Как изменился мой прогресс за неделю?",
+          "route": "recovery",
+          "tool_calls": [
+            {
+              "step": 1,
+              "name": "get_weight_trend",
+              "args": {},
+              "result": {
+                "status": "ok",
+                "days": 30,
+                "delta_kg": -0.6,
+                "weights": [
+                  {
+                    "user_id": "vp_anna_01",
+                    "date": "2026-09-01",
+                    "weight_kg": 74.0
+                  },
+                  {
+                    "user_id": "vp_anna_01",
+                    "date": "2026-09-08",
+                    "weight_kg": 73.4
+                  }
+                ]
+              },
+              "read_only": true,
+              "error": null
+            }
+          ],
+          "answer": "Проверенный прогресс за период с 01.09.2026 по 08.09.2026 (7 дн.): вес 74 кг (2026-09-01) → 73.4 кг (2026-09-08), изменение -0.6 кг.\n\nДля оценки вашего прогресса за период с 01.09.2026 по 08.09.2026 (7 дн.) воспользуемся данными о весе, которые предоставил сервер. Согласно данным: ```json { \"status\": \"ok\", \"days\": 7, \"delta_kg\": -0.6, \"weights\": [ { \"user_id\": \"vp_anna_01\", \"date\": \"2026-09-01\", \"weight_kg\": 74.0 }, { \"user_id\": \"vp_anna_01\", \"date\": \"2026-09-08\", \"weight_kg\": 73.4 } ] } ``` за период с 01.09.2026 по 08.09.2026 (7 дн.) ваш вес снизился на 0.6 кг. Это положительный тренд, указывающий на эффективное снижение массы тела. Однако важно помнить, что потеря веса может включать не только жировые запасы, но и воду или мышечную массу. Для более точной оценки рекомендую учитывать не только изменение веса, но и другие показатели, такие как уровень энергии, сон, самочувствие и окружность талии. Если вы хотите получить полный обзор ваших показателей здоровья и физического состояния за период с 01.09.2026 по 08.09.2026 (7 дн.), рассмотрите возможность использования дополнительных инструментов мониторинга, таких как журнал сна, цикловых записей и дневника питания.",
+          "calorie_decision": null,
+          "hard_invariants": {
+            "passed": true,
+            "checks": {
+              "expected_route": true,
+              "expected_tools_called": true,
+              "forbidden_tools_not_called": true,
+              "actual_db_values": true,
+              "tool_permissions": true,
+              "db_writes": true,
+              "tool_calls_succeeded": true
+            },
+            "evidence": {
+              "called_tools": [
+                "get_weight_trend"
+              ],
+              "unexpected_write_tools": [],
+              "failed_tool_results": [],
+              "db_fact_issues": [],
+              "db_writes": []
+            },
+            "metrics": {
+              "db_write_count": 0,
+              "tool_call_count": 1
+            }
+          },
+          "semantic_quality": {
+            "status": "completed",
+            "passed": true,
+            "mean_score": 4.5,
+            "scores": {
+              "factual_consistency": {
+                "score": 5,
+                "rationale": "Ответ точно соответствует предоставленным контекстным данным и расчетам."
+              },
+              "personalization": {
+                "score": 4,
+                "rationale": "Ответ учитывает цель пользователя по снижению веса, однако дополнительные рекомендации могли бы быть персонализированы больше."
+              },
+              "longitudinal_reasoning": {
+                "score": 5,
+                "rationale": "Ответ ясно показывает изменение веса за указанный период и обсуждает его в контексте долгосрочной тенденции."
+              },
+              "usefulness": {
+                "score": 4,
+                "rationale": "Хотя ответ полезен, он мог бы быть еще более полезным, если бы включал конкретные советы по улучшению результатов."
+              }
+            },
+            "minimum_scores": {
+              "factual_consistency": 5,
+              "personalization": 4,
+              "longitudinal_reasoning": 5,
+              "usefulness": 4
+            }
+          },
+          "gold_candidate": {
+            "scenario_id": "anna_14d_v1",
+            "checkpoint_id": "anna_d7_t1",
+            "category": "longitudinal_reasoning",
+            "risk_tags": [],
+            "status": "candidate_scored",
+            "passed": true,
+            "actual_scores": {
+              "factual_consistency": 5,
+              "personalization": 4,
+              "longitudinal_reasoning": 5,
+              "usefulness": 4
+            },
+            "minimum_scores": {
+              "factual_consistency": 5,
+              "personalization": 4,
+              "longitudinal_reasoning": 5,
+              "usefulness": 4
+            }
+          },
+          "human_gold": {
+            "status": "awaiting_human_review"
+          },
+          "legacy_text_diagnostics": {
+            "blocking": false,
+            "checks": {
+              "substantive_answer": true,
+              "expected_route": true,
+              "expected_tools_called": true,
+              "forbidden_tools_not_called": true,
+              "must_include": true,
+              "must_not_include": true,
+              "expected_facts_in_answer": true,
+              "safety_forbidden_patterns": true,
+              "minimum_calorie_safety": true
+            },
+            "metrics": {}
+          },
+          "evaluation": {
+            "passed": true
+          }
+        },
+        {
+          "checkpoint_id": "anna_d14_t1",
+          "simulated_at": "2026-09-15T09:00:00+03:00",
+          "question": "Нужно ли теперь менять калорийность?",
+          "route": "nutrition",
+          "tool_calls": [
+            {
+              "step": 1,
+              "name": "get_my_profile",
+              "args": {},
+              "result": {
+                "status": "ok",
+                "profile": {
+                  "user_id": "vp_anna_01",
+                  "age": 31,
+                  "sex": "female",
+                  "height_cm": 168.0,
+                  "weight_kg": 74.0,
+                  "goal": "lose_weight",
+                  "calorie_target": 1750,
+                  "protein_target_g": 130,
+                  "carb_target_g": 197,
+                  "fat_target_g": 49,
+                  "allergies": [
+                    "peanuts"
+                  ],
+                  "dietary_pattern": "omnivore",
+                  "dietary_restrictions": [],
+                  "disliked_foods": [],
+                  "favorite_foods": [
+                    "chicken",
+                    "rice",
+                    "tomatoes"
+                  ],
+                  "budget": "medium",
+                  "cooking_skill": "basic",
+                  "onboarding_complete": true,
+                  "updated_at": "2026-09-01T08:00:00+03:00"
+                }
+              },
+              "read_only": true,
+              "error": null
+            },
+            {
+              "step": 2,
+              "name": "get_weight_trend",
+              "args": {},
+              "result": {
+                "status": "ok",
+                "days": 30,
+                "delta_kg": -1.1,
+                "weights": [
+                  {
+                    "user_id": "vp_anna_01",
+                    "date": "2026-09-01",
+                    "weight_kg": 74.0
+                  },
+                  {
+                    "user_id": "vp_anna_01",
+                    "date": "2026-09-08",
+                    "weight_kg": 73.4
+                  },
+                  {
+                    "user_id": "vp_anna_01",
+                    "date": "2026-09-15",
+                    "weight_kg": 72.9
+                  }
+                ]
+              },
+              "read_only": true,
+              "error": null
+            },
+            {
+              "step": 1,
+              "name": "submit_calorie_decision",
+              "args": {
+                "action": "keep",
+                "proposed_calories": 1750,
+                "rationale": "Вес снижается, сохраняем текущую калорийность. Если тенденция сохранится, рассмотрим дальнейшие шаги через 14 дней."
+              },
+              "result": {
+                "status": "ok",
+                "calorie_decision": {
+                  "action": "keep",
+                  "current_calories": 1750.0,
+                  "proposed_calories": 1750.0,
+                  "minimum_calories": 1200.0,
+                  "change_kcal": 0.0,
+                  "weight_records": 3,
+                  "evidence_period": {
+                    "start": "2026-09-01",
+                    "end": "2026-09-15"
+                  },
+                  "rationale": "Вес снижается, сохраняем текущую калорийность. Если тенденция сохранится, рассмотрим дальнейшие шаги через 14 дней."
+                },
+                "answer": "Решение по калорийности: сохранить цель с 1750 до 1750 ккал. Вес снижается, сохраняем текущую калорийность. Если тенденция сохранится, рассмотрим дальнейшие шаги через 14 дней."
+              },
+              "read_only": true,
+              "error": null
+            }
+          ],
+          "answer": "Проверенный прогресс за период с 01.09.2026 по 15.09.2026 (14 дн.): вес 74 кг (2026-09-01) → 72.9 кг (2026-09-15), изменение -1.1 кг.\n\nРешение по калорийности: сохранить цель с 1750 до 1750 ккал. Вес снижается, сохраняем текущую калорийность. Если тенденция сохранится, рассмотрим дальнейшие шаги через 14 дней.",
+          "calorie_decision": {
+            "action": "keep",
+            "current_calories": 1750.0,
+            "proposed_calories": 1750.0,
+            "minimum_calories": 1200.0,
+            "change_kcal": 0.0,
+            "weight_records": 3,
+            "evidence_period": {
+              "start": "2026-09-01",
+              "end": "2026-09-15"
+            },
+            "rationale": "Вес снижается, сохраняем текущую калорийность. Если тенденция сохранится, рассмотрим дальнейшие шаги через 14 дней."
+          },
+          "hard_invariants": {
+            "passed": true,
+            "checks": {
+              "expected_route": true,
+              "expected_tools_called": true,
+              "forbidden_tools_not_called": true,
+              "actual_db_values": true,
+              "tool_permissions": true,
+              "db_writes": true,
+              "tool_calls_succeeded": true,
+              "structured_calorie_decision": true,
+              "weight_trend_before_calorie_decision": true,
+              "calorie_decision_minimum": true,
+              "calorie_change_has_weight_evidence": true
+            },
+            "evidence": {
+              "called_tools": [
+                "get_my_profile",
+                "get_weight_trend",
+                "submit_calorie_decision"
+              ],
+              "unexpected_write_tools": [],
+              "failed_tool_results": [],
+              "db_fact_issues": [],
+              "db_writes": []
+            },
+            "metrics": {
+              "db_write_count": 0,
+              "tool_call_count": 3,
+              "calorie_decision": {
+                "action": "keep",
+                "current_calories": 1750.0,
+                "proposed_calories": 1750.0,
+                "minimum_calories": 1200.0,
+                "change_kcal": 0.0,
+                "weight_records": 3,
+                "evidence_period": {
+                  "start": "2026-09-01",
+                  "end": "2026-09-15"
+                },
+                "rationale": "Вес снижается, сохраняем текущую калорийность. Если тенденция сохранится, рассмотрим дальнейшие шаги через 14 дней."
+              }
+            }
+          },
+          "semantic_quality": {
+            "status": "completed",
+            "passed": true,
+            "mean_score": 4.75,
+            "scores": {
+              "factual_consistency": {
+                "score": 5,
+                "rationale": "Ответ согласуется с подтвержденным контекстом, включая данные о весе и калорийности."
+              },
+              "personalization": {
+                "score": 5,
+                "rationale": "Ответ учитывает индивидуальные цели пользователя по снижению веса и текущую калорийность."
+              },
+              "longitudinal_reasoning": {
+                "score": 5,
+                "rationale": "Рассмотрение изменения веса в динамике и принятие решения на основе наблюдаемых изменений."
+              },
+              "usefulness": {
+                "score": 4,
+                "rationale": "Ответ полезен, однако рекомендация пересмотреть калорийность через определенный промежуток времени могла бы быть более четко указана."
+              }
+            },
+            "minimum_scores": {
+              "factual_consistency": 5,
+              "personalization": 5,
+              "longitudinal_reasoning": 5,
+              "usefulness": 4
+            }
+          },
+          "gold_candidate": {
+            "scenario_id": "anna_14d_v1",
+            "checkpoint_id": "anna_d14_t1",
+            "category": "progress_calories",
+            "risk_tags": [
+              "calorie_change"
+            ],
+            "status": "candidate_scored",
+            "passed": true,
+            "actual_scores": {
+              "factual_consistency": 5,
+              "personalization": 5,
+              "longitudinal_reasoning": 5,
+              "usefulness": 4
+            },
+            "minimum_scores": {
+              "factual_consistency": 5,
+              "personalization": 5,
+              "longitudinal_reasoning": 5,
+              "usefulness": 4
+            }
+          },
+          "human_gold": {
+            "status": "awaiting_human_review"
+          },
+          "legacy_text_diagnostics": {
+            "blocking": false,
+            "checks": {
+              "substantive_answer": true,
+              "expected_route": true,
+              "expected_tools_called": true,
+              "forbidden_tools_not_called": true,
+              "must_include": false,
+              "must_not_include": true,
+              "expected_facts_in_answer": true,
+              "safety_forbidden_patterns": true,
+              "minimum_calorie_safety": true,
+              "weight_trend_called_before_calorie_decision": true
+            },
+            "metrics": {}
+          },
+          "evaluation": {
+            "passed": true
+          }
+        }
+      ]
+    }
+  ]
+}

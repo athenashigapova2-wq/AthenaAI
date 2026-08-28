@@ -6,6 +6,8 @@ import re
 from typing import Any
 
 from app.services.supabase import get_supabase
+from app.tools.idempotent_writes import insert_idempotently
+from app.tools.write_context import require_idempotency_key
 
 
 _FOOD_NUTRIENT_COLUMNS = (
@@ -44,6 +46,15 @@ def _normalized_food_name(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
 
 
+def get_food_reference_database() -> Any:
+    """Return the read-only food catalogue used for nutrition grounding.
+
+    Kept separate from the user-data client so simulations can inject an
+    immutable food snapshot without replacing profile, diary, or progress data.
+    """
+    return get_supabase()
+
+
 def lookup_food_reference(query: str) -> dict[str, Any]:
     """Resolve one exact English food name and return DB values per 100 g.
 
@@ -51,15 +62,11 @@ def lookup_food_reference(query: str) -> dict[str, Any]:
     silently substituted (for example ``beef raw`` -> ``beets raw`` or ``tomato`` ->
     ``tomato soup``).
     """
-    # Import locally so longitudinal tests can replace the user's diary client
-    # without accidentally replacing the shared read-only food reference DB.
-    from app.services.supabase import get_supabase as get_food_database
-
     normalized = _normalized_food_name(query)
     if len(normalized) < 2:
         raise ValueError("food reference is empty")
 
-    sb = get_food_database()
+    sb = get_food_reference_database()
     exact = (
         sb.table("food_nutrients")
         .select(_FOOD_NUTRIENT_COLUMNS)
@@ -219,9 +226,10 @@ def log_meal(
         return {"status": "error", "message": "Значения КБЖУ не могут быть отрицательными"}
 
     sb = get_supabase()
-    result = (
-        sb.table("meal_logs")
-        .insert({
+    _, replayed = insert_idempotently(
+        sb,
+        "meal_logs",
+        {
             "user_id": user_id,
             "name": name,
             "meal_type": meal_type,
@@ -230,10 +238,12 @@ def log_meal(
             "carbs_g": carbs_g,
             "fat_g": fat_g,
             "date": day or date_type.today().isoformat(),
-        })
-        .execute()
+        },
+        require_idempotency_key(),
     )
-
-    if not result.data:
-        return {"status": "error", "message": "Не удалось сохранить запись"}
-    return {"status": "ok", "logged": name, "calories": calories}
+    return {
+        "status": "ok",
+        "logged": name,
+        "calories": calories,
+        "idempotent_replay": replayed,
+    }

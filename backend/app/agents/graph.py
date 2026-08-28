@@ -24,6 +24,7 @@ class AgentTurnResult(TypedDict):
     resolution_mode: ResolutionMode
     calorie_decision: dict[str, object] | None
     routing_fallback_reason: str | None
+    pending_write_action: dict[str, object] | None
 
 
 def _select_route(state: AgentState) -> str:
@@ -64,6 +65,7 @@ def run_agent_turn_details(
     trace_id: str | None = None,
     history: list[dict[str, str]] | None = None,
     memory_context: str = "",
+    conversation_id: str | None = None,
     experiment_id: str | None = None,
     variant_id: str | None = None,
 ) -> AgentTurnResult:
@@ -84,6 +86,8 @@ def run_agent_turn_details(
         "rag_context": "",
         "retrieved_chunks": [],
         "memory_context": memory_context,
+        "conversation_id": conversation_id,
+        "pending_write_action": None,
         "routing_fallback_reason": None,
         "experiment_id": experiment_id,
         "variant_id": variant_id,
@@ -95,6 +99,7 @@ def run_agent_turn_details(
         "resolution_mode": result.get("resolution_mode", "main_llm"),
         "calorie_decision": result.get("calorie_decision"),
         "routing_fallback_reason": result.get("routing_fallback_reason"),
+        "pending_write_action": result.get("pending_write_action"),
     }
 
 

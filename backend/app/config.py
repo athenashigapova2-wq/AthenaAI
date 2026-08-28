@@ -135,6 +135,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     agent_job_queue: str = "athena-agent"
     agent_job_ttl_seconds: int = 3_600
+    write_confirmation_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
 
     # Layered conversation memory. Model-proposed facts are accepted only after
     # deterministic evidence and confidence checks on the server.

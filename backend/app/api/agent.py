@@ -5,13 +5,14 @@ import json
 from typing import Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import StreamingResponse
 
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.evaluation.experiments import assign_active_experiment
 from app.services import agent_jobs, agent_traces
+from app.services import write_confirmations
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -49,6 +50,14 @@ class CalorieDecisionResponse(BaseModel):
     rationale: str
 
 
+class PendingWriteActionResponse(BaseModel):
+    action_id: UUID
+    confirmation_token: str
+    tool_name: Literal["log_meal", "log_workout"]
+    preview: dict[str, object]
+    expires_at: str
+
+
 class AgentJobResponse(BaseModel):
     job_id: str
     trace_id: str
@@ -63,6 +72,28 @@ class AgentJobResponse(BaseModel):
     conversation_id: str | None = None
     error: str | None = None
     calorie_decision: CalorieDecisionResponse | None = None
+    pending_write_action: PendingWriteActionResponse | None = None
+
+
+class WriteActionConfirmationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation_token: str = Field(min_length=20, max_length=200)
+
+
+class WriteActionConfirmationResponse(BaseModel):
+    status: Literal["confirmed"]
+    action_id: UUID
+    tool_name: Literal["log_meal", "log_workout"]
+    tool_result: dict[str, object]
+    idempotency_key: str
+    idempotent_replay: bool
+    conversation_id: str | None = None
+
+
+class WriteActionRejectedResponse(BaseModel):
+    status: Literal["rejected"]
+    action_id: UUID
 
 
 class AgentJobCancelled(BaseModel):
@@ -212,6 +243,62 @@ def cancel_agent_job(
     if job is None:
         raise HTTPException(status_code=404, detail="Задание не найдено")
     return AgentJobCancelled(**job)
+
+
+@router.post(
+    "/write-actions/{action_id}/confirm",
+    response_model=WriteActionConfirmationResponse,
+)
+def confirm_agent_write_action(
+    action_id: UUID,
+    request: WriteActionConfirmationRequest,
+    idempotency_key: str = Header(alias="Idempotency-Key"),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> WriteActionConfirmationResponse:
+    """Execute one owner-scoped pending write exactly once per idempotency key."""
+    try:
+        result = write_confirmations.confirm_write_action(
+            action_id=str(action_id),
+            user_id=user.user_id,
+            confirmation_token=request.confirmation_token,
+            idempotency_key=idempotency_key,
+        )
+    except write_confirmations.WriteActionInProgressError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except write_confirmations.WriteActionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except agent_jobs.QueueUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="Redis недоступен") from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Операция не найдена")
+    return WriteActionConfirmationResponse(**result)
+
+
+@router.post(
+    "/write-actions/{action_id}/reject",
+    response_model=WriteActionRejectedResponse,
+)
+def reject_agent_write_action(
+    action_id: UUID,
+    request: WriteActionConfirmationRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> WriteActionRejectedResponse:
+    """Reject a pending action without executing its tool."""
+    try:
+        result = write_confirmations.reject_write_action(
+            action_id=str(action_id),
+            user_id=user.user_id,
+            confirmation_token=request.confirmation_token,
+        )
+    except write_confirmations.WriteActionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except agent_jobs.QueueUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="Redis недоступен") from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Операция не найдена")
+    return WriteActionRejectedResponse(**result)
 
 
 @router.get("/privacy/traces/export")

@@ -145,10 +145,11 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
             StructuredTool.from_function(
                 func=log_meal,
                 name="log_meal",
-                metadata={"read_only": False},
-                description=(
-                    "ЗАПИСЫВАЕТ приём пищи в дневник. Вызывай только когда "
-                    "пользователь явно просит записать съеденное. "
+                  metadata={"read_only": False, "requires_confirmation": True},
+                  description=(
+                      "ПОДГОТАВЛИВАЕТ запись приёма пищи для явного подтверждения пользователем; "
+                      "сам вызов tool ещё ничего не записывает. Вызывай только когда "
+                      "пользователь явно просит записать съеденное. "
                     "meal_type: breakfast, lunch, dinner или snack."
                 ),
             ),
@@ -165,9 +166,10 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
             StructuredTool.from_function(
                 func=log_workout,
                 name="log_workout",
-                metadata={"read_only": False},
-                description=(
-                    "ЗАПИСЫВАЕТ тренировку. Вызывай только после явной просьбы пользователя. "
+                  metadata={"read_only": False, "requires_confirmation": True},
+                  description=(
+                      "ПОДГОТАВЛИВАЕТ запись тренировки для явного подтверждения пользователем; "
+                      "сам вызов tool ещё ничего не записывает. Вызывай только после явной просьбы. "
                     "workout_type: upper_body, lower_body, full_body, functional, crossfit, cardio или rest."
                 ),
             ),

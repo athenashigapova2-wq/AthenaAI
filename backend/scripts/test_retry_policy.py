@@ -195,13 +195,16 @@ def assert_only_read_tools_are_retried() -> None:
         metadata={"read_only": False},
     )
     call = {"id": "write-call", "name": "write_tool", "args": {}}
-    try:
-        _invoke_tool(_state(), call, {write.name: write})
-    except httpx.ConnectError:
-        pass
-    else:
-        raise AssertionError("A write failure must propagate without retry")
-    assert write_attempts == 1
+    staged = {
+        "status": "confirmation_required",
+        "write_action": {"action_id": "action-id"},
+    }
+    with patch(
+        "app.agents.common.tool_executor.stage_write_action",
+        return_value=staged,
+    ):
+        assert _invoke_tool(_state(), call, {write.name: write}) == staged
+    assert write_attempts == 0
 
 
 def assert_each_llm_attempt_is_traced() -> None:

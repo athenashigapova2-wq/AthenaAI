@@ -10,7 +10,11 @@ vi.mock("@/api/supabaseClient", () => ({
   },
 }));
 
-import { startAgentMessage } from "@/features/agent-chat/api/agentChatApi";
+import {
+  confirmWriteAction,
+  rejectWriteAction,
+  startAgentMessage,
+} from "@/features/agent-chat/api/agentChatApi";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -103,5 +107,40 @@ describe("agent chat SSE lifecycle", () => {
     const request = startAgentMessage({ message: "hello", locale: "en" });
 
     await expect(request.promise).rejects.toThrow("Worker unavailable");
+  });
+});
+
+describe("write action confirmation", () => {
+  const action = {
+    action_id: "action-1",
+    confirmation_token: "confirmation-secret",
+  };
+
+  it("sends an explicit confirmation with a stable idempotency key", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: "confirmed",
+      action_id: "action-1",
+      idempotent_replay: false,
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await confirmWriteAction(action, "write:stable-key");
+
+    const [, options] = fetch.mock.calls[0];
+    expect(options.headers["Idempotency-Key"]).toBe("write:stable-key");
+    expect(JSON.parse(options.body)).toEqual({ confirmation_token: "confirmation-secret" });
+  });
+
+  it("rejects an action without sending an idempotency key", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: "rejected",
+      action_id: "action-1",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await rejectWriteAction(action);
+
+    const [, options] = fetch.mock.calls[0];
+    expect(options.headers).not.toHaveProperty("Idempotency-Key");
   });
 });

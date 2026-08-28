@@ -156,6 +156,15 @@ def _invoke_tool_agent(
         for call in ai_msg.tool_calls:
             result = _invoke_tool(state, call, tools_by_name, tool_step=tool_step)
             if (
+                isinstance(result, dict)
+                and result.get("status") == "confirmation_required"
+            ):
+                return {
+                    "messages": [AIMessage(content=str(result["message"]))],
+                    "resolution_mode": "zero_llm",
+                    "pending_write_action": result["write_action"],
+                }
+            if (
                 call["name"] == "submit_daily_nutrition_plan"
                 and isinstance(result, dict)
                 and result.get("status") == "ok"

@@ -2,6 +2,7 @@ import { Loader2, Sparkles, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import MessageBubble from "@/features/agent-chat/components/MessageBubble";
+import WriteConfirmationCard from "@/features/agent-chat/components/WriteConfirmationCard";
 
 export default function ChatMessages({
   messages,
@@ -11,6 +12,11 @@ export default function ChatMessages({
   t,
   onSuggestion,
   onCancel,
+  pendingWriteAction,
+  confirmationBusy,
+  confirmationError,
+  onConfirmWrite,
+  onRejectWrite,
   scrollRef,
 }) {
   const visibleStage = ["queued", "running", "tool_call", "generating"].includes(progress?.stage)
@@ -64,6 +70,14 @@ export default function ChatMessages({
           </div>
         </div>
       )}
+      <WriteConfirmationCard
+        action={pendingWriteAction}
+        busy={confirmationBusy}
+        error={confirmationError}
+        t={t}
+        onConfirm={onConfirmWrite}
+        onReject={onRejectWrite}
+      />
     </div>
   );
 }

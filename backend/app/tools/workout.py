@@ -4,6 +4,8 @@ from datetime import date as date_type, timedelta
 from typing import Any
 
 from app.services.supabase import get_supabase
+from app.tools.idempotent_writes import insert_idempotently
+from app.tools.write_context import require_idempotency_key
 
 
 _ALLOWED_WORKOUT_TYPES = {
@@ -50,7 +52,15 @@ def log_workout(
         "notes": notes,
         "date": day or date_type.today().isoformat(),
     }
-    result = get_supabase().table("workout_logs").insert(payload).execute()
-    if not result.data:
-        return {"status": "error", "message": "Workout was not saved"}
-    return {"status": "ok", "workout_type": workout_type, "date": payload["date"]}
+    _, replayed = insert_idempotently(
+        get_supabase(),
+        "workout_logs",
+        payload,
+        require_idempotency_key(),
+    )
+    return {
+        "status": "ok",
+        "workout_type": workout_type,
+        "date": payload["date"],
+        "idempotent_replay": replayed,
+    }

@@ -205,6 +205,59 @@ def check_job_api() -> None:
         )
     assert hidden_cancel.status_code == 404
 
+    action_id = "33333333-3333-4333-8333-333333333333"
+    confirmed_action = {
+        "status": "confirmed",
+        "action_id": action_id,
+        "tool_name": "log_meal",
+        "tool_result": {"status": "ok", "logged": "Oats"},
+        "idempotency_key": "write:client-request-1",
+        "idempotent_replay": False,
+        "conversation_id": "conversation-id",
+    }
+    with patch(
+        "app.api.agent.write_confirmations.confirm_write_action",
+        return_value=confirmed_action,
+    ) as confirm:
+        confirmed = client.post(
+            f"/api/v1/agent/write-actions/{action_id}/confirm",
+            headers={**auth_headers(), "Idempotency-Key": "write:client-request-1"},
+            json={"confirmation_token": "confirmation-token-long-enough"},
+        )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json() == confirmed_action
+    confirm.assert_called_once_with(
+        action_id=action_id,
+        user_id="test-user-id",
+        confirmation_token="confirmation-token-long-enough",
+        idempotency_key="write:client-request-1",
+    )
+
+    missing_key = client.post(
+        f"/api/v1/agent/write-actions/{action_id}/confirm",
+        headers=auth_headers(),
+        json={"confirmation_token": "confirmation-token-long-enough"},
+    )
+    assert missing_key.status_code == 422
+
+    rejected_action = {"status": "rejected", "action_id": action_id}
+    with patch(
+        "app.api.agent.write_confirmations.reject_write_action",
+        return_value=rejected_action,
+    ) as reject:
+        rejected = client.post(
+            f"/api/v1/agent/write-actions/{action_id}/reject",
+            headers=auth_headers(),
+            json={"confirmation_token": "confirmation-token-long-enough"},
+        )
+    assert rejected.status_code == 200
+    assert rejected.json() == rejected_action
+    reject.assert_called_once_with(
+        action_id=action_id,
+        user_id="test-user-id",
+        confirmation_token="confirmation-token-long-enough",
+    )
+
 
 def check_readiness_respects_llm_provider() -> None:
     with (

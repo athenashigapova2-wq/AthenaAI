@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 from app.agents.state import AgentState
 from app.resilience import retry_transient
 from app.services import agent_jobs, agent_traces
+from app.services.write_confirmations import stage_write_action
 from app.tools.registry import is_read_only_tool
 
 def _normalize_tool_call_keys(value: Any) -> Any:
@@ -27,6 +28,21 @@ def _normalize_tool_call_keys(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(_normalize_tool_call_keys(item) for item in value)
     return value
+
+
+def _trace_safe_result(result: Any) -> Any:
+    """Never pass confirmation credentials into observability payloads."""
+    if not isinstance(result, dict) or result.get("status") != "confirmation_required":
+        return result
+    action = result.get("write_action") or {}
+    return {
+        "status": "confirmation_required",
+        "write_action": {
+            "action_id": action.get("action_id"),
+            "tool_name": action.get("tool_name"),
+            "expires_at": action.get("expires_at"),
+        },
+    }
 
 def _invoke_tool(
     state: AgentState,
@@ -62,7 +78,14 @@ def _invoke_tool(
                 lambda: tool.invoke(normalized_args),
                 operation_name=f"tool.{tool.name}",
             )
-        return tool.invoke(normalized_args)
+        return stage_write_action(
+            user_id=state["user_id"],
+            trace_id=run_id,
+            conversation_id=state.get("conversation_id"),
+            locale=state["locale"],
+            tool_name=tool.name,
+            tool_args=normalized_args,
+        )
 
     if run_id is None:
         return invoke()
@@ -88,7 +111,7 @@ def _invoke_tool(
     agent_traces.succeed_tool_call(
         tool_call_id=tool_call_id,
         run_id=run_id,
-        tool_result=result,
+        tool_result=_trace_safe_result(result),
         latency_ms=agent_traces.elapsed_ms(started_at),
     )
     return result

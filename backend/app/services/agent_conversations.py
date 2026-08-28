@@ -79,3 +79,14 @@ def save_turn(conversation_id: str, message: str, answer: str) -> None:
     )
     if response.data is None:
         raise RuntimeError("Supabase did not persist the agent turn")
+
+
+def append_assistant_message(conversation_id: str, answer: str) -> None:
+    response = (
+        get_supabase()
+        .table("agent_messages")
+        .insert({"conversation_id": conversation_id, "role": "assistant", "content": answer})
+        .execute()
+    )
+    if response.data is None:
+        raise RuntimeError("Supabase did not persist the confirmation result")

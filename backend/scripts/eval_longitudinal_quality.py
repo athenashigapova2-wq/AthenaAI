@@ -38,6 +38,7 @@ from simulation.evaluation import (  # noqa: E402
     load_human_gold,
     semantic_judge_payload,
 )
+from simulation.food_database import load_test_food_database  # noqa: E402
 from simulation.longitudinal import (  # noqa: E402
     MemorySupabase,
     _apply_events_through,
@@ -190,6 +191,7 @@ def run_scenario(scenario: LongitudinalScenario, *, gold=None) -> dict:
     gold = gold or load_human_gold()
     persona = find_persona(scenario)
     store = MemorySupabase(profile_row(persona))
+    food_database = load_test_food_database()
     applied: set[int] = set()
     histories: dict[str, list[dict[str, str]]] = {}
     results: list[dict] = []
@@ -231,6 +233,10 @@ def run_scenario(scenario: LongitudinalScenario, *, gold=None) -> dict:
         patch.object(settings, "rag_enabled", False),
         patch("app.tools.profile.get_supabase", return_value=store),
         patch("app.tools.nutrition.get_supabase", return_value=store),
+        patch(
+            "app.tools.nutrition.get_food_reference_database",
+            return_value=food_database,
+        ),
         patch("app.tools.recovery.get_supabase", return_value=store),
         patch("app.tools.workout.get_supabase", return_value=store),
         patch("app.tools.calendar.get_supabase", return_value=store),
@@ -396,6 +402,10 @@ def run() -> dict:
         "provider": "gigachat",
         "model": settings.gigachat_model,
         "remote_supabase_writes": 0,
+        "food_database": {
+            "mode": "committed_read_only_snapshot",
+            "remote_reads": 0,
+        },
         "evaluation_layers": {
             "hard_invariants": "blocking_deterministic",
             "semantic_quality": (
