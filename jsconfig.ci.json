@@ -7,6 +7,7 @@
     "src/components/CalorieRing.jsx",
     "src/features/agent-chat/api/agentChatApi.js",
     "src/features/agent-chat/api/conversationRepository.js",
+    "src/features/profile/api/accountApi.js",
     "src/features/profile/model/profileOptions.js",
     "src/lib/macroCalc.js"
   ],

@@ -608,6 +608,17 @@ python backend/scripts/purge_agent_traces.py
 `DELETE /api/v1/agent/privacy/traces`. Дочерние tool/LLM traces удаляются
 каскадно.
 
+Полное удаление аккаунта выполняется только через authenticated backend endpoint
+`DELETE /api/v1/account`. UI обновляет Supabase session и требует ввести
+`DELETE`; backend принимает только недавно выпущенный JWT и совпадающий email.
+Сначала он отменяет и очищает Redis jobs/write confirmations, удаляет объекты из
+всех Storage buckets под обязательным префиксом `{user_id}/`, а затем удаляет
+Supabase Auth identity. Связанные profile, nutrition, health, workout, memory,
+conversation и trace rows удаляются по `ON DELETE CASCADE`; у общих
+`custom_products` автор обнуляется через `ON DELETE SET NULL`. Auth удаляется
+последним, поэтому сбой Redis или Storage оставляет пользователю возможность
+повторить операцию.
+
 Браузерные AI-задачи используют только
 `POST /api/v1/ai/tasks/{use_case}` с JWT, серверным allowlist use cases и
 фиксированными Pydantic schemas. Диалоговый агент использует canonical path

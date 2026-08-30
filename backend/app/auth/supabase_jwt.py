@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class AuthenticatedUser:
     user_id: str
     email: str | None = None
+    issued_at: int | None = None
 
 
 @lru_cache(maxsize=1)
@@ -50,7 +51,9 @@ def decode_access_token(token: str) -> AuthenticatedUser:
             signing_key,
             algorithms=[algorithm],
             audience=settings.supabase_jwt_audience,
-            issuer=f"{settings.supabase_url.rstrip('/')}/auth/v1" if settings.supabase_url else None,
+            issuer=f"{settings.supabase_url.rstrip('/')}/auth/v1"
+            if settings.supabase_url
+            else None,
             options={"require": ["exp", "sub"]},
         )
     except RuntimeError as exc:
@@ -79,7 +82,12 @@ def decode_access_token(token: str) -> AuthenticatedUser:
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    return AuthenticatedUser(user_id=str(payload["sub"]), email=payload.get("email"))
+    issued_at = payload.get("iat")
+    return AuthenticatedUser(
+        user_id=str(payload["sub"]),
+        email=payload.get("email"),
+        issued_at=int(issued_at) if issued_at is not None else None,
+    )
 
 
 def get_current_user(

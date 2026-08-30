@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
-import { Loader2, Scale, LogOut, Save, Trash2, AlertTriangle, ShieldAlert, Mail } from "lucide-react";
+import { Loader2, Scale, LogOut, Save, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { useLang } from "@/lib/i18n";
 import WeightChart from "@/components/WeightChart";
@@ -20,6 +20,7 @@ import {
 } from "@/features/profile/model/profileOptions";
 import ProfileGoals from "@/features/profile/components/ProfileGoals";
 import ProfilePreferences from "@/features/profile/components/ProfilePreferences";
+import { deletePermanentAccount } from "@/features/profile/api/accountApi";
 
 export default function Profile() {
   const { user, logout } = useAuth();
@@ -33,7 +34,8 @@ export default function Profile() {
   const [newWeight, setNewWeight] = useState("");
   const [form, setForm] = useState({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showDeleteGuidance, setShowDeleteGuidance] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -102,17 +104,19 @@ export default function Profile() {
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
+    setDeleteError("");
     try {
-      await Promise.all([
-        entities.UserProfile.deleteMany({ created_by_id: user?.id }),
-        entities.MealLog.deleteMany({ created_by_id: user?.id }),
-        entities.WeightLog.deleteMany({ created_by_id: user?.id }),
-        entities.ShoppingItem.deleteMany({ created_by_id: user?.id }),
-      ]);
-    } catch { /* proceed regardless */ }
-    setDeleting(false);
-    setShowDeleteConfirm(false);
-    setShowDeleteGuidance(true);
+      await deletePermanentAccount(user?.email || "");
+      setShowDeleteConfirm(false);
+      // The server-side deletion has already succeeded. Never leave the user
+      // on an authenticated screen if local sign-out reports an error.
+      await logout().catch(() => undefined);
+      window.location.href = "/login";
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : t("prof_delError"));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (loading) {
@@ -201,45 +205,52 @@ export default function Profile() {
         </Button>
       </div>
 
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          if (deleting) return;
+          setShowDeleteConfirm(open);
+          if (!open) {
+            setDeleteConfirmation("");
+            setDeleteError("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-heading">{t("prof_delTitle")}</AlertDialogTitle>
             <AlertDialogDescription>{t("prof_delDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="account-delete-confirmation">{t("prof_delConfirmLabel")}</Label>
+            <Input
+              id="account-delete-confirmation"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder="DELETE"
+              autoComplete="off"
+              disabled={deleting}
+            />
+            {deleteError && (
+              <p role="alert" className="text-sm text-destructive">{deleteError}</p>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>{t("prof_cancel")}</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDeleteAccount} disabled={deleting}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                handleDeleteAccount();
+              }}
+              disabled={deleting || deleteConfirmation !== "DELETE"}
+            >
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <AlertTriangle className="w-4 h-4 mr-1.5" />}
               {deleting ? t("prof_deleting") : t("prof_deleteEverything")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog open={showDeleteGuidance} onOpenChange={setShowDeleteGuidance}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-heading">{t("prof_delDoneTitle")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex justify-center">
-              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-                <ShieldAlert className="w-6 h-6 text-destructive" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground text-center">{t("prof_delDoneBody")}</p>
-            <Button asChild variant="outline" className="w-full h-10">
-              <a href={`mailto:support@TODO-your-domain.com?subject=Delete%20My%20Account&body=Please%20fully%20remove%20my%20login%20credentials%20for%20email:%20${user?.email}`}>
-                <Mail className="w-4 h-4 mr-1.5" /> Request login removal
-              </a>
-            </Button>
-            <Button className="w-full h-10" onClick={() => logout()}>
-              <LogOut className="w-4 h-4 mr-1.5" /> {t("prof_signOut")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showWeightDialog} onOpenChange={setShowWeightDialog}>
         <DialogContent className="max-w-sm">

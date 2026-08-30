@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.account import router as account_router
 from app.api.agent import router as agent_router
 from app.api.ai_tasks import router as ai_tasks_router
 from app.api.documents import router as documents_router
@@ -21,11 +22,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
 )
 
 app.include_router(agent_router, prefix="/api/v1")
+app.include_router(account_router, prefix="/api/v1")
 app.include_router(ai_tasks_router, prefix="/api/v1")
 app.include_router(nutrition_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
