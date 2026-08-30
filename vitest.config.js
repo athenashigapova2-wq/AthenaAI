@@ -13,7 +13,9 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.{js,jsx}"],
     setupFiles: ["./src/test/setup.js"],
-    pool: "threads",
+    // Process workers are stable on both the CI Node version and local Node 24;
+    // thread workers can time out before responding on Windows.
+    pool: "forks",
     maxWorkers: 1,
   },
 });

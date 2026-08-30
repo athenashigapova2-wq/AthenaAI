@@ -39,13 +39,15 @@ FastAPI :8001
 Supabase Edge Functions: barcode lookup / Supabase-specific deterministic work
 ```
 
-В Docker запускаются три сервиса:
+В Docker Compose запускаются пять сервисов:
 
 | Сервис | Назначение |
 |---|---|
 | `api` | FastAPI, JWT boundary, постановка заданий и выдача статуса |
 | `redis` | Celery broker и краткоживущее хранилище job status/result |
 | `worker` | Выполнение LangGraph, GigaChat, RAG и инструментов |
+| `influxdb` | Хранилище метрик JMeter для локального нагрузочного контура |
+| `grafana` | Локальная визуализация метрик JMeter из InfluxDB |
 
 Frontend в локальной разработке запускается отдельно через Vite на порту `5175`.
 
@@ -408,6 +410,8 @@ docker compose ps
 athenaai-api-1      healthy
 athenaai-redis-1    healthy
 athenaai-worker-1   healthy
+athenaai-influxdb-1 healthy
+athenaai-grafana-1  healthy
 ```
 
 Проверка API:
@@ -754,7 +758,7 @@ backend/app/
 supabase/
   migrations/   PostgreSQL, RLS, pgvector и agent traces
 src/            React frontend
-compose.yaml    Redis, FastAPI и Celery worker
+compose.yaml    Redis, FastAPI, Celery worker, InfluxDB и Grafana
 ```
 
 ## Лицензия

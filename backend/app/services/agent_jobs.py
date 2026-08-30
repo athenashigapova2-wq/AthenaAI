@@ -1,22 +1,24 @@
 """Redis persistence and Celery submission for authenticated agent jobs."""
 
 import json
+import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Iterator
+from typing import Any
 from uuid import uuid4
 
+from app.config import settings
 from redis import Redis
 from redis.exceptions import RedisError
-
-from app.config import settings
 
 JOB_KEY_PREFIX = "athena:agent-job:"
 JOB_EVENT_CHANNEL_PREFIX = "athena:agent-job-events:"
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 _current_job_id: ContextVar[str | None] = ContextVar("agent_job_id", default=None)
+logger = logging.getLogger(__name__)
 
 
 class QueueUnavailableError(Exception):
@@ -47,7 +49,7 @@ def job_event_channel(job_id: str) -> str:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def redis_is_ready() -> bool:
@@ -106,13 +108,19 @@ def enqueue_agent_job(
             task_id=job_id,
             queue=settings.agent_job_queue,
         )
-        _publish_event(job_id, "queued")
     except Exception as exc:
         try:
             client.delete(key)
         except RedisError:
-            pass
+            logger.warning("Could not remove rejected job %s", job_id, exc_info=True)
         raise QueueUnavailableError("Redis job queue is unavailable") from exc
+    try:
+        _publish_event(job_id, "queued")
+    except RedisError:
+        # The durable job record and broker submission are authoritative. SSE
+        # subscribers receive the current state before listening for updates,
+        # so a transient queued-event failure must not orphan accepted work.
+        logger.warning("Could not publish queued event for job %s", job_id, exc_info=True)
     return job_id
 
 
@@ -151,7 +159,7 @@ def mark_job_running(job_id: str) -> int:
         queued = datetime.fromisoformat(created_at)
         queue_latency_ms = max(
             0,
-            round((datetime.now(timezone.utc) - queued).total_seconds() * 1_000),
+            round((datetime.now(UTC) - queued).total_seconds() * 1_000),
         )
     _update_job(
         job_id,
@@ -208,7 +216,7 @@ def cancel_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
             except Exception:
                 # Redis cancellation remains authoritative; revoke is only an
                 # optimization for tasks that have not been consumed yet.
-                pass
+                logger.warning("Could not revoke cancelled job %s", job_id, exc_info=True)
         return get_agent_job(job_id, user_id)
     except RedisError as exc:
         raise QueueUnavailableError("Redis job store is unavailable") from exc
