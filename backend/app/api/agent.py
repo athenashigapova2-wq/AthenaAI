@@ -64,9 +64,10 @@ class AgentJobResponse(BaseModel):
     experiment_id: str | None = None
     variant_id: str | None = None
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
-    stage: Literal[
-        "queued", "running", "tool_call", "generating", "completed", "failed", "cancelled"
-    ] | None = None
+    stage: (
+        Literal["queued", "running", "tool_call", "generating", "completed", "failed", "cancelled"]
+        | None
+    ) = None
     answer: str | None = None
     route: Literal["nutrition", "workout", "recovery", "general"] | None = None
     conversation_id: str | None = None

@@ -14,4 +14,3 @@ def test_one_client_per_thread() -> None:
 
 def test_missing_configuration_fails() -> None:
     client_checks.assert_missing_configuration_still_fails()
-

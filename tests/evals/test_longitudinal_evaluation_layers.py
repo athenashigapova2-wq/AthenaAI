@@ -200,7 +200,7 @@ def test_human_gold_comparison_is_independent() -> None:
                     "usefulness": 5,
                 },
             )
-        ]
+        ],
     )
     semantic = {
         "status": "completed",
@@ -244,15 +244,11 @@ def test_gold_candidate_is_injected_into_semantic_evaluator_without_answer_leaka
           "usefulness": {"score": 4, "rationale": "Actionable"}
         }"""
 
-    semantic = evaluate_semantic_quality(
-        payload, judge, minimum_scores=case.minimum_scores
-    )
+    semantic = evaluate_semantic_quality(payload, judge, minimum_scores=case.minimum_scores)
     candidate = evaluate_gold_candidate(case, semantic)
 
     assert captured["gold_candidate"]["rubric_focus"] == case.rubric_focus
-    assert captured["gold_candidate"]["curated_verified_context"] == {
-        "weight_change_kg": -0.4
-    }
+    assert captured["gold_candidate"]["curated_verified_context"] == {"weight_change_kg": -0.4}
     assert "reference_answer" not in captured["gold_candidate"]
     assert semantic["minimum_scores"]["factual_consistency"] == 5
     assert candidate["status"] == "candidate_scored"
@@ -271,9 +267,7 @@ def test_gold_fixture_bindings_are_audited_before_live_evaluation() -> None:
 def test_live_evaluator_marks_an_executed_fixture_as_gold_candidate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = next(
-        item for item in load_scenarios() if item.scenario_id == "anna_14d_v1"
-    )
+    scenario = next(item for item in load_scenarios() if item.scenario_id == "anna_14d_v1")
     monkeypatch.setenv(live_evaluator.LIVE_CHECKPOINTS_ENV, "anna_d0_t1")
     monkeypatch.setattr(
         live_evaluator,

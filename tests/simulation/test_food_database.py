@@ -19,9 +19,7 @@ def test_food_fixture_covers_planner_catalogue() -> None:
 def test_food_lookup_uses_read_only_simulation_database() -> None:
     database = FoodDatabase.from_fixture()
 
-    with patch(
-        "app.tools.nutrition.get_food_reference_database", return_value=database
-    ):
+    with patch("app.tools.nutrition.get_food_reference_database", return_value=database):
         oats = lookup_food_reference("oats")
         assert oats == {
             "food_name": "oats",

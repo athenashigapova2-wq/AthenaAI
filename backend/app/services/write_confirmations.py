@@ -173,10 +173,7 @@ def confirm_write_action(
         raise QueueUnavailableError("write confirmation store is unavailable") from exc
 
     try:
-        tools = {
-            tool.name: tool
-            for tool in build_tools(user_id, domains=("nutrition", "workout"))
-        }
+        tools = {tool.name: tool for tool in build_tools(user_id, domains=("nutrition", "workout"))}
         tool = tools.get(record["tool_name"])
         requires_confirmation = bool(
             tool is not None and (tool.metadata or {}).get("requires_confirmation")
@@ -217,9 +214,7 @@ def confirm_write_action(
             "tool_name": tool.name,
             "tool_result": result,
             "idempotency_key": key,
-            "idempotent_replay": bool(
-                isinstance(result, dict) and result.get("idempotent_replay")
-            ),
+            "idempotent_replay": bool(isinstance(result, dict) and result.get("idempotent_replay")),
             "conversation_id": record.get("conversation_id") or None,
         }
         client.hset(

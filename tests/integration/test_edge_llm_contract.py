@@ -22,9 +22,7 @@ FRONTEND_ROOTS = (
     ROOT / "src",
     ROOT / "public",
 )
-FRONTEND_ENTRYPOINTS = (
-    ROOT / "index.html",
-)
+FRONTEND_ENTRYPOINTS = (ROOT / "index.html",)
 
 
 def _files_below(root: Path) -> Iterator[Path]:
@@ -43,11 +41,7 @@ def test_legacy_generic_llm_gateway_is_removed() -> None:
     for function_name in LEGACY_AI_FUNCTIONS:
         assert not (EDGE_FUNCTIONS / function_name / "index.ts").exists()
     frontend_paths = [
-        *(
-            path
-            for frontend_root in FRONTEND_ROOTS
-            for path in _files_below(frontend_root)
-        ),
+        *(path for frontend_root in FRONTEND_ROOTS for path in _files_below(frontend_root)),
         *(path for path in FRONTEND_ENTRYPOINTS if path.is_file()),
     ]
     _assert_bytes_absent(

@@ -87,10 +87,7 @@ def load_agent_memory(user_id: str) -> AgentMemorySnapshot:
     memory_response = retry_transient(
         lambda: (
             client.table("agent_memory")
-            .select(
-                "learned_preferences, avoided_foods, successful_meals, "
-                "conversation_summary"
-            )
+            .select("learned_preferences, avoided_foods, successful_meals, conversation_summary")
             .eq("user_id", user_id)
             .limit(1)
             .execute()
@@ -157,10 +154,7 @@ def update_agent_memory_best_effort(
             payload["conversation_summary"] = previous.conversation_summary
         payload["updated_at"] = datetime.now(UTC).isoformat()
         response = (
-            get_supabase()
-            .table("agent_memory")
-            .upsert(payload, on_conflict="user_id")
-            .execute()
+            get_supabase().table("agent_memory").upsert(payload, on_conflict="user_id").execute()
         )
         if response.data is None:
             raise RuntimeError("Supabase did not persist agent memory")

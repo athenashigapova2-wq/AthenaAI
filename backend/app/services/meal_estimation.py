@@ -86,10 +86,14 @@ class MealEstimationService:
         *,
         limit: int = 15,
     ) -> list[FoodCandidate]:
-        response = get_supabase().rpc(
-            "search_food_nutrients",
-            {"search_term": parsed.english_term, "match_limit": limit},
-        ).execute()
+        response = (
+            get_supabase()
+            .rpc(
+                "search_food_nutrients",
+                {"search_term": parsed.english_term, "match_limit": limit},
+            )
+            .execute()
+        )
         return [FoodCandidate.model_validate(row) for row in (response.data or [])]
 
     def rerank_candidates(

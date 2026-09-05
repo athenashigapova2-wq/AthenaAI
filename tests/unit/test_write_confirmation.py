@@ -132,18 +132,24 @@ def test_confirmation_is_owner_token_and_idempotency_scoped() -> None:
         patch("app.services.write_confirmations.redis_client", return_value=redis),
         patch("app.services.write_confirmations.build_tools", return_value=[tool]),
     ):
-        assert write_confirmations.confirm_write_action(
-            action_id=first["action_id"],
-            user_id="other-user",
-            confirmation_token=first["confirmation_token"],
-            idempotency_key="meal:client-request-2",
-        ) is None
-        assert write_confirmations.confirm_write_action(
-            action_id=first["action_id"],
-            user_id="user-1",
-            confirmation_token="wrong-token-that-is-long-enough",
-            idempotency_key="meal:client-request-2",
-        ) is None
+        assert (
+            write_confirmations.confirm_write_action(
+                action_id=first["action_id"],
+                user_id="other-user",
+                confirmation_token=first["confirmation_token"],
+                idempotency_key="meal:client-request-2",
+            )
+            is None
+        )
+        assert (
+            write_confirmations.confirm_write_action(
+                action_id=first["action_id"],
+                user_id="user-1",
+                confirmation_token="wrong-token-that-is-long-enough",
+                idempotency_key="meal:client-request-2",
+            )
+            is None
+        )
         write_confirmations.confirm_write_action(
             action_id=first["action_id"],
             user_id="user-1",

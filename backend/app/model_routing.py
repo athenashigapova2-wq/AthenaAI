@@ -67,22 +67,15 @@ def select_model(
                 break
 
     if forced_tier is not None:
-        selection_reason = (
-            f"evaluation experiment forced tier {requested_tier!r}"
-        )
+        selection_reason = f"evaluation experiment forced tier {requested_tier!r}"
     elif matched_rule != "default":
         selection_reason = (
-            f"matched routing rule {matched_rule!r}, selecting tier "
-            f"{requested_tier!r}"
+            f"matched routing rule {matched_rule!r}, selecting tier {requested_tier!r}"
         )
     elif settings.llm_model_routing_enabled:
-        selection_reason = (
-            f"no routing rule matched; using call default tier {requested_tier!r}"
-        )
+        selection_reason = f"no routing rule matched; using call default tier {requested_tier!r}"
     else:
-        selection_reason = (
-            f"model routing disabled; using call default tier {requested_tier!r}"
-        )
+        selection_reason = f"model routing disabled; using call default tier {requested_tier!r}"
 
     actual_tier = requested_tier
     is_fallback = False
@@ -94,10 +87,7 @@ def select_model(
     ):
         actual_tier = "main"
         is_fallback = True
-        fallback_reason = (
-            "LLM_ROUTER_MODEL is empty; using GIGACHAT_MODEL for requested "
-            "small tier"
-        )
+        fallback_reason = "LLM_ROUTER_MODEL is empty; using GIGACHAT_MODEL for requested small tier"
 
     return ModelSelection(
         provider=settings.llm_provider,

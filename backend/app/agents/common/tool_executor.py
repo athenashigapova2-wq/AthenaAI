@@ -11,6 +11,7 @@ from app.services import agent_jobs, agent_traces
 from app.services.write_confirmations import stage_write_action
 from app.tools.registry import is_read_only_tool
 
+
 def _normalize_tool_call_keys(value: Any) -> Any:
     """Strip accidental whitespace from model-produced keys before validation."""
     if isinstance(value, dict):
@@ -43,6 +44,7 @@ def _trace_safe_result(result: Any) -> Any:
             "expires_at": action.get("expires_at"),
         },
     }
+
 
 def _invoke_tool(
     state: AgentState,

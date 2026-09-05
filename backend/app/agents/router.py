@@ -21,6 +21,7 @@ class RoutingDecision(BaseModel):
 
     route: AgentName
 
+
 _PROGRESS_MARKERS = (
     "прогресс",
     "результат",
@@ -47,25 +48,92 @@ _PROGRESS_MARKERS = (
 
 _KEYWORDS: dict[AgentName, tuple[str, ...]] = {
     "nutrition": (
-        "калор", "кбжу", "бел", "жир", "углев", "еда", "съел", "питани",
-        "meal", "food", "protein", "calorie", " ate ",
-        "repas", "aliment", "protéin", "calorie",
-        "comida", "alimento", "proteína", "caloría",
-        "食物", "吃", "卡路里", "蛋白质", "碳水", "脂肪",
+        "калор",
+        "кбжу",
+        "бел",
+        "жир",
+        "углев",
+        "еда",
+        "съел",
+        "питани",
+        "meal",
+        "food",
+        "protein",
+        "calorie",
+        " ate ",
+        "repas",
+        "aliment",
+        "protéin",
+        "calorie",
+        "comida",
+        "alimento",
+        "proteína",
+        "caloría",
+        "食物",
+        "吃",
+        "卡路里",
+        "蛋白质",
+        "碳水",
+        "脂肪",
     ),
     "workout": (
-        "трен", "зал", "упраж", "подход", "присед", "выпад",
-        "workout", "gym", "exercise", "sets", "reps",
-        "entraînement", "exercice", "salle", "série",
-        "entrenamiento", "ejercicio", "gimnasio", "serie",
-        "训练", "健身房", "运动", "组数", "重复",
+        "трен",
+        "зал",
+        "упраж",
+        "подход",
+        "присед",
+        "выпад",
+        "workout",
+        "gym",
+        "exercise",
+        "sets",
+        "reps",
+        "entraînement",
+        "exercice",
+        "salle",
+        "série",
+        "entrenamiento",
+        "ejercicio",
+        "gimnasio",
+        "serie",
+        "训练",
+        "健身房",
+        "运动",
+        "组数",
+        "重复",
     ),
     "recovery": (
-        "сон", "спал", "спала", "устал", "цикл", "вес", "болит", "болят",
-        "sleep", "fatigue", "cycle", "sore", "weight",
-        "sommeil", "fatigu", "poids", "douleur", "récupération",
-        "sueño", "fatiga", "ciclo", "peso", "dolor", "recuperación",
-        "睡眠", "疲劳", "月经", "周期", "体重", "疼", "恢复",
+        "сон",
+        "спал",
+        "спала",
+        "устал",
+        "цикл",
+        "вес",
+        "болит",
+        "болят",
+        "sleep",
+        "fatigue",
+        "cycle",
+        "sore",
+        "weight",
+        "sommeil",
+        "fatigu",
+        "poids",
+        "douleur",
+        "récupération",
+        "sueño",
+        "fatiga",
+        "ciclo",
+        "peso",
+        "dolor",
+        "recuperación",
+        "睡眠",
+        "疲劳",
+        "月经",
+        "周期",
+        "体重",
+        "疼",
+        "恢复",
     ),
 }
 
@@ -107,7 +175,9 @@ def _parse_routing_decision(response: Any) -> RoutingDecision:
 def _routing_fallback_reason(error: Exception) -> str:
     if isinstance(error, ValidationError):
         errors = error.errors()
-        error_type = str(errors[0].get("type", "validation_error")) if errors else "validation_error"
+        error_type = (
+            str(errors[0].get("type", "validation_error")) if errors else "validation_error"
+        )
         return f"structured_output_validation:{error_type}"
     return f"router_llm_exception:{type(error).__name__}"
 
@@ -147,4 +217,3 @@ def router_node(state: AgentState) -> dict[str, object]:
             "route": fallback_route,
             "routing_fallback_reason": reason,
         }
-

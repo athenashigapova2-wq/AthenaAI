@@ -11,7 +11,8 @@ def get_recovery_logs(user_id: str, days: int = 14) -> dict[str, Any]:
     days = max(1, min(days, 60))
     start_day = (date_type.today() - timedelta(days=days - 1)).isoformat()
     result = (
-        get_supabase().table("user_health_logs")
+        get_supabase()
+        .table("user_health_logs")
         .select("date, sleep_hours, energy_level, mood, symptoms, notes")
         .eq("user_id", user_id)
         .gte("date", start_day)
@@ -26,7 +27,8 @@ def get_weight_trend(user_id: str, days: int = 30) -> dict[str, Any]:
     days = max(1, min(days, 180))
     start_day = (date_type.today() - timedelta(days=days - 1)).isoformat()
     result = (
-        get_supabase().table("weight_logs")
+        get_supabase()
+        .table("weight_logs")
         .select("date, weight_kg, notes")
         .eq("user_id", user_id)
         .gte("date", start_day)

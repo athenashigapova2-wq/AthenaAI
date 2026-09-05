@@ -118,9 +118,7 @@ def payload_mode_for_run(run_id: str) -> TracePayloadMode:
 def payload_expiry(mode: TracePayloadMode) -> str | None:
     if mode == "none":
         return None
-    expires = datetime.now(timezone.utc) + timedelta(
-        days=settings.trace_raw_payload_retention_days
-    )
+    expires = datetime.now(timezone.utc) + timedelta(days=settings.trace_raw_payload_retention_days)
     return expires.isoformat()
 
 

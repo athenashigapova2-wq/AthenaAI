@@ -66,8 +66,8 @@ def _invoke_tool_agent(
     needs_calorie_decision = _requires_weight_trend(_latest_user_text(state))
 
     if state["route"] == "nutrition":
-        required_context, required_results, needs_plan_validation = (
-            _required_nutrition_context(state, tools_by_name)
+        required_context, required_results, needs_plan_validation = _required_nutrition_context(
+            state, tools_by_name
         )
     elif state["route"] == "recovery":
         required_context, required_results = _required_recovery_context(
@@ -98,9 +98,7 @@ def _invoke_tool_agent(
             tool_choice=submission_tool.name,
         )
     else:
-        remaining_tools = [
-            tool for tool in tools if tool.name not in required_results
-        ]
+        remaining_tools = [tool for tool in tools if tool.name not in required_results]
         llm = (
             base_llm.bind_tools(remaining_tools, tool_choice="auto")
             if remaining_tools
@@ -132,9 +130,7 @@ def _invoke_tool_agent(
         if not getattr(ai_msg, "tool_calls", None):
             if needs_plan_validation or calorie_tool is not None:
                 return {
-                    "messages": [
-                        AIMessage(content=validation_failure_message(state["locale"]))
-                    ],
+                    "messages": [AIMessage(content=validation_failure_message(state["locale"]))],
                     "resolution_mode": "fallback",
                 }
             evidence = _weight_trend_evidence(
@@ -155,10 +151,7 @@ def _invoke_tool_agent(
 
         for call in ai_msg.tool_calls:
             result = _invoke_tool(state, call, tools_by_name, tool_step=tool_step)
-            if (
-                isinstance(result, dict)
-                and result.get("status") == "confirmation_required"
-            ):
+            if isinstance(result, dict) and result.get("status") == "confirmation_required":
                 return {
                     "messages": [AIMessage(content=str(result["message"]))],
                     "resolution_mode": "zero_llm",
@@ -171,9 +164,7 @@ def _invoke_tool_agent(
             ):
                 return {
                     "messages": [
-                        AIMessage(
-                            content=_finalize_answer(result["answer"], state["locale"])
-                        )
+                        AIMessage(content=_finalize_answer(result["answer"], state["locale"]))
                     ],
                     "resolution_mode": "main_llm",
                 }
@@ -229,9 +220,7 @@ def general_node(state: AgentState) -> dict:
         default_tier="main",
     )
     return {
-        "messages": [
-            AIMessage(content=_finalize_answer(response.content, state["locale"]))
-        ],
+        "messages": [AIMessage(content=_finalize_answer(response.content, state["locale"]))],
         "resolution_mode": "main_llm",
     }
 
@@ -242,4 +231,3 @@ __all__ = [
     "recovery_node",
     "workout_node",
 ]
-

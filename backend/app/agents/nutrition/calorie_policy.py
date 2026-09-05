@@ -11,6 +11,7 @@ from app.agents.common.response_pipeline import (
 
 MIN_CALORIE_TARGET = 1_200.0
 
+
 def _calorie_decision_tool(
     profile_result: Any,
     trend_result: Any,
@@ -68,9 +69,7 @@ def _calorie_decision_tool(
             "minimum_calories": MIN_CALORIE_TARGET,
             "change_kcal": round(proposed - float(current), 1),
             "weight_records": len(
-                trend_result.get("weights") or []
-                if isinstance(trend_result, dict)
-                else []
+                trend_result.get("weights") or [] if isinstance(trend_result, dict) else []
             ),
             "evidence_period": {
                 "start": first_date.isoformat() if first_date else None,

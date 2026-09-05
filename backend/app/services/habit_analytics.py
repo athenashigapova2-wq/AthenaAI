@@ -169,7 +169,8 @@ class HabitInsightService:
         suggestion = self._generator.generate(analytics, locale)
         now = datetime.now(UTC).isoformat()
         response = (
-            get_supabase().table("agent_memory")
+            get_supabase()
+            .table("agent_memory")
             .upsert(
                 {
                     "user_id": user_id,

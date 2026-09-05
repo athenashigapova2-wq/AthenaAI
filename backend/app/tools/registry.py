@@ -111,92 +111,102 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
         return calendar_tools.get_cycle_logs(user_id, days)
 
     if "profile" in enabled:
-        tools.append(StructuredTool.from_function(
-            func=get_my_profile,
-            name="get_my_profile",
-            metadata={"read_only": True},
-            description=(
-                "Профиль пользователя: возраст, пол, рост, вес, цель, "
-                "целевые калории и БЖУ, аллергии, предпочтения. "
-                "Вызывай перед персональным советом."
-            ),
-        ))
+        tools.append(
+            StructuredTool.from_function(
+                func=get_my_profile,
+                name="get_my_profile",
+                metadata={"read_only": True},
+                description=(
+                    "Профиль пользователя: возраст, пол, рост, вес, цель, "
+                    "целевые калории и БЖУ, аллергии, предпочтения. "
+                    "Вызывай перед персональным советом."
+                ),
+            )
+        )
 
     if "nutrition" in enabled:
-        tools.extend([
-            StructuredTool.from_function(
-                func=search_food,
-                name="search_food",
-                metadata={"read_only": True},
-                description=(
-                    "Ищет продукт в справочнике и возвращает его КБЖУ на 100 г. "
-                    "Аргумент query — название продукта, например 'куриная грудка'."
+        tools.extend(
+            [
+                StructuredTool.from_function(
+                    func=search_food,
+                    name="search_food",
+                    metadata={"read_only": True},
+                    description=(
+                        "Ищет продукт в справочнике и возвращает его КБЖУ на 100 г. "
+                        "Аргумент query — название продукта, например 'куриная грудка'."
+                    ),
                 ),
-            ),
-            StructuredTool.from_function(
-                func=get_daily_intake,
-                name="get_daily_intake",
-                metadata={"read_only": True},
-                description=(
-                    "Показывает, что пользователь УЖЕ съел за день: суммы КБЖУ "
-                    "и список приёмов пищи. day — ГГГГ-ММ-ДД, по умолчанию сегодня."
+                StructuredTool.from_function(
+                    func=get_daily_intake,
+                    name="get_daily_intake",
+                    metadata={"read_only": True},
+                    description=(
+                        "Показывает, что пользователь УЖЕ съел за день: суммы КБЖУ "
+                        "и список приёмов пищи. day — ГГГГ-ММ-ДД, по умолчанию сегодня."
+                    ),
                 ),
-            ),
-            StructuredTool.from_function(
-                func=log_meal,
-                name="log_meal",
-                  metadata={"read_only": False, "requires_confirmation": True},
-                  description=(
-                      "ПОДГОТАВЛИВАЕТ запись приёма пищи для явного подтверждения пользователем; "
-                      "сам вызов tool ещё ничего не записывает. Вызывай только когда "
-                      "пользователь явно просит записать съеденное. "
-                    "meal_type: breakfast, lunch, dinner или snack."
+                StructuredTool.from_function(
+                    func=log_meal,
+                    name="log_meal",
+                    metadata={"read_only": False, "requires_confirmation": True},
+                    description=(
+                        "ПОДГОТАВЛИВАЕТ запись приёма пищи для явного подтверждения пользователем; "
+                        "сам вызов tool ещё ничего не записывает. Вызывай только когда "
+                        "пользователь явно просит записать съеденное. "
+                        "meal_type: breakfast, lunch, dinner или snack."
+                    ),
                 ),
-            ),
-        ])
+            ]
+        )
 
     if "workout" in enabled:
-        tools.extend([
-            StructuredTool.from_function(
-                func=get_workout_history,
-                name="get_workout_history",
-                metadata={"read_only": True},
-                description="История тренировок пользователя за последние days дней для прогрессии и нагрузки.",
-            ),
-            StructuredTool.from_function(
-                func=log_workout,
-                name="log_workout",
-                  metadata={"read_only": False, "requires_confirmation": True},
-                  description=(
-                      "ПОДГОТАВЛИВАЕТ запись тренировки для явного подтверждения пользователем; "
-                      "сам вызов tool ещё ничего не записывает. Вызывай только после явной просьбы. "
-                    "workout_type: upper_body, lower_body, full_body, functional, crossfit, cardio или rest."
+        tools.extend(
+            [
+                StructuredTool.from_function(
+                    func=get_workout_history,
+                    name="get_workout_history",
+                    metadata={"read_only": True},
+                    description="История тренировок пользователя за последние days дней для прогрессии и нагрузки.",
                 ),
-            ),
-        ])
+                StructuredTool.from_function(
+                    func=log_workout,
+                    name="log_workout",
+                    metadata={"read_only": False, "requires_confirmation": True},
+                    description=(
+                        "ПОДГОТАВЛИВАЕТ запись тренировки для явного подтверждения пользователем; "
+                        "сам вызов tool ещё ничего не записывает. Вызывай только после явной просьбы. "
+                        "workout_type: upper_body, lower_body, full_body, functional, crossfit, cardio или rest."
+                    ),
+                ),
+            ]
+        )
 
     if "recovery" in enabled:
-        tools.extend([
-            StructuredTool.from_function(
-                func=get_recovery_logs,
-                name="get_recovery_logs",
-                metadata={"read_only": True},
-                description="Сон, энергия, настроение и симптомы за последние days дней.",
-            ),
-            StructuredTool.from_function(
-                func=get_weight_trend,
-                name="get_weight_trend",
-                metadata={"read_only": True},
-                description="Записи веса за последние days дней и изменение веса за период.",
-            ),
-        ])
+        tools.extend(
+            [
+                StructuredTool.from_function(
+                    func=get_recovery_logs,
+                    name="get_recovery_logs",
+                    metadata={"read_only": True},
+                    description="Сон, энергия, настроение и симптомы за последние days дней.",
+                ),
+                StructuredTool.from_function(
+                    func=get_weight_trend,
+                    name="get_weight_trend",
+                    metadata={"read_only": True},
+                    description="Записи веса за последние days дней и изменение веса за период.",
+                ),
+            ]
+        )
 
     if "calendar" in enabled:
-        tools.append(StructuredTool.from_function(
-            func=get_cycle_logs,
-            name="get_cycle_logs",
-            metadata={"read_only": True},
-            description="Opt-in записи цикла за последние days дней для recovery/cycle-aware советов.",
-        ))
+        tools.append(
+            StructuredTool.from_function(
+                func=get_cycle_logs,
+                name="get_cycle_logs",
+                metadata={"read_only": True},
+                description="Opt-in записи цикла за последние days дней для recovery/cycle-aware советов.",
+            )
+        )
 
     return tools

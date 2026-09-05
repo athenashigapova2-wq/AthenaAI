@@ -38,9 +38,30 @@ class FakeSupabase:
         self.calls = []
         self.rows = {
             "meal_logs": [
-                {"name": "Oats 50g", "date": "2026-08-12", "calories": 200, "protein_g": 8, "carbs_g": 35, "fat_g": 4},
-                {"name": "Oats 60 g", "date": "2026-08-13", "calories": 220, "protein_g": 9, "carbs_g": 40, "fat_g": 4},
-                {"name": "Salmon", "date": "2026-08-13", "calories": 300, "protein_g": 30, "carbs_g": 0, "fat_g": 18},
+                {
+                    "name": "Oats 50g",
+                    "date": "2026-08-12",
+                    "calories": 200,
+                    "protein_g": 8,
+                    "carbs_g": 35,
+                    "fat_g": 4,
+                },
+                {
+                    "name": "Oats 60 g",
+                    "date": "2026-08-13",
+                    "calories": 220,
+                    "protein_g": 9,
+                    "carbs_g": 40,
+                    "fat_g": 4,
+                },
+                {
+                    "name": "Salmon",
+                    "date": "2026-08-13",
+                    "calories": 300,
+                    "protein_g": 30,
+                    "carbs_g": 0,
+                    "fat_g": 18,
+                },
             ],
             "user_profiles": [{"protein_target_g": 100, "carb_target_g": 200, "fat_target_g": 60}],
         }

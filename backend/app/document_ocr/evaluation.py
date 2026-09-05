@@ -67,9 +67,7 @@ def evaluate_dataset_fields(
             field = re.sub(r"\.\d+(?=\.|$)", "[]", path)
             prediction = left.get(path)
             target = right.get(path)
-            matched = prediction is not None and target is not None and _equal(
-                prediction, target
-            )
+            matched = prediction is not None and target is not None and _equal(prediction, target)
             current = counts.setdefault(field, [0, 0, 0])
             increments = (
                 int(matched),
@@ -108,6 +106,7 @@ def _equal(left: Any, right: Any) -> bool:
     try:
         return Decimal(str(left)) == Decimal(str(right))
     except InvalidOperation:
+
         def normalize(item: Any) -> str:
             return re.sub(r"\s+", " ", str(item).strip().casefold())
 

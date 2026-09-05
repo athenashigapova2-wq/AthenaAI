@@ -27,9 +27,7 @@ def _run_infrastructure_test_job(
 ) -> dict[str, str]:
     """Return a deterministic result without external services."""
     if settings.llm_provider != "mock":
-        raise RuntimeError(
-            "AGENT_INFRASTRUCTURE_TEST_MODE requires LLM_PROVIDER=mock"
-        )
+        raise RuntimeError("AGENT_INFRASTRUCTURE_TEST_MODE requires LLM_PROVIDER=mock")
     if settings.agent_infrastructure_test_latency_ms:
         sleep(settings.agent_infrastructure_test_latency_ms / 1000.0)
     return {

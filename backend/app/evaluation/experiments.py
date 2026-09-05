@@ -82,10 +82,7 @@ class ExperimentAssignment(BaseModel):
     output_cost_per_million_usd: float | None = None
 
     def estimated_cost_usd(self, input_tokens: int, output_tokens: int) -> float | None:
-        if (
-            self.input_cost_per_million_usd is None
-            or self.output_cost_per_million_usd is None
-        ):
+        if self.input_cost_per_million_usd is None or self.output_cost_per_million_usd is None:
             return None
         cost = (
             input_tokens * self.input_cost_per_million_usd

@@ -45,8 +45,14 @@ def calculate_confidence(
         CRITICAL_FIELDS
     )
     consistency_penalty = sum(0.20 if issue.severity == "error" else 0.05 for issue in issues)
-    confidence = max(0.0, min(1.0, 0.45 * ocr.confidence + 0.55 * critical_score - consistency_penalty))
-    reasons = [f"missing_critical_field:{field}" for field in CRITICAL_FIELDS if not _has_field(document, field)]
+    confidence = max(
+        0.0, min(1.0, 0.45 * ocr.confidence + 0.55 * critical_score - consistency_penalty)
+    )
+    reasons = [
+        f"missing_critical_field:{field}"
+        for field in CRITICAL_FIELDS
+        if not _has_field(document, field)
+    ]
     reasons.extend(f"consistency:{issue.code}" for issue in issues if issue.severity == "error")
     return round(confidence, 4), field_confidence, reasons
 

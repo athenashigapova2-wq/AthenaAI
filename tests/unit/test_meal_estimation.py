@@ -54,11 +54,14 @@ def test_reranker_cannot_invent_a_database_candidate() -> None:
             fat_g=1,
         )
     ]
-    assert service.rerank_candidates(
-        description="cod",
-        candidates=candidates,
-        locale="en",
-    ) is None
+    assert (
+        service.rerank_candidates(
+            description="cod",
+            candidates=candidates,
+            locale="en",
+        )
+        is None
+    )
 
 
 def test_macro_calculation_is_deterministic() -> None:

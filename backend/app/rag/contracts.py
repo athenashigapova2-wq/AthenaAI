@@ -132,8 +132,10 @@ class IngestionBatch(BaseModel):
         info,
     ) -> list[DocumentInput]:
         source = info.data.get("source")
-        if value and source and (
-            source.rights_status != "approved" or not source.ingestion_enabled
+        if (
+            value
+            and source
+            and (source.rights_status != "approved" or not source.ingestion_enabled)
         ):
             raise ValueError("documents require an approved and enabled source")
         return value

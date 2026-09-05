@@ -74,9 +74,7 @@ class MealRecommendationsResult(StrictModel):
 
 class WorkoutPlanInput(StrictModel):
     setting: Literal["commercial_gym", "home", "outdoor", "hotel_gym"]
-    focus: Literal[
-        "upper_body", "lower_body", "push", "pull", "legs", "full_body", "conditioning"
-    ]
+    focus: Literal["upper_body", "lower_body", "push", "pull", "legs", "full_body", "conditioning"]
     intensity: Literal["light", "moderate", "heavy"]
     language: Locale = "en"
 

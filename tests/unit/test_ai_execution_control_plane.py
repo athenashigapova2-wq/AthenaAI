@@ -30,11 +30,7 @@ def test_control_plane_routes_sanitizes_and_invokes(monkeypatch) -> None:
     monkeypatch.setattr(settings, "mock_llm_model", "athena-mock-control-plane")
 
     response = service.invoke(
-        messages=[
-            HumanMessage(
-                content="weight=72.5 authorization=Bearer private-credential"
-            )
-        ],
+        messages=[HumanMessage(content="weight=72.5 authorization=Bearer private-credential")],
         node_name="nutrition",
         purpose="answer",
     )

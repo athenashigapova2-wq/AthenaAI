@@ -75,10 +75,7 @@ def _interval_ms() -> int:
 
 
 def _state_ttl_ms() -> int:
-    bucket_seconds = (
-        settings.llm_rate_limit_burst
-        / settings.llm_rate_limit_requests_per_second
-    )
+    bucket_seconds = settings.llm_rate_limit_burst / settings.llm_rate_limit_requests_per_second
     minimum = bucket_seconds + settings.llm_rate_limit_acquire_timeout_seconds + 60
     return math.ceil(max(settings.llm_rate_limit_state_ttl_seconds, minimum) * 1_000)
 

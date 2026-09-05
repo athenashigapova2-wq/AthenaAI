@@ -10,9 +10,7 @@ from app.tools.idempotent_writes import insert_idempotently
 from app.tools.write_context import require_idempotency_key
 
 
-_FOOD_NUTRIENT_COLUMNS = (
-    "food_name, calories_per_100g, protein_g, carbs_g, fat_g"
-)
+_FOOD_NUTRIENT_COLUMNS = "food_name, calories_per_100g, protein_g, carbs_g, fat_g"
 
 # Exact names verified against the imported food_nutrients dataset. Full-day plans
 # deliberately use a small auditable catalogue: a model may choose foods and grams,
@@ -124,11 +122,13 @@ def _translate_to_english(query: str) -> str:
     try:
         response = ai_execution_service.invoke(
             messages=[
-                SystemMessage(content=(
-                    "Translate the food name to English. "
-                    "If it is already English, return it unchanged. "
-                    "Reply with ONLY the English name, 1-2 words, no explanation."
-                )),
+                SystemMessage(
+                    content=(
+                        "Translate the food name to English. "
+                        "If it is already English, return it unchanged. "
+                        "Reply with ONLY the English name, 1-2 words, no explanation."
+                    )
+                ),
                 HumanMessage(content=query),
             ],
             node_name="nutrition",
@@ -167,11 +167,9 @@ def search_food(query: str, limit: int = 5) -> dict[str, Any]:
             "message": f"Продукт '{query}' не найден в справочнике",
         }
 
-    foods = [
-        {k: v for k, v in row.items() if k != "similarity"}
-        for row in result.data
-    ]
+    foods = [{k: v for k, v in row.items() if k != "similarity"} for row in result.data]
     return {"status": "ok", "count": len(foods), "foods": foods}
+
 
 def get_daily_intake(user_id: str, day: str | None = None) -> dict[str, Any]:
     """Сводка съеденного за день: суммы КБЖУ и список приёмов пищи."""

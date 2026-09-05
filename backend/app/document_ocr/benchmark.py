@@ -146,9 +146,7 @@ def compare_variants(summaries: list[dict[str, Any]]) -> dict[str, Any] | None:
     local_f1 = float(local["field_quality"]["micro"]["f1"])
     aws_f1 = float(aws["field_quality"]["micro"]["f1"])
     quality_delta = round(aws_f1 - local_f1, 4)
-    latency_delta = (
-        aws["latency_ms"]["end_to_end_p95"] - local["latency_ms"]["end_to_end_p95"]
-    )
+    latency_delta = aws["latency_ms"]["end_to_end_p95"] - local["latency_ms"]["end_to_end_p95"]
     if quality_delta >= 0.03:
         recommendation = "aws_quality_candidate"
     elif quality_delta <= -0.03:
@@ -162,8 +160,7 @@ def compare_variants(summaries: list[dict[str, Any]]) -> dict[str, Any] | None:
         "aws_minus_local_field_f1": quality_delta,
         "aws_minus_local_end_to_end_p95_ms": latency_delta,
         "aws_minus_local_ocr_cost_usd": round(
-            aws["cost"]["ocr_estimated_cost_usd"]
-            - local["cost"]["ocr_estimated_cost_usd"],
+            aws["cost"]["ocr_estimated_cost_usd"] - local["cost"]["ocr_estimated_cost_usd"],
             6,
         ),
         "recommendation": recommendation,
@@ -239,8 +236,7 @@ def _summarize_variant(
         "cost": {
             "ocr_price_per_page_usd": variant.price_per_page_usd,
             "ocr_estimated_cost_usd": round(
-                variant.price_per_page_usd
-                * sum(bool(row["ocr_billed"]) for row in rows),
+                variant.price_per_page_usd * sum(bool(row["ocr_billed"]) for row in rows),
                 6,
             ),
             "scope": variant.cost_scope,

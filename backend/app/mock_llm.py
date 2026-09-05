@@ -134,9 +134,7 @@ def _route_for_text(text: str) -> str:
 
 def _language(messages: list[BaseMessage]) -> str:
     system_text = "\n".join(
-        str(message.content)
-        for message in messages
-        if getattr(message, "type", None) == "system"
+        str(message.content) for message in messages if getattr(message, "type", None) == "system"
     )
     for language, marker in {
         "en": "user's language is English",

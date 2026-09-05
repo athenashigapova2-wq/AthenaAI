@@ -4,6 +4,7 @@ import re
 from datetime import date
 from typing import Any
 
+
 def _weight_trend_dates(result: Any) -> tuple[date, date] | None:
     if not isinstance(result, dict) or result.get("status") != "ok":
         return None
@@ -26,8 +27,7 @@ def _actual_progress_period(result: Any, locale: str) -> str:
     days = (last - first).days
     if locale == "ru":
         return (
-            f"за период с {first.strftime('%d.%m.%Y')} по "
-            f"{last.strftime('%d.%m.%Y')} ({days} дн.)"
+            f"за период с {first.strftime('%d.%m.%Y')} по {last.strftime('%d.%m.%Y')} ({days} дн.)"
         )
     return f"from {first.isoformat()} to {last.isoformat()} ({days} days)"
 
@@ -47,9 +47,7 @@ def _remove_known_trend_contradictions(text: str, trend: Any, locale: str) -> st
         else ("progress", "trend", "change", "weight")
     )
     data_terms = (
-        ("информац", "данн", "запис")
-        if locale == "ru"
-        else ("information", "data", "record")
+        ("информац", "данн", "запис") if locale == "ru" else ("information", "data", "record")
     )
     parts = re.split(r"(?<=[.!?])\s+|\n+", text)
     kept = []
@@ -144,6 +142,7 @@ def _finalize_answer(text: Any, locale: str, trend: Any = None) -> str:
     answer = _remove_known_trend_contradictions(answer, trend, locale)
     answer = _normalize_progress_period(answer, trend, locale)
     return _normalize_address_style(answer, locale).strip()
+
 
 def _weight_trend_evidence(result: Any, locale: str) -> str:
     """Render the server-fetched trend so a calorie decision always shows its evidence."""

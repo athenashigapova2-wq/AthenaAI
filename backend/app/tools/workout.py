@@ -9,7 +9,13 @@ from app.tools.write_context import require_idempotency_key
 
 
 _ALLOWED_WORKOUT_TYPES = {
-    "upper_body", "lower_body", "full_body", "functional", "crossfit", "cardio", "rest",
+    "upper_body",
+    "lower_body",
+    "full_body",
+    "functional",
+    "crossfit",
+    "cardio",
+    "rest",
 }
 
 
@@ -18,7 +24,8 @@ def get_workout_history(user_id: str, days: int = 14) -> dict[str, Any]:
     days = max(1, min(days, 60))
     start_day = (date_type.today() - timedelta(days=days - 1)).isoformat()
     result = (
-        get_supabase().table("workout_logs")
+        get_supabase()
+        .table("workout_logs")
         .select("date, workout_type, duration_min, calories_burned, exercises, notes")
         .eq("user_id", user_id)
         .gte("date", start_day)
@@ -39,7 +46,10 @@ def log_workout(
 ) -> dict[str, Any]:
     """Writes a workout only after an explicit user request."""
     if workout_type not in _ALLOWED_WORKOUT_TYPES:
-        return {"status": "error", "message": f"workout_type must be one of {sorted(_ALLOWED_WORKOUT_TYPES)}"}
+        return {
+            "status": "error",
+            "message": f"workout_type must be one of {sorted(_ALLOWED_WORKOUT_TYPES)}",
+        }
     if duration_min is not None and duration_min < 0:
         return {"status": "error", "message": "duration_min cannot be negative"}
 

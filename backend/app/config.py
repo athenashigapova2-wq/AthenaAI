@@ -129,9 +129,7 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
 
     # HTTP API
-    api_cors_origins: str = (
-        "http://localhost:5173,http://127.0.0.1:5173,https://localhost"
-    )
+    api_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://localhost"
 
     # Redis-backed background jobs
     redis_url: str = "redis://127.0.0.1:6379/0"
@@ -200,11 +198,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [
-            origin.strip()
-            for origin in self.api_cors_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.api_cors_origins.split(",") if origin.strip()]
 
     @field_validator("llm_model_routing_policy")
     @classmethod
@@ -219,8 +213,7 @@ class Settings(BaseSettings):
             parts = rule.split(".")
             if len(parts) != 2 or any(not cls._valid_model_route_segment(part) for part in parts):
                 raise ValueError(
-                    "LLM model route keys must be '*', 'node.purpose', "
-                    "'node.*', or '*.purpose'"
+                    "LLM model route keys must be '*', 'node.purpose', 'node.*', or '*.purpose'"
                 )
         return policy
 

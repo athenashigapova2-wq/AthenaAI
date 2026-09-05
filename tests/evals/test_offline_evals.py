@@ -27,4 +27,3 @@ def test_eval_dataset_contract(load_cases, validate_cases) -> None:
     cases = load_cases()
     assert cases
     assert validate_cases(cases) == []
-

@@ -67,8 +67,6 @@ class DocumentOCRService:
                 separators=(",", ":"),
             ),
             latency_ms=agent_traces.elapsed_ms(started_at),
-            resolution_mode=(
-                "fallback" if result.status == "needs_human_review" else "main_llm"
-            ),
+            resolution_mode=("fallback" if result.status == "needs_human_review" else "main_llm"),
         )
         return result

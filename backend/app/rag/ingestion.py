@@ -138,9 +138,7 @@ def _ensure_registered_approved_source(supabase, source: SourceManifestEntry) ->
     for field, expected in scalar_fields.items():
         if current.get(field) != expected:
             mismatches.append(field)
-    if str(current.get("canonical_url", "")).rstrip("/") != str(
-        source.canonical_url
-    ).rstrip("/"):
+    if str(current.get("canonical_url", "")).rstrip("/") != str(source.canonical_url).rstrip("/"):
         mismatches.append("canonical_url")
     if set(current.get("domains") or []) != set(source.domains):
         mismatches.append("domains")
@@ -230,14 +228,18 @@ def ingest_batch(
 
     client = supabase or get_supabase()
     database_source = _ensure_registered_approved_source(client, batch.source)
-    run_response = client.table("knowledge_ingestion_runs").insert(
-        {
-            "source_id": database_source["id"],
-            "status": "started",
-            "documents_seen": len(batch.documents),
-            "metadata": {"force": force},
-        }
-    ).execute()
+    run_response = (
+        client.table("knowledge_ingestion_runs")
+        .insert(
+            {
+                "source_id": database_source["id"],
+                "status": "started",
+                "documents_seen": len(batch.documents),
+                "metadata": {"force": force},
+            }
+        )
+        .execute()
+    )
     run_id = str(run_response.data[0]["id"])
 
     documents_written = 0

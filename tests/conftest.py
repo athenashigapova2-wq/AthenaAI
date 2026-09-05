@@ -24,10 +24,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--run-live-evals",
         action="store_true",
         default=False,
-        help=(
-            "Allow tests/live_evals to run. Also requires "
-            f"{LIVE_ENV}=1 in the current process."
-        ),
+        help=(f"Allow tests/live_evals to run. Also requires {LIVE_ENV}=1 in the current process."),
     )
 
 
@@ -49,9 +46,7 @@ def pytest_collection_modifyitems(
     flag_enabled = bool(config.getoption("--run-live-evals"))
     env_enabled = os.getenv(LIVE_ENV) == "1"
     if flag_enabled and not env_enabled:
-        raise pytest.UsageError(
-            f"Live eval flag was provided, but {LIVE_ENV}=1 is missing."
-        )
+        raise pytest.UsageError(f"Live eval flag was provided, but {LIVE_ENV}=1 is missing.")
 
     if not (flag_enabled and env_enabled):
         reason = (

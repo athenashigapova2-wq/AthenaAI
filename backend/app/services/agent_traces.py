@@ -320,7 +320,11 @@ def token_usage(message: Any) -> dict[str, int | bool]:
         or response_usage.get("cached_tokens")
         or 0
     )
-    total = int(usage.get("total_tokens") or response_usage.get("total_tokens") or input_tokens + output_tokens)
+    total = int(
+        usage.get("total_tokens")
+        or response_usage.get("total_tokens")
+        or input_tokens + output_tokens
+    )
     return {
         "token_usage_available": bool(usage or response_usage),
         "input_tokens": input_tokens,
@@ -590,9 +594,7 @@ def enforce_trace_retention() -> None:
     """Purge expired payloads first, then delete expired structured records."""
     client = get_supabase()
     client.rpc("purge_expired_agent_trace_payloads").execute()
-    before = datetime.now(timezone.utc) - timedelta(
-        days=settings.trace_record_retention_days
-    )
+    before = datetime.now(timezone.utc) - timedelta(days=settings.trace_record_retention_days)
     client.rpc(
         "purge_expired_agent_traces",
         {"p_before": before.isoformat()},

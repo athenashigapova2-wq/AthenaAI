@@ -75,4 +75,3 @@ def test_rate_limiter(check) -> None:
         patch.object(settings, "llm_rate_limit_acquire_timeout_seconds", 30.0),
     ):
         check()
-

@@ -20,9 +20,7 @@ def get_supabase() -> Client:
         return client
 
     if not settings.supabase_url or not settings.supabase_service_role_key:
-        raise RuntimeError(
-            "SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY должны быть заданы в .env"
-        )
+        raise RuntimeError("SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY должны быть заданы в .env")
     client = create_client(
         settings.supabase_url,
         settings.supabase_service_role_key,

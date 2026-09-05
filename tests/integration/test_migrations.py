@@ -36,9 +36,7 @@ def test_migration_is_nonempty_sql(migration: Path) -> None:
 
 def test_trace_privacy_migrations_define_lifecycle_and_classification() -> None:
     lifecycle = (MIGRATIONS / "0019_trace_payload_privacy.sql").read_text(encoding="utf-8")
-    classification = (MIGRATIONS / "0021_trace_data_classification.sql").read_text(
-        encoding="utf-8"
-    )
+    classification = (MIGRATIONS / "0021_trace_data_classification.sql").read_text(encoding="utf-8")
 
     for required_policy in (
         "purge_expired_agent_trace_payloads",
@@ -56,9 +54,7 @@ def test_trace_privacy_migrations_define_lifecycle_and_classification() -> None:
 
 
 def test_observability_2_migration_defines_trace_and_slo_metrics() -> None:
-    sql = (MIGRATIONS / "0022_observability_2_slo_metrics.sql").read_text(
-        encoding="utf-8"
-    )
+    sql = (MIGRATIONS / "0022_observability_2_slo_metrics.sql").read_text(encoding="utf-8")
 
     for required_metric in (
         "queue_latency_ms",
@@ -97,9 +93,7 @@ def test_evaluation_experiment_migration_compares_quality_performance_and_cost()
 
 
 def test_document_ocr_is_an_allowlisted_observability_route() -> None:
-    sql = (MIGRATIONS / "0024_document_ocr_observability.sql").read_text(
-        encoding="utf-8"
-    )
+    sql = (MIGRATIONS / "0024_document_ocr_observability.sql").read_text(encoding="utf-8")
     assert "agent_runs_route_check" in sql
     assert "document_ocr" in sql
 

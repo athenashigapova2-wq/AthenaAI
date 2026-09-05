@@ -106,11 +106,14 @@ def test_sensitive_fields_never_enter_redacted_trace() -> None:
 
 def test_redacted_conversation_never_persists_free_form_text() -> None:
     prompt = "Меня зовут Анна, мой вес 72.5 кг и у меня диабет"
-    assert protect_payload(
-        prompt,
-        "redacted",
-        payload_kind=TracePayloadKind.CONVERSATION,
-    ) == "[SENSITIVE_CONTENT_REDACTED]"
+    assert (
+        protect_payload(
+            prompt,
+            "redacted",
+            payload_kind=TracePayloadKind.CONVERSATION,
+        )
+        == "[SENSITIVE_CONTENT_REDACTED]"
+    )
 
 
 def test_restricted_fields_never_enter_even_full_local_trace() -> None:

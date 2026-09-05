@@ -5,11 +5,7 @@ from app.document_ocr.evaluation import evaluate_dataset_fields, evaluate_fields
 
 
 DATASET = (
-    Path(__file__).resolve().parents[2]
-    / "backend"
-    / "evaluation"
-    / "document_ocr"
-    / "dataset.json"
+    Path(__file__).resolve().parents[2] / "backend" / "evaluation" / "document_ocr" / "dataset.json"
 )
 
 
@@ -19,7 +15,13 @@ def test_document_ocr_dataset_is_diverse_and_synthetic() -> None:
     assert {case["language"] for case in cases} == {"ru", "en"}
     assert {case["document_kind"] for case in cases} == {"receipt", "invoice"}
     assert len({case["id"] for case in cases}) == len(cases)
-    assert all("example" in case["ocr_text"].lower() or "тест" in case["ocr_text"].lower() or "пример" in case["ocr_text"].lower() or "demo" in case["ocr_text"].lower() for case in cases)
+    assert all(
+        "example" in case["ocr_text"].lower()
+        or "тест" in case["ocr_text"].lower()
+        or "пример" in case["ocr_text"].lower()
+        or "demo" in case["ocr_text"].lower()
+        for case in cases
+    )
 
 
 def test_field_metrics_count_wrong_value_as_false_positive_and_false_negative() -> None:

@@ -60,9 +60,7 @@ def test_scenario_discovery_and_environment_selection(tmp_path, monkeypatch) -> 
     }
     for days in (14, 21, 30):
         payload = {**template, "scenario_id": f"scenario_{days}", "duration_days": days}
-        (tmp_path / f"persona_{days}d.json").write_text(
-            json.dumps(payload), encoding="utf-8"
-        )
+        (tmp_path / f"persona_{days}d.json").write_text(json.dumps(payload), encoding="utf-8")
 
     assert [item.scenario_id for item in load_scenarios(fixtures_dir=tmp_path)] == [
         "scenario_14",
@@ -70,9 +68,7 @@ def test_scenario_discovery_and_environment_selection(tmp_path, monkeypatch) -> 
         "scenario_30",
     ]
     monkeypatch.setenv(SCENARIO_SELECTION_ENV, "scenario_30")
-    assert [item.scenario_id for item in load_scenarios(fixtures_dir=tmp_path)] == [
-        "scenario_30"
-    ]
+    assert [item.scenario_id for item in load_scenarios(fixtures_dir=tmp_path)] == ["scenario_30"]
 
 
 def test_json_and_markdown_report_writer(tmp_path) -> None:

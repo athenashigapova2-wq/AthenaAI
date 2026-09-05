@@ -119,9 +119,7 @@ class TextractOCRBackend:
             for block in lines
             if block.get("Confidence") is not None
         ]
-        confidence = (
-            sum(confidence_values) / len(confidence_values) if confidence_values else 0.0
-        )
+        confidence = sum(confidence_values) / len(confidence_values) if confidence_values else 0.0
         return text, confidence
 
 
@@ -184,9 +182,7 @@ class DocumentTextExtractor:
             for index, page in enumerate(reader.pages):
                 embedded = (page.extract_text() or "").strip()
                 if len(embedded) >= 40:
-                    pages.append(
-                        OCRPage(page_number=index + 1, text=embedded, confidence=0.99)
-                    )
+                    pages.append(OCRPage(page_number=index + 1, text=embedded, confidence=0.99))
                     continue
                 target = Path(directory) / f"page-{index + 1}"
                 try:
@@ -212,9 +208,7 @@ class DocumentTextExtractor:
                     target.with_suffix(".png").read_bytes(),
                     language=language,
                 )
-                pages.append(
-                    OCRPage(page_number=index + 1, text=text, confidence=confidence)
-                )
+                pages.append(OCRPage(page_number=index + 1, text=text, confidence=confidence))
         return OCRDocument(pages=pages, engine=f"embedded-text+{self.backend.engine_name}")
 
 

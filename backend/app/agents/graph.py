@@ -45,7 +45,12 @@ def build_agent_graph():
     graph.add_conditional_edges(
         "retriever",
         _select_route,
-        {"nutrition": "nutrition", "workout": "workout", "recovery": "recovery", "general": "general"},
+        {
+            "nutrition": "nutrition",
+            "workout": "workout",
+            "recovery": "recovery",
+            "general": "general",
+        },
     )
     for node in ("nutrition", "workout", "recovery", "general"):
         graph.add_edge(node, END)
