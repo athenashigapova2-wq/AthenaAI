@@ -56,7 +56,7 @@ An earlier unsuccessful run remains beside it as historical evidence.
 The committed Anna 14-day live baseline contains three checkpoints. All three passed their hard invariants and semantic thresholds. The day-zero plan used 13 unique products and was recalculated as 1,749.2 kcal against a 1,750 kcal target. Human review is explicitly marked as pending.
 
 Click 
-[`backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md`](backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md) for the full evidence and limitations.
+[here](backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md) for the full evidence and limitations.
 
 ## How users can get started with the project
 
@@ -225,7 +225,7 @@ python -m pytest tests/simulation -q
 Remove-Item Env:ATHENA_SIMULATION_SCENARIOS
 ```
 
-Live evaluation requires separate explicit flags and a dedicated test path. See [`backend/simulation/README.md`](backend/simulation/README.md).
+Live evaluation requires separate explicit flags and a dedicated test path. See [backend/simulation/README](backend/simulation/README.md).
 
 ### JMeter and Grafana
 
@@ -242,7 +242,7 @@ five-second interval aggregates.
 ### Receipt and invoice OCR
 
 The OCR pipeline accepts bounded PDF or image uploads, performs extraction, schema and cross-field validation, calculates confidence, and flags uncertain output for review. Evaluation data and commands are in
-[document_ocr/README.md](backend/evaluation/document_ocr/README.md). AWS Textract and live normalization are disabled by default and may incur cost when deliberately enabled.
+[document_ocr/README](backend/evaluation/document_ocr/README.md). AWS Textract and live normalization are disabled by default and may incur cost when deliberately enabled.
 
 ## Project structure
 
