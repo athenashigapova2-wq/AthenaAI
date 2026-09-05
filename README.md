@@ -1,12 +1,8 @@
 # Athena AI
 
-Athena is a multilingual nutrition and fitness coaching application. It combines
-a React client, a FastAPI backend, background jobs, a nutrition knowledge base,
-and guarded model calls. The repository also contains deterministic tests,
-longitudinal simulations, load tests, and an OCR evaluation pipeline.
+Athena is a multilingual nutrition and fitness coaching application. It combines React client, FastAPI backend, background jobs, nutrition knowledge base and guarded model calls. The repo contains deterministic tests,longitudinal simulations, load tests, and an OCR evaluation pipeline.
 
-This is an engineering project, not a medical device. Nutrition and training
-recommendations should not replace advice from a qualified professional.
+This is an engineering project, not a medical device. Nutrition and training recommendations should not replace advice from a qualified professional.
 
 ## What the project does
 
@@ -22,17 +18,11 @@ Athena lets an authenticated user:
 - estimate meal nutrition and extract structured receipt or invoice data;
 - export or delete trace data and permanently delete an account.
 
-The web client supports English, Russian, French, Spanish, and Chinese. The
-repository also includes an Android project for building an APK against an HTTPS
-backend.
+The web client supports English, Russian, French, Spanish, and Chinese. The repo includes Android project for building an APK against an HTTPS backend.
 
 ## Why the project is useful
 
-Athena demonstrates how a model-backed product can keep important decisions in
-ordinary application code. The model may interpret a request or draft an answer,
-but the server owns authentication, data access, tool permissions, nutrition
-checks, write confirmation, idempotency, retries, rate limiting, trace redaction,
-and account deletion.
+Athena demonstrates how a model-backed product can keep important decisions in ordinary application code. The model may interpret a request or draft an answer, but the server owns authentication, data access, tool permissions, nutrition checks, write confirmation, idempotency, retries, rate limiting, trace redaction, and account deletion.
 
 The project can be used as:
 
@@ -43,14 +33,10 @@ The project can be used as:
 
 ## Verified examples and figures
 
-These are recorded baselines with specific test conditions, not general
-performance claims.
-
+These are recorded baselines with specific test conditions, not general performance claims
 ### Load-test baseline
 
-The committed JMeter baseline used five virtual users, five iterations per user,
-and a 30-second ramp-up against the local Docker stack with the real GigaChat
-provider.
+The committed JMeter baseline used five virtual users, five iterations per user and a 30-sec ramp-up against the local Docker stack with the real GigaChat provider.
 
 | Metric | Result |
 | --- | ---: |
@@ -62,20 +48,15 @@ provider.
 | End-to-end p95 | 5.145 s |
 | End-to-end p99 / maximum | 7.389 s |
 
-The method, environment, and calculations are recorded in
-[`backend/load_tests/reports/2026-08-21-baseline-5x5.md`](backend/load_tests/reports/2026-08-21-baseline-5x5.md).
+The method, environment, and calculations are recorded in [here](backend/load_tests/reports/2026-08-21-baseline-5x5.md).
 An earlier unsuccessful run remains beside it as historical evidence.
 
 ### Longitudinal quality baseline
 
-The committed Anna 14-day live baseline contains three checkpoints. All three
-passed their hard invariants and semantic thresholds. The day-zero plan used 13
-unique products and was recalculated as 1,749.2 kcal against a 1,750 kcal target.
-Human review is explicitly marked as pending.
+The committed Anna 14-day live baseline contains three checkpoints. All three passed their hard invariants and semantic thresholds. The day-zero plan used 13 unique products and was recalculated as 1,749.2 kcal against a 1,750 kcal target. Human review is explicitly marked as pending.
 
-See
-[`backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md`](backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md)
-for the full evidence and limitations.
+Click 
+[`backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md`](backend/simulation/reports/2026-08-28-anna-14d-gigachat-baseline.md) for the full evidence and limitations.
 
 ## How users can get started with the project
 
@@ -110,8 +91,8 @@ Copy-Item observability/.env.example observability/.env
 Frontend `.env` example:
 
 ```dotenv
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-public-anon-key
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
 VITE_AGENT_API_URL=http://127.0.0.1:8001
 AGENT_PROXY_TARGET=http://127.0.0.1:8001
 ```
@@ -119,21 +100,16 @@ AGENT_PROXY_TARGET=http://127.0.0.1:8001
 Backend `backend/.env` example:
 
 ```dotenv
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=y
 LLM_PROVIDER=mock
 APP_ENV=dev
 TRACE_CONTENT_MODE=off
 ```
 
-`LLM_PROVIDER=mock` is the safest first run. It exercises the application path
-without calling an external model and does not bypass JWT validation. For an
-intentional GigaChat run, set `LLM_PROVIDER=gigachat` and keep
-`GIGACHAT_AUTH_KEY` only in `backend/.env` or a deployment secret store. Never
-put service-role or provider credentials in `VITE_*` variables.
+`LLM_PROVIDER=mock` is the safest first run. It exercises the application path without calling an external model and does not bypass JWT validation. For an intentional GigaChat run, set `LLM_PROVIDER=gigachat` and keep `GIGACHAT_AUTH_KEY` only in `backend/.env` or a deployment secret store. Never put service-role or provider credentials in `VITE_*` variables.
 
-Replace the placeholder Grafana and InfluxDB credentials in
-`observability/.env`.
+Replace the placeholder Grafana and InfluxDB credentials in `observability/.env`.
 
 ### 3. Apply Supabase migrations
 
@@ -143,8 +119,7 @@ npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-Migrations are versioned in `supabase/migrations/`. Review them before applying
-them to a non-development project.
+Migrations are versioned in `supabase/migrations/`. Review them before applying them to a non-development project.
 
 ### 4. Start the backend
 
@@ -169,8 +144,7 @@ Invoke-RestMethod "http://127.0.0.1:8001/health/ready"
 docker compose logs -f api worker
 ```
 
-The worker may remain in `health: starting` while its local embedding model is
-downloaded for the first time.
+The worker may remain in `health: starting` while its local embedding model is downloaded for the first time.
 
 ### 5. Start the web client
 
@@ -178,9 +152,7 @@ downloaded for the first time.
 npm run dev -- --host 127.0.0.1 --port 5175
 ```
 
-Open `http://127.0.0.1:5175`, register or sign in through Supabase, and send a
-message. With the mock provider, a successful response begins with text similar
-to:
+Open `http://127.0.0.1:5175`, register or sign in through Supabase, and send a message. With the mock provider, a successful response begins with text similar to:
 
 ```text
 [MOCK:general] Deterministic test response. No external LLM was called.
@@ -188,8 +160,7 @@ to:
 
 ### API example
 
-The chat endpoint returns HTTP 202 with a job identifier. The client then uses
-SSE or the status endpoint until the job reaches a terminal state.
+The chat endpoint returns HTTP 202 with a job identifier. The client then uses SSE or the status endpoint until the job reaches a terminal state.
 
 ```powershell
 $headers = @{
@@ -209,9 +180,7 @@ Invoke-RestMethod `
     -Headers $headers
 ```
 
-The token must belong to the user whose data is requested. Missing and foreign
-job identifiers intentionally produce the same response so ownership is not
-leaked.
+The token must belong to the user whose data is requested. Missing and foreign job identifiers intentionally produce the same response so ownership is not leaked.
 
 ## Tests and reproducible evaluation
 
@@ -239,13 +208,9 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser suite covers login and onboarding, chat, meal logging, expired JWTs,
-worker failures, duplicate submissions, conversation switching, mobile layout,
-and accessibility. The write-confirmation browser case is currently skipped and
-must not be counted as passing coverage.
+The browser suite covers login and onboarding, chat, meal logging, expired JWTs, worker failures, duplicate submissions, conversation switching, mobile layout, and accessibility. The write-confirmation browser case is currently skipped and must not be counted as passing coverage.
 
-The default pytest configuration never runs a real provider. Offline longitudinal
-scenarios use frozen dates, in-memory data, and the deterministic mock:
+The default pytest configuration never runs a real provider. Offline longitudinal scenarios use frozen dates, in-memory data, and the deterministic mock:
 
 ```powershell
 python backend/scripts/test_longitudinal_simulation.py `
@@ -260,8 +225,7 @@ python -m pytest tests/simulation -q
 Remove-Item Env:ATHENA_SIMULATION_SCENARIOS
 ```
 
-Live evaluation requires separate explicit flags and a dedicated test path. See
-[`backend/simulation/README.md`](backend/simulation/README.md).
+Live evaluation requires separate explicit flags and a dedicated test path. See [`backend/simulation/README.md`](backend/simulation/README.md).
 
 ### JMeter and Grafana
 
@@ -277,24 +241,8 @@ five-second interval aggregates.
 
 ### Receipt and invoice OCR
 
-The OCR pipeline accepts bounded PDF or image uploads, performs extraction,
-schema and cross-field validation, calculates confidence, and flags uncertain
-output for review. Evaluation data and commands are in
-[`backend/evaluation/document_ocr/README.md`](backend/evaluation/document_ocr/README.md).
-AWS Textract and live normalization are disabled by default and may incur cost
-when deliberately enabled.
-
-## Android APK
-
-The packaged Android application requires an HTTPS backend:
-
-```powershell
-$env:VITE_AGENT_API_URL = "https://api.example.com"
-npm run android:apk
-```
-
-The build script rejects cleartext backend URLs. Configuration is in
-`capacitor.config.ts`; the native project is in `android/`.
+The OCR pipeline accepts bounded PDF or image uploads, performs extraction, schema and cross-field validation, calculates confidence, and flags uncertain output for review. Evaluation data and commands are in
+[document_ocr/README.md](backend/evaluation/document_ocr/README.md). AWS Textract and live normalization are disabled by default and may incur cost when deliberately enabled.
 
 ## Project structure
 
@@ -331,24 +279,19 @@ conversations to fixtures or reports.
 
 Start with:
 
-- [`backend/WORKERS.md`](backend/WORKERS.md) for Redis and Celery diagnostics;
-- [`backend/simulation/README.md`](backend/simulation/README.md) for longitudinal
+- [backend/WORKERS](backend/WORKERS.md) for Redis and Celery diagnostics;
+- [backend/simulation/README](backend/simulation/README.md) for longitudinal
   tests and live-evaluation safeguards;
-- [`tests/README.md`](tests/README.md) for test-suite boundaries;
-- [`backend/evaluation/document_ocr/README.md`](backend/evaluation/document_ocr/README.md)
+- [tests/README](tests/README.md) for test-suite boundaries;
+- [backend/evaluation/document_ocr/README](backend/evaluation/document_ocr/README.md)
   for OCR evaluation.
 
 For reproducible bugs or questions, open a
-[GitHub issue](https://github.com/athenashigapova2-wq/AthenaAI/issues) with the
-command, expected and actual result, redacted logs, operating system, and relevant
-tool versions. Never post tokens, service-role keys, provider credentials, or raw
-user content.
+[Git issue](https://github.com/athenashigapova2-wq/AthenaAI/issues) with the command, expected and actual result, redacted logs, operating system, and relevant tool versions. Never post tokens, service-role keys, provider credentials, or raw user content.
 
 ## Who maintains and contributes to the project
 
-Athena AI is maintained by
-[`@athenashigapova2-wq`](https://github.com/athenashigapova2-wq). Git history is
-the source of truth for individual contributions.
+Athena AI is maintained by [me, Amina](https://aminashigapova.ru/). Git history is the source of truth for individual contributions.
 
 Contributions should be small and reviewable:
 
@@ -358,10 +301,8 @@ Contributions should be small and reviewable:
 4. avoid committing secrets, generated reports, local databases, or builds;
 5. open a pull request explaining the problem, smallest fix, and verification.
 
-Security-sensitive reports should be shared privately with the maintainer before
-opening a public issue.
+Security-sensitive reports should be shared privately with the maintainer before opening a public issue.
 
 ## License
 
-No license has been declared yet. Until one is added, the repository is not
-automatically available for redistribution or reuse.
+No license has been declared yet. Until one is added, the repository is not automatically available for redistribution or reuse.
