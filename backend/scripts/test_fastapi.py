@@ -262,6 +262,7 @@ def check_job_api() -> None:
 def check_readiness_respects_llm_provider() -> None:
     with (
         patch.object(settings, "llm_provider", "mock"),
+        patch.object(settings, "agent_infrastructure_test_mode", False),
         patch.object(settings, "supabase_url", "https://project.supabase.co"),
         patch.object(settings, "supabase_service_role_key", "service-role"),
         patch.object(settings, "gigachat_auth_key", ""),
@@ -272,10 +273,13 @@ def check_readiness_respects_llm_provider() -> None:
         "status": "ready",
         "missing": [],
         "redis": "ready",
+        "llm_provider": "mock",
+        "agent_infrastructure_test_mode": False,
     }
 
     with (
         patch.object(settings, "llm_provider", "gigachat"),
+        patch.object(settings, "agent_infrastructure_test_mode", False),
         patch.object(settings, "supabase_url", "https://project.supabase.co"),
         patch.object(settings, "supabase_service_role_key", "service-role"),
         patch.object(settings, "gigachat_auth_key", ""),
@@ -284,6 +288,8 @@ def check_readiness_respects_llm_provider() -> None:
         gigachat_not_ready = client.get("/health/ready")
     assert gigachat_not_ready.json()["status"] == "not_ready"
     assert gigachat_not_ready.json()["missing"] == ["GIGACHAT_AUTH_KEY"]
+    assert gigachat_not_ready.json()["llm_provider"] == "gigachat"
+    assert gigachat_not_ready.json()["agent_infrastructure_test_mode"] is False
 
 
 def main() -> None:

@@ -93,6 +93,12 @@ if (process.env.SKIP_BACKEND_PREFLIGHT !== "1") {
     if (!response.ok || body?.status !== "ready") {
       fail(`backend readiness failed (${response.status}): ${JSON.stringify(body)}`);
     }
+    if (body?.llm_provider !== "gigachat") {
+      fail(`backend must use the real GigaChat provider; received ${JSON.stringify(body?.llm_provider)}`);
+    }
+    if (body?.agent_infrastructure_test_mode !== false) {
+      fail("backend AGENT_INFRASTRUCTURE_TEST_MODE must be false");
+    }
 
     const corsResponse = await fetch(`${apiOrigin}/api/v1/agent/chat`, {
       method: "OPTIONS",

@@ -39,7 +39,7 @@ def health() -> dict[str, str]:
 
 
 @app.get("/health/ready", tags=["system"])
-def readiness() -> dict[str, str | list[str]]:
+def readiness() -> dict[str, str | bool | list[str]]:
     """Report missing server settings without exposing their values."""
     required_settings = {
         "SUPABASE_URL": settings.supabase_url,
@@ -53,4 +53,8 @@ def readiness() -> dict[str, str | list[str]]:
         "status": "ready" if not missing and redis_ready else "not_ready",
         "missing": missing,
         "redis": "ready" if redis_ready else "unavailable",
+        # These non-secret flags let release tooling fail closed instead of
+        # accidentally packaging an app against a mock/capacity-test backend.
+        "llm_provider": settings.llm_provider,
+        "agent_infrastructure_test_mode": settings.agent_infrastructure_test_mode,
     }

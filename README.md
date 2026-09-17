@@ -164,6 +164,27 @@ Open `http://127.0.0.1:5175`, register or sign in through Supabase, and send a m
 [MOCK:general] Deterministic test response. No external LLM was called.
 ```
 
+### 6. Build an installable Android candidate
+
+The APK cannot use `127.0.0.1`: on a phone that address is the phone itself.
+Deploy FastAPI, Redis, and the Celery worker first, then provide the public HTTPS
+FastAPI origin at build time. Supabase remains the hosted authentication and
+database service.
+
+```powershell
+$env:VITE_AGENT_API_URL = "https://api.example.com"
+$env:VITE_SUPABASE_URL = "https://your-project.supabase.co"
+$env:VITE_SUPABASE_ANON_KEY = "your-public-anon-key"
+npm run android:apk
+Get-FileHash .\android\app\build\outputs\apk\debug\app-debug.apk -Algorithm SHA256
+```
+
+The build performs a live readiness and CORS preflight and refuses localhost,
+plain HTTP, a mock LLM provider, or infrastructure-test mode. The resulting
+debug APK is suitable for controlled device acceptance testing, not store
+publication. The ten-pass manual backend v0.1 gate is documented in
+[Android acceptance](docs/backend-v0.1-android-acceptance.md).
+
 ### API example
 
 The chat endpoint returns HTTP 202 with a job identifier. The client then uses SSE or the status endpoint until the job reaches a terminal state.
