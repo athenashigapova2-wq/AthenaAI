@@ -1,6 +1,7 @@
 """Calendar-like tools for cycle-aware coaching."""
 
-from datetime import date as date_type, timedelta
+from datetime import date as date_type
+from datetime import timedelta
 from typing import Any
 
 from app.services.supabase import get_supabase

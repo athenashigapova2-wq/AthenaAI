@@ -1,6 +1,6 @@
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 120
 src = ["backend/app", "tests"]
 extend-exclude = [".venv", "backend/data"]
 
@@ -19,11 +19,18 @@ select = [
     "PIE",    # unnecessary code
     "S",      # common security mistakes
 ]
-ignore = []
+ignore = [
+    # The product intentionally contains Russian user-facing copy. Ruff's
+    # ambiguous-Unicode checks flag ordinary Cyrillic letters in that copy.
+    "RUF001",
+    "RUF002",
+    # FastAPI dependency injection intentionally calls Depends() in defaults.
+    "B008",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]
-"tests/*.py" = ["S101"]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+"tests/*.py" = ["S101", "S105", "S106"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -38,11 +45,20 @@ exclude = ["backend/data"]
 
 [[tool.mypy.overrides]]
 module = [
+    "boto3",
+    "celery",
+    "celery.*",
     "langchain.*",
     "langgraph.*",
     "gigachat.*",
+    "numpy",
+    "numpy.*",
+    "pandas",
+    "scipy",
+    "scipy.*",
 ]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.coverage.run]
 branch = true

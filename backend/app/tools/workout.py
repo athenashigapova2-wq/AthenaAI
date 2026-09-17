@@ -1,12 +1,12 @@
 """Workout tools: training history, simple planning inputs and workout logging."""
 
-from datetime import date as date_type, timedelta
+from datetime import date as date_type
+from datetime import timedelta
 from typing import Any
 
 from app.services.supabase import get_supabase
 from app.tools.idempotent_writes import insert_idempotently
 from app.tools.write_context import require_idempotency_key
-
 
 _ALLOWED_WORKOUT_TYPES = {
     "upper_body",

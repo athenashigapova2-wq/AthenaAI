@@ -5,10 +5,10 @@
 """
 
 from threading import local
-
-from supabase import Client, create_client
+from typing import cast
 
 from app.config import settings
+from supabase import Client, create_client
 
 _thread_state = local()
 
@@ -17,7 +17,7 @@ def get_supabase() -> Client:
     """Return one Supabase client and HTTP connection pool per worker thread."""
     client = getattr(_thread_state, "client", None)
     if client is not None:
-        return client
+        return cast(Client, client)
 
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise RuntimeError("SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY должны быть заданы в .env")

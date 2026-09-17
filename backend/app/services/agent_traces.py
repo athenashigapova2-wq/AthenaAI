@@ -1,7 +1,7 @@
 """Persistence helpers for agent-run observability in Supabase."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
@@ -11,18 +11,19 @@ from app.evaluation.experiments import current_experiment
 from app.model_routing import ModelSelection, model_name_for_tier
 from app.services.supabase import get_supabase
 from app.trace_privacy import (
-    DataClassification,
     REDACTION_VERSION,
+    DataClassification,
     TracePayloadKind,
     payload_expiry,
     payload_mode_for_run,
-    pseudonymous_actor_id,
     protect_mapping,
     protect_payload,
+    pseudonymous_actor_id,
     safe_error,
     tool_arg_summary,
     tool_result_summary,
 )
+from postgrest.types import CountMethod
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def elapsed_ms(started_at: float) -> int:
 
 
 def _completed_at() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def create_agent_run(
@@ -551,7 +552,7 @@ def delete_user_traces(user_id: str) -> int:
     client = get_supabase()
     owned = (
         client.table("agent_runs")
-        .select("id", count="exact")
+        .select("id", count=CountMethod.exact)
         .eq("user_id", user_id)
         .limit(1)
         .execute()
@@ -594,7 +595,7 @@ def enforce_trace_retention() -> None:
     """Purge expired payloads first, then delete expired structured records."""
     client = get_supabase()
     client.rpc("purge_expired_agent_trace_payloads").execute()
-    before = datetime.now(timezone.utc) - timedelta(days=settings.trace_record_retention_days)
+    before = datetime.now(UTC) - timedelta(days=settings.trace_record_retention_days)
     client.rpc(
         "purge_expired_agent_traces",
         {"p_before": before.isoformat()},

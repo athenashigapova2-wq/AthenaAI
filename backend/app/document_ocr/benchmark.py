@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import io
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from app.document_ocr.evaluation import evaluate_dataset_fields
 from app.document_ocr.models import ExtractedDocument
-from app.document_ocr.ocr import OCRBackend
-from app.document_ocr.ocr import OCRBackendError
+from app.document_ocr.ocr import OCRBackend, OCRBackendError
 from app.model_routing import select_model
-
 
 Normalizer = Callable[[str, str], ExtractedDocument]
 

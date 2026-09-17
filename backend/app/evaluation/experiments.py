@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -41,7 +42,7 @@ class ExperimentDefinition(BaseModel):
     variants: list[ExperimentVariant] = Field(min_length=2, max_length=20)
 
     @model_validator(mode="after")
-    def unique_variants(self) -> "ExperimentDefinition":
+    def unique_variants(self) -> ExperimentDefinition:
         ids = [variant.variant_id for variant in self.variants]
         if len(ids) != len(set(ids)):
             raise ValueError("experiment variant_id values must be unique")
@@ -60,7 +61,7 @@ class ExperimentRegistry(BaseModel):
     experiments: list[ExperimentDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def unique_experiments(self) -> "ExperimentRegistry":
+    def unique_experiments(self) -> ExperimentRegistry:
         ids = [experiment.experiment_id for experiment in self.experiments]
         if len(ids) != len(set(ids)):
             raise ValueError("experiment_id values must be unique")

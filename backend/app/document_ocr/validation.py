@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from app.document_ocr.models import ConsistencyIssue, ExtractedDocument, OCRDocument
 
-
 MONEY_TOLERANCE = Decimal("0.02")
 CRITICAL_FIELDS = ("issue_date", "currency", "total", "supplier.name")
 

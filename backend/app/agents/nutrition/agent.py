@@ -3,14 +3,13 @@
 import json
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.tools import BaseTool
-
 from app.agents.common.tool_executor import _invoke_tool
 from app.agents.prompts import NUTRITION_SYSTEM
 from app.agents.state import AgentState
 from app.config import settings
 from app.tools.registry import build_tools
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import BaseTool
 
 from .constraints import _requires_full_day_plan, _requires_weight_trend
 
@@ -67,7 +66,7 @@ def _required_nutrition_context(
     return context, results, needs_plan_validation
 
 
-def nutrition_node(state: AgentState) -> dict:
+def nutrition_node(state: AgentState) -> dict[str, Any]:
     from app.agents.specialists import _invoke_tool_agent
 
     return _invoke_tool_agent(

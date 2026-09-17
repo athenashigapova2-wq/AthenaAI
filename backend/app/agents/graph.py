@@ -1,19 +1,18 @@
 """LangGraph assembly for Athena's Router + specialist agent architecture."""
 
 from functools import lru_cache
-from typing import TypedDict
+from typing import Any, TypedDict
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langgraph.graph import END, START, StateGraph
-
-from app.agents.router import router_node
-from app.agents.retrieval import retriever_node
 from app.agents.nutrition.agent import nutrition_node
 from app.agents.recovery.agent import recovery_node
+from app.agents.retrieval import retriever_node
+from app.agents.router import router_node
 from app.agents.specialists import general_node
-from app.agents.workout.agent import workout_node
 from app.agents.state import AgentName, AgentState, ResolutionMode
+from app.agents.workout.agent import workout_node
 from app.config import settings
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langgraph.graph import END, START, StateGraph
 
 
 class AgentTurnResult(TypedDict):
@@ -31,7 +30,7 @@ def _select_route(state: AgentState) -> str:
     return state.get("route", "general")
 
 
-def build_agent_graph():
+def build_agent_graph() -> Any:
     graph = StateGraph(AgentState)
     graph.add_node("router", router_node)
     graph.add_node("retriever", retriever_node)
@@ -58,7 +57,7 @@ def build_agent_graph():
 
 
 @lru_cache(maxsize=1)
-def get_agent_graph():
+def get_agent_graph() -> Any:
     """Return the process-wide compiled graph shared by all agent turns."""
     return build_agent_graph()
 

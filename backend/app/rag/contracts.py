@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, Field, HttpUrl, ValidationInfo, field_validator, model_validator
 
 KnowledgeDomain = Literal["nutrition", "workout", "recovery", "safety", "product"]
 SourceType = Literal["html", "pdf", "api", "manual"]
@@ -129,7 +129,7 @@ class IngestionBatch(BaseModel):
     def documents_require_approved_source(
         cls,
         value: list[DocumentInput],
-        info,
+        info: ValidationInfo,
     ) -> list[DocumentInput]:
         source = info.data.get("source")
         if (

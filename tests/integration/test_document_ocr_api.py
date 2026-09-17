@@ -1,9 +1,8 @@
-from fastapi.testclient import TestClient
-
 from app.api.documents import get_document_ocr_service
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.document_ocr.models import DocumentOCRResult
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class FakePipeline:

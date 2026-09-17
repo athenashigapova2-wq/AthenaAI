@@ -6,8 +6,9 @@
 """
 
 from collections.abc import Iterable
+from typing import Any
 
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
 from app.tools import calendar as calendar_tools
@@ -30,7 +31,7 @@ READ_ONLY_TOOL_NAMES = frozenset(
 )
 
 
-def is_read_only_tool(tool: StructuredTool) -> bool:
+def is_read_only_tool(tool: BaseTool) -> bool:
     """Use explicit metadata; unknown tools default to non-retryable writes."""
     return bool((tool.metadata or {}).get("read_only", False))
 
@@ -57,13 +58,13 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
     enabled = set(domains or ("profile", "nutrition"))
     tools: list[StructuredTool] = []
 
-    def get_my_profile() -> dict:
+    def get_my_profile() -> dict[str, Any]:
         return profile_tools.get_profile(user_id)
 
-    def search_food(query: str) -> dict:
+    def search_food(query: str) -> dict[str, Any]:
         return nutrition_tools.search_food(query)
 
-    def get_daily_intake(day: str | None = None) -> dict:
+    def get_daily_intake(day: str | None = None) -> dict[str, Any]:
         return nutrition_tools.get_daily_intake(user_id, day)
 
     def log_meal(
@@ -74,12 +75,12 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
         fat_g: float,
         meal_type: str | None = None,
         day: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         return nutrition_tools.log_meal(
             user_id, name, calories, protein_g, carbs_g, fat_g, meal_type, day
         )
 
-    def get_workout_history(days: int = 14) -> dict:
+    def get_workout_history(days: int = 14) -> dict[str, Any]:
         return workout_tools.get_workout_history(user_id, days)
 
     def log_workout(
@@ -89,7 +90,7 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
         calories_burned: float | None = None,
         notes: str | None = None,
         day: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         exercise_rows = [exercise.model_dump(exclude_none=True) for exercise in exercises or []]
         return workout_tools.log_workout(
             user_id,
@@ -101,13 +102,13 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
             day,
         )
 
-    def get_recovery_logs(days: int = 14) -> dict:
+    def get_recovery_logs(days: int = 14) -> dict[str, Any]:
         return recovery_tools.get_recovery_logs(user_id, days)
 
-    def get_weight_trend(days: int = 30) -> dict:
+    def get_weight_trend(days: int = 30) -> dict[str, Any]:
         return recovery_tools.get_weight_trend(user_id, days)
 
-    def get_cycle_logs(days: int = 45) -> dict:
+    def get_cycle_logs(days: int = 45) -> dict[str, Any]:
         return calendar_tools.get_cycle_logs(user_id, days)
 
     if "profile" in enabled:

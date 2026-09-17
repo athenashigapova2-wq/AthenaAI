@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from langchain_core.embeddings import Embeddings
 
@@ -19,7 +20,7 @@ def retrieve_knowledge(
     domains: Sequence[KnowledgeDomain] | None = None,
     limit: int | None = None,
     min_similarity: float | None = None,
-    supabase=None,
+    supabase: Any = None,
     embeddings: Embeddings | None = None,
 ) -> list[RetrievedChunk]:
     """Run multilingual semantic search over approved, active knowledge chunks."""

@@ -1,9 +1,8 @@
 """Process-local context for an authenticated, confirmed write execution."""
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Iterator
-
 
 _idempotency_key: ContextVar[str | None] = ContextVar(
     "confirmed_write_idempotency_key",

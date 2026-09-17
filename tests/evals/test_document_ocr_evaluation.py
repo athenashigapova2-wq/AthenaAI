@@ -3,7 +3,6 @@ from pathlib import Path
 
 from app.document_ocr.evaluation import evaluate_dataset_fields, evaluate_fields
 
-
 DATASET = (
     Path(__file__).resolve().parents[2] / "backend" / "evaluation" / "document_ocr" / "dataset.json"
 )

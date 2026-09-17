@@ -10,6 +10,7 @@
 """
 
 from threading import Lock
+from typing import cast
 
 from langchain_core.embeddings import Embeddings
 
@@ -34,7 +35,7 @@ class LocalEmbeddings(Embeddings):
             show_progress_bar=False,
             batch_size=64,
         )
-        return vectors.tolist()
+        return cast(list[list[float]], vectors.tolist())
 
     def embed_query(self, text: str) -> list[float]:
         """Вектор для поискового запроса пользователя."""
@@ -42,7 +43,7 @@ class LocalEmbeddings(Embeddings):
             f"query: {text}",
             normalize_embeddings=True,
         )
-        return vector.tolist()
+        return cast(list[float], vector.tolist())
 
 
 _embeddings: Embeddings | None = None

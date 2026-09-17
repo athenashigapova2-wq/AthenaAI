@@ -1,14 +1,13 @@
 """Инструменты питания: справочник продуктов, дневник, запись еды."""
 
+import re
 from datetime import date as date_type
 from difflib import SequenceMatcher
-import re
 from typing import Any
 
 from app.services.supabase import get_supabase
 from app.tools.idempotent_writes import insert_idempotently
 from app.tools.write_context import require_idempotency_key
-
 
 _FOOD_NUTRIENT_COLUMNS = "food_name, calories_per_100g, protein_g, carbs_g, fat_g"
 

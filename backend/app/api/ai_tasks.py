@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.services.ai_tasks import AITaskService, UnsupportedAITaskError
 
-
 router = APIRouter(prefix="/ai/tasks", tags=["ai-tasks"])
 
 

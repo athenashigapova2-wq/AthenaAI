@@ -1,9 +1,7 @@
 """Thread-local Supabase client guarantees used by Celery thread workers."""
 
 import pytest
-
 from scripts import test_supabase_thread_local as client_checks
-
 
 pytestmark = pytest.mark.unit
 

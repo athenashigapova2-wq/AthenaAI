@@ -3,12 +3,10 @@
 from unittest.mock import patch
 
 import pytest
-
 from app.config import settings
 from app.evaluation.experiments import ExperimentAssignment, current_experiment
 from app.workers.tasks import run_agent_chat_task
 from scripts import test_fastapi as api_checks
-
 
 pytestmark = pytest.mark.integration
 

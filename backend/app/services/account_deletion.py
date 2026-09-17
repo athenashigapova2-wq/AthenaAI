@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from app.services.agent_jobs import JOB_KEY_PREFIX, redis_client
@@ -63,7 +63,7 @@ def _scrub_runtime_state(user_id: str) -> int:
         client = redis_client()
         affected = 0
         for key in client.scan_iter(match=f"{JOB_KEY_PREFIX}*", count=200):
-            record = client.hgetall(key)
+            record = cast(dict[str, str], client.hgetall(key))
             if record.get("user_id") != user_id:
                 continue
             job_id = str(key).removeprefix(JOB_KEY_PREFIX)
@@ -89,7 +89,7 @@ def _scrub_runtime_state(user_id: str) -> int:
                 # Keep a short content-free tombstone so an in-flight worker
                 # can still observe cooperative cancellation.
                 pipe.expire(key, 600)
-                pipe.execute()
+                pipe.execute()  # type: ignore[no-untyped-call]  # redis pipeline stub
             affected += 1
 
         action_keys: list[str] = []

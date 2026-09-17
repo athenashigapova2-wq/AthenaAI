@@ -2,13 +2,11 @@ from copy import deepcopy
 from unittest.mock import patch
 
 import pytest
-from langchain_core.tools import StructuredTool
-
 from app.agents.common.tool_executor import _trace_safe_result
 from app.services import write_confirmations
 from app.tools.idempotent_writes import IdempotencyConflictError, insert_idempotently
 from app.tools.write_context import require_idempotency_key
-
+from langchain_core.tools import StructuredTool
 
 pytestmark = pytest.mark.unit
 

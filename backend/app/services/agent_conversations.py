@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from app.resilience import retry_transient
 from app.config import settings
+from app.resilience import retry_transient
 from app.services.supabase import get_supabase
 
 

@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from simulation.longitudinal import (
     check_profiles_and_generation,
     replay_mock_agent,
@@ -11,7 +10,6 @@ from simulation.longitudinal import (
     write_reports,
 )
 from simulation.scenarios import SCENARIO_SELECTION_ENV, load_scenarios
-
 
 pytestmark = pytest.mark.simulation
 SCENARIOS = load_scenarios()

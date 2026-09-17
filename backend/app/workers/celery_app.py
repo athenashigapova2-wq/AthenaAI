@@ -29,7 +29,7 @@ celery_app.conf.update(
 )
 
 
-@worker_ready.connect
+@worker_ready.connect  # type: ignore[untyped-decorator]  # Celery signal has no typed decorator
 def preload_embeddings(**_: object) -> None:
     """Load embeddings before this worker starts consuming chat jobs."""
     logger.info("Preloading embedding model")

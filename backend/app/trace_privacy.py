@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -118,7 +118,7 @@ def payload_mode_for_run(run_id: str) -> TracePayloadMode:
 def payload_expiry(mode: TracePayloadMode) -> str | None:
     if mode == "none":
         return None
-    expires = datetime.now(timezone.utc) + timedelta(days=settings.trace_raw_payload_retention_days)
+    expires = datetime.now(UTC) + timedelta(days=settings.trace_raw_payload_retention_days)
     return expires.isoformat()
 
 

@@ -1,8 +1,8 @@
 """Run one agent turn independently from the HTTP and worker boundaries."""
 
 import logging
-from typing import Any
 from time import perf_counter
+from typing import Any
 
 from app.agents import graph as agent_graph
 from app.services import agent_conversations, agent_memory, agent_traces

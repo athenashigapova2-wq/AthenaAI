@@ -3,7 +3,6 @@
 from collections import Counter
 
 import pytest
-
 import scripts.eval_longitudinal_quality as live_evaluator
 from simulation.evaluation import (
     GoldCheckpointCase,
@@ -132,7 +131,8 @@ def test_hard_invariants_use_structured_tool_and_db_evidence() -> None:
 
 
 def test_hard_invariants_reject_fact_mismatch_and_unexpected_write() -> None:
-    records = _records() + [
+    records = [
+        *_records(),
         ToolCallRecord(step=3, name="log_meal", read_only=False, result={"ok": True})
     ]
     result = evaluate_hard_invariants(

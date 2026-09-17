@@ -7,9 +7,9 @@ delivery layers with reproducible responses.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import json
 import re
+from collections.abc import Sequence
 from time import sleep
 from typing import Any
 
@@ -45,7 +45,7 @@ class AthenaMockChatModel(BaseChatModel):
         self,
         tools: Sequence[Any],
         **kwargs: Any,
-    ) -> "AthenaMockChatModel":
+    ) -> AthenaMockChatModel:
         """Accept the production tool-binding contract without calling tools."""
         del kwargs
         names = tuple(filter(None, (_tool_name(tool) for tool in tools)))

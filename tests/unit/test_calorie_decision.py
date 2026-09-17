@@ -1,14 +1,12 @@
 """Deterministic contract tests for structured calorie decisions."""
 
 import pytest
-from pydantic import ValidationError
-
 from app.agents.nutrition.calorie_policy import (
     MIN_CALORIE_TARGET,
     _calorie_decision_tool,
 )
 from app.api.agent import AgentJobResponse
-
+from pydantic import ValidationError
 
 PROFILE = {
     "status": "ok",

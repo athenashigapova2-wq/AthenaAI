@@ -1,10 +1,9 @@
 """Repository-level checks for the ordered Supabase migration chain."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pytest
-
 
 pytestmark = pytest.mark.integration
 

@@ -1,5 +1,3 @@
-from fastapi.testclient import TestClient
-
 from app.api.nutrition import (
     get_habit_insight_service,
     get_meal_estimation_service,
@@ -8,6 +6,7 @@ from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.main import app
 from app.services.habit_analytics import HabitInsightResult
 from app.services.meal_estimation import MealEstimate
+from fastapi.testclient import TestClient
 
 
 class FakeMealService:

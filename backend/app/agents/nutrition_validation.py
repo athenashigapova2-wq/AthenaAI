@@ -9,11 +9,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES
 from pydantic import BaseModel, Field
 from scipy.optimize import lsq_linear
-
-from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES
-
 
 _RU_FOOD_NAMES = {
     "oats": "овсяные хлопья",
@@ -516,6 +514,7 @@ def fit_grounded_meal_portions(
     for attribute, target in zip(
         ("calories_per_100g", "protein_per_100g", "fat_per_100g", "carbs_per_100g"),
         target_values,
+        strict=True,
     ):
         nutrient_rows.append(
             [3.0 * float(getattr(item, attribute)) / 100.0 / target for item in flat]

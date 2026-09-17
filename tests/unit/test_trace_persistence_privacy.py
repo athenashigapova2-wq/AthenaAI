@@ -3,11 +3,10 @@
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from langchain_core.messages import AIMessage
-
 from app.config import settings
 from app.evaluation.experiments import ExperimentAssignment, experiment_context
 from app.services import agent_traces
+from langchain_core.messages import AIMessage
 
 
 def _query() -> Mock:

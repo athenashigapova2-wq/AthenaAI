@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ def load_ingestion_batch(
     """Load a JSON bundle and fill deterministic hashes/chunks when omitted."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     source = SourceManifestEntry.model_validate(payload["source"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     documents: list[DocumentInput] = []
     for raw_document in payload.get("documents", []):
         item = dict(raw_document)
@@ -95,11 +95,14 @@ def _source_payload(source: SourceManifestEntry) -> dict[str, Any]:
             "selection_notes": source.selection_notes,
             "verification_status": source.verification_status,
         },
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 
-def _ensure_registered_approved_source(supabase, source: SourceManifestEntry) -> dict[str, Any]:
+def _ensure_registered_approved_source(
+    supabase: Any,
+    source: SourceManifestEntry,
+) -> dict[str, Any]:
     """Require database-approved source identity; bundles cannot mutate governance."""
     response = (
         supabase.table("knowledge_sources")
@@ -149,7 +152,7 @@ def _ensure_registered_approved_source(supabase, source: SourceManifestEntry) ->
             f"source {source.slug!r} differs from its approved database record: "
             f"{', '.join(mismatches)}"
         )
-    return current
+    return dict(current)
 
 
 def _embed_chunks(
@@ -180,7 +183,7 @@ def ingest_batch(
     dry_run: bool = False,
     force: bool = False,
     batch_size: int = 64,
-    supabase=None,
+    supabase: Any = None,
     embeddings: Embeddings | None = None,
 ) -> IngestionResult:
     """Embed and atomically upsert each document in a validated batch.
@@ -284,7 +287,7 @@ def ingest_batch(
                 "status": "succeeded",
                 "documents_written": documents_written,
                 "chunks_written": chunks_written,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
                 "metadata": {"force": force, "documents_unchanged": documents_unchanged},
             }
         ).eq("id", run_id).execute()
@@ -295,7 +298,7 @@ def ingest_batch(
                 "documents_written": documents_written,
                 "chunks_written": chunks_written,
                 "error_message": f"{type(exc).__name__}: {exc}"[:2000],
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
             }
         ).eq("id", run_id).execute()
         raise

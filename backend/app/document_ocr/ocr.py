@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -47,7 +48,7 @@ class TesseractCLIBackend:
             source = Path(directory) / "page.png"
             source.write_bytes(image)
             try:
-                completed = subprocess.run(
+                completed = subprocess.run(  # noqa: S603 - argv list, shell is never used
                     [self.command, str(source), "stdout", "-l", language, "tsv"],
                     capture_output=True,
                     check=True,
@@ -176,6 +177,7 @@ class DocumentTextExtractor:
         if len(reader.pages) > settings.document_ocr_max_pdf_pages:
             raise UnsupportedDocumentError("PDF exceeds configured page limit")
         pages: list[OCRPage] = []
+        pdf_renderer: str | None = None
         with tempfile.TemporaryDirectory(prefix="athena-pdf-") as directory:
             source = Path(directory) / "source.pdf"
             source.write_bytes(content)
@@ -184,11 +186,14 @@ class DocumentTextExtractor:
                 if len(embedded) >= 40:
                     pages.append(OCRPage(page_number=index + 1, text=embedded, confidence=0.99))
                     continue
+                pdf_renderer = pdf_renderer or shutil.which("pdftoppm")
+                if pdf_renderer is None:
+                    raise OCRBackendError("PDF rendering requires the pdftoppm executable")
                 target = Path(directory) / f"page-{index + 1}"
                 try:
-                    subprocess.run(
+                    subprocess.run(  # noqa: S603 - resolved executable and fixed argv
                         [
-                            "pdftoppm",
+                            pdf_renderer,
                             "-f",
                             str(index + 1),
                             "-singlefile",

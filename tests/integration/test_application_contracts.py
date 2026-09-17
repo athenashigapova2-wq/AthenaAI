@@ -1,15 +1,14 @@
 """In-process contracts across FastAPI, Celery, the agent graph, and observability."""
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 from app.config import settings
 from scripts import test_agent_workers as worker_checks
 from scripts import test_fastapi as api_checks
 from scripts import test_jmeter_observability as observability_checks
 from scripts import test_load_tests as load_checks
 from scripts import test_mock_llm as mock_checks
-
 
 pytestmark = pytest.mark.integration
 

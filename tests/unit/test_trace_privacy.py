@@ -1,7 +1,6 @@
 """Deterministic checks for trace payload policy and redaction."""
 
 import pytest
-
 from app.config import Settings, settings
 from app.trace_privacy import (
     DataClassification,

@@ -3,12 +3,10 @@
 from unittest.mock import patch
 
 import pytest
-
 from app.config import settings
 from scripts import test_circuit_breaker as circuit_checks
 from scripts import test_rate_limiter as limiter_checks
 from scripts import test_retry_policy as retry_checks
-
 
 pytestmark = pytest.mark.unit
 

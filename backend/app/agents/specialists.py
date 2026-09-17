@@ -5,11 +5,9 @@ tool loops, tracing, and the general fallback agent.
 """
 
 import json
+from collections.abc import Sequence
+from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool, StructuredTool
-
-from app.ai_execution import ai_execution_service
 from app.agents.common.response_pipeline import _finalize_answer, _weight_trend_evidence
 from app.agents.common.tool_executor import _invoke_tool
 from app.agents.nutrition.agent import _required_nutrition_context, nutrition_node
@@ -24,6 +22,9 @@ from app.agents.prompts import GENERAL_SYSTEM, localized_system_prompt
 from app.agents.recovery.agent import _required_recovery_context, recovery_node
 from app.agents.state import AgentState
 from app.agents.workout.agent import workout_node
+from app.ai_execution import ai_execution_service
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import BaseTool, StructuredTool
 
 MAX_TOOL_STEPS = 6
 MAX_PLAN_SUBMISSIONS = 8
@@ -49,8 +50,8 @@ def _memory_messages(state: AgentState) -> list[SystemMessage]:
 def _invoke_tool_agent(
     state: AgentState,
     system_prompt: str,
-    tools: list[BaseTool],
-) -> dict:
+    tools: Sequence[BaseTool],
+) -> dict[str, Any]:
     """Run the shared bounded tool loop for one specialist route."""
     tools_by_name = {tool.name: tool for tool in tools}
     prepared = ai_execution_service.prepare(
@@ -205,7 +206,7 @@ def _invoke_tool_agent(
     }
 
 
-def general_node(state: AgentState) -> dict:
+def general_node(state: AgentState) -> dict[str, Any]:
     prompt = localized_system_prompt(GENERAL_SYSTEM, state["locale"])
     response = ai_execution_service.invoke(
         messages=[

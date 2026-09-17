@@ -6,11 +6,9 @@ import json
 from time import perf_counter
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from app.ai_execution import ai_execution_service
 from app.services import agent_traces
-
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Locale = Literal["ru", "en", "fr", "es", "zh"]
 Goal = Literal["lose_weight", "maintain", "gain_muscle", "recomp"]
@@ -120,7 +118,7 @@ class HealthMacroAdjustmentResult(StrictModel):
     disclaimer: str = Field(min_length=1, max_length=1_200)
 
     @model_validator(mode="after")
-    def macros_approximately_match_calories(self) -> "HealthMacroAdjustmentResult":
+    def macros_approximately_match_calories(self) -> HealthMacroAdjustmentResult:
         macro_calories = self.protein_g * 4 + self.carb_g * 4 + self.fat_g * 9
         if abs(macro_calories - self.adjusted_calories) / self.adjusted_calories > 0.25:
             raise ValueError("macro calories must be within 25% of adjusted_calories")

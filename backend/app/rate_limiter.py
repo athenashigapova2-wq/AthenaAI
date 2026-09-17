@@ -7,6 +7,7 @@ import math
 import re
 import time
 from functools import lru_cache
+from typing import Any, cast
 
 from redis import Redis
 from redis.exceptions import RedisError
@@ -89,13 +90,19 @@ def acquire_rate_limit(name: str) -> None:
     deadline = time.monotonic() + timeout
     while True:
         try:
-            result = redis_client().eval(
-                _ACQUIRE_SCRIPT,
-                1,
+            script_args: list[Any] = [
                 _key(name),
                 _interval_ms(),
                 settings.llm_rate_limit_burst,
                 _state_ttl_ms(),
+            ]
+            result = cast(
+                list[Any],
+                redis_client().eval(
+                    _ACQUIRE_SCRIPT,
+                    1,
+                    *script_args,
+                ),
             )
         except RedisError as error:
             logger.warning(

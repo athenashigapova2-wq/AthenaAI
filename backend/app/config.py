@@ -9,6 +9,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
+def _default_model_routing_policy() -> dict[str, Literal["small", "main"]]:
+    return {
+        "router.route_classification": "small",
+        "nutrition.food_translation": "small",
+        "memory.structured_extraction": "small",
+        "meal_estimation.parse_description": "small",
+        "meal_estimation.rerank_candidates": "small",
+        "habit_insight.generate_suggestion": "small",
+        "document_ocr.normalize_entities": "small",
+        "ai_task.daily_tip": "small",
+        "ai_task.meal_recommendations": "main",
+        "ai_task.workout_plan": "main",
+        "ai_task.health_macro_adjustment": "main",
+        "*": "main",
+    }
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Absolute path keeps scripts working whether they are launched from the
@@ -36,20 +53,7 @@ class Settings(BaseSettings):
     llm_router_model: str = ""
     llm_model_routing_enabled: bool = True
     llm_model_routing_policy: dict[str, Literal["small", "main"]] = Field(
-        default_factory=lambda: {
-            "router.route_classification": "small",
-            "nutrition.food_translation": "small",
-            "memory.structured_extraction": "small",
-            "meal_estimation.parse_description": "small",
-            "meal_estimation.rerank_candidates": "small",
-            "habit_insight.generate_suggestion": "small",
-            "document_ocr.normalize_entities": "small",
-            "ai_task.daily_tip": "small",
-            "ai_task.meal_recommendations": "main",
-            "ai_task.workout_plan": "main",
-            "ai_task.health_macro_adjustment": "main",
-            "*": "main",
-        }
+        default_factory=_default_model_routing_policy
     )
     agent_baseline_version: str = "baseline-v1"
 

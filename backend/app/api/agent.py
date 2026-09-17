@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from typing import Literal
+from collections.abc import AsyncIterator
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
@@ -11,8 +12,7 @@ from starlette.responses import StreamingResponse
 
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.evaluation.experiments import assign_active_experiment
-from app.services import agent_jobs, agent_traces
-from app.services import write_confirmations
+from app.services import agent_jobs, agent_traces, write_confirmations
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -171,7 +171,7 @@ def get_agent_job(
     return AgentJobResponse(**job)
 
 
-def _sse(event: str, data: dict) -> str:
+def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
@@ -190,9 +190,11 @@ async def stream_agent_job(
     if job is None:
         raise HTTPException(status_code=404, detail="Задание не найдено")
 
-    async def events():
+    async def events() -> AsyncIterator[str]:
         client = agent_jobs.redis_client()
-        pubsub = client.pubsub(ignore_subscribe_messages=True)
+        pubsub = client.pubsub(  # type: ignore[no-untyped-call]  # redis pubsub stub
+            ignore_subscribe_messages=True
+        )
         await asyncio.to_thread(pubsub.subscribe, agent_jobs.job_event_channel(job_id_text))
         try:
             current = agent_jobs.get_agent_job(job_id_text, user.user_id)
@@ -305,7 +307,7 @@ def reject_agent_write_action(
 @router.get("/privacy/traces/export")
 def export_agent_traces(
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Export only trace rows owned by the authenticated user."""
     return agent_traces.export_user_traces(user.user_id)
 

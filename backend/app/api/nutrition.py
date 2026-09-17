@@ -9,7 +9,6 @@ from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.services.habit_analytics import HabitInsightResult, HabitInsightService
 from app.services.meal_estimation import MealEstimate, MealEstimationService
 
-
 router = APIRouter(prefix="/nutrition", tags=["nutrition"])
 Locale = Literal["ru", "en", "fr", "es", "zh"]
 

@@ -3,10 +3,9 @@
 from unittest.mock import patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
-
 from app.ai_execution import AIExecutionService
 from app.config import settings
+from langchain_core.messages import AIMessage, HumanMessage
 
 
 class RecordingGateway:

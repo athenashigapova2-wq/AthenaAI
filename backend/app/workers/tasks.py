@@ -37,7 +37,7 @@ def _run_infrastructure_test_job(
     }
 
 
-@celery_app.task(name="athena.run_agent_chat")
+@celery_app.task(name="athena.run_agent_chat")  # type: ignore[untyped-decorator]
 def run_agent_chat_task(
     *,
     job_id: str,

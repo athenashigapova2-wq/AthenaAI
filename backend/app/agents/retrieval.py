@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from time import perf_counter
+from typing import Any
 
 from app.agents.state import AgentName, AgentState
 from app.rag.contracts import KnowledgeDomain
@@ -27,7 +28,7 @@ def _last_user_text(state: AgentState) -> str:
     return ""
 
 
-def retriever_node(state: AgentState) -> dict:
+def retriever_node(state: AgentState) -> dict[str, Any]:
     """Retrieve evidence without making chat availability depend on the RAG store."""
     trace_id = state.get("trace_id")
     if not state.get("rag_enabled", True):

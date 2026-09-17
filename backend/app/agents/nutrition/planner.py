@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-from langchain_core.tools import StructuredTool
-
 from app.agents.nutrition.constraints import (
     NutritionConstraintEngine,
     constraint_report_payload,
@@ -19,6 +17,7 @@ from app.agents.nutrition_validation import (
     render_grounded_plan,
 )
 from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES, lookup_food_reference
+from langchain_core.tools import StructuredTool
 
 logger = logging.getLogger(__name__)
 

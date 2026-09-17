@@ -5,12 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.ai_execution import ai_execution_service
 from app.agents.nutrition_validation import display_name_from_matched_food
+from app.ai_execution import ai_execution_service
 from app.services.supabase import get_supabase
-
+from pydantic import BaseModel, ConfigDict, Field
 
 Locale = Literal["ru", "en", "fr", "es", "zh"]
 

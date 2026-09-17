@@ -7,7 +7,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Literal, TypeVar
+from typing import Any, Literal, TypeVar, cast
 from uuid import uuid4
 
 from redis import Redis
@@ -195,14 +195,20 @@ def acquire_circuit(name: str) -> CircuitPermit:
 
     token = uuid4().hex
     try:
-        result = redis_client().eval(
-            _ACQUIRE_SCRIPT,
-            1,
+        script_args: list[Any] = [
             _key(name),
             token,
             int(settings.llm_circuit_breaker_recovery_timeout_seconds * 1_000),
             int(settings.llm_circuit_breaker_half_open_lease_seconds * 1_000),
             _state_ttl_ms(),
+        ]
+        result = cast(
+            list[Any],
+            redis_client().eval(
+                _ACQUIRE_SCRIPT,
+                1,
+                *script_args,
+            ),
         )
     except RedisError as error:
         logger.warning(
@@ -252,14 +258,20 @@ def record_circuit_failure(permit: CircuitPermit) -> None:
     if permit.state == "bypassed":
         return
     try:
-        state, failures = redis_client().eval(
-            _FAILURE_SCRIPT,
-            1,
+        script_args: list[Any] = [
             _key(permit.name),
             settings.llm_circuit_breaker_failure_threshold,
             _state_ttl_ms(),
             permit.state,
             permit.token,
+        ]
+        state, failures = cast(
+            list[Any],
+            redis_client().eval(
+                _FAILURE_SCRIPT,
+                1,
+                *script_args,
+            ),
         )
     except RedisError as error:
         logger.warning(

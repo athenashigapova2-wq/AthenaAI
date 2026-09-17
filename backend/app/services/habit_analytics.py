@@ -7,11 +7,9 @@ from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from app.ai_execution import ai_execution_service
 from app.services.supabase import get_supabase
-
+from pydantic import BaseModel, ConfigDict, Field
 
 Locale = Literal["ru", "en", "fr", "es", "zh"]
 

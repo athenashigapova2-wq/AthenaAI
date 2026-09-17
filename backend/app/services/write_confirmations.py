@@ -5,26 +5,26 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
-
-from redis.exceptions import RedisError
 
 from app.config import settings
 from app.services import agent_conversations, agent_traces
 from app.services.agent_jobs import QueueUnavailableError, redis_client
 from app.tools.registry import build_tools, is_read_only_tool
 from app.tools.write_context import confirmed_write_context
-
+from redis.exceptions import RedisError
 
 WRITE_ACTION_KEY_PREFIX = "athena:write-action:"
 IDEMPOTENCY_KEY_PREFIX = "athena:write-idempotency:"
 WRITE_LOCK_PREFIX = "athena:write-lock:"
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
+logger = logging.getLogger(__name__)
 
 
 class WriteActionConflictError(ValueError):
@@ -44,7 +44,7 @@ def _token_digest(token: str) -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _trace_tool_call(record: dict[str, str], tool_name: str, args: dict[str, Any]) -> str | None:
@@ -97,7 +97,7 @@ def stage_write_action(
         with client.pipeline() as pipe:
             pipe.hset(_action_key(action_id), mapping=record)
             pipe.expire(_action_key(action_id), settings.write_confirmation_ttl_seconds)
-            pipe.execute()
+            pipe.execute()  # type: ignore[no-untyped-call]  # redis pipeline stub
     except RedisError as exc:
         raise QueueUnavailableError("write confirmation store is unavailable") from exc
     return {
@@ -115,7 +115,7 @@ def stage_write_action(
 
 def _owned_action(action_id: str, user_id: str, token: str) -> dict[str, str] | None:
     try:
-        record = redis_client().hgetall(_action_key(action_id))
+        record = cast(dict[str, str], redis_client().hgetall(_action_key(action_id)))
     except RedisError as exc:
         raise QueueUnavailableError("write confirmation store is unavailable") from exc
     if not record or record.get("user_id") != user_id:
@@ -162,7 +162,7 @@ def confirm_write_action(
             )
 
         if record.get("status") == "confirmed" and record.get("result"):
-            replay = json.loads(record["result"])
+            replay = cast(dict[str, Any], json.loads(record["result"]))
             replay["idempotent_replay"] = True
             return replay
 
@@ -196,7 +196,7 @@ def confirm_write_action(
                         latency_ms=agent_traces.elapsed_ms(started_at),
                     )
                 except Exception:
-                    pass
+                    logger.warning("Could not persist failed write-tool trace", exc_info=True)
             raise
         if trace_call_id is not None:
             try:
@@ -207,7 +207,7 @@ def confirm_write_action(
                     latency_ms=agent_traces.elapsed_ms(started_at),
                 )
             except Exception:
-                pass
+                logger.warning("Could not persist successful write-tool trace", exc_info=True)
         response = {
             "status": "confirmed",
             "action_id": action_id,
@@ -234,13 +234,13 @@ def confirm_write_action(
                     else "The operation was confirmed and completed.",
                 )
             except Exception:
-                pass
+                logger.warning("Could not append write confirmation message", exc_info=True)
         return response
     finally:
         try:
             client.delete(f"{WRITE_LOCK_PREFIX}{action_id}")
         except RedisError:
-            pass
+            logger.warning("Could not release write confirmation lock", exc_info=True)
 
 
 def reject_write_action(

@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-from langchain_core.messages import AIMessage, HumanMessage
-
 from app.ai_execution import AIExecutionService
 from app.evaluation.experiments import (
     ExperimentDefinition,
@@ -12,6 +10,7 @@ from app.evaluation.experiments import (
     current_experiment,
     experiment_context,
 )
+from langchain_core.messages import AIMessage, HumanMessage
 
 
 def _definition() -> ExperimentDefinition:

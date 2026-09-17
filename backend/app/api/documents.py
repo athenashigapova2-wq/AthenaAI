@@ -14,7 +14,6 @@ from app.document_ocr import DocumentOCRService
 from app.document_ocr.models import DocumentOCRResult
 from app.document_ocr.ocr import OCRBackendError, UnsupportedDocumentError
 
-
 router = APIRouter(prefix="/documents", tags=["documents"])
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",

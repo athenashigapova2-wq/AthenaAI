@@ -3,13 +3,12 @@
 from time import perf_counter
 from typing import Any
 
-from langchain_core.tools import BaseTool
-
 from app.agents.state import AgentState
 from app.resilience import retry_transient
 from app.services import agent_jobs, agent_traces
 from app.services.write_confirmations import stage_write_action
 from app.tools.registry import is_read_only_tool
+from langchain_core.tools import BaseTool
 
 
 def _normalize_tool_call_keys(value: Any) -> Any:

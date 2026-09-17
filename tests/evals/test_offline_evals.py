@@ -1,9 +1,7 @@
 """Deterministic evals that never call a model provider or remote tool."""
 
 import pytest
-
 from scripts import eval_agents, eval_tool_selection, eval_write_safety
-
 
 pytestmark = pytest.mark.eval
 

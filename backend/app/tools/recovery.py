@@ -1,6 +1,7 @@
 """Recovery tools: health check-ins and body-weight trend."""
 
-from datetime import date as date_type, timedelta
+from datetime import date as date_type
+from datetime import timedelta
 from typing import Any
 
 from app.services.supabase import get_supabase

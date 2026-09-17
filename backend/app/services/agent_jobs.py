@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from app.config import settings
@@ -19,6 +19,45 @@ JOB_EVENT_CHANNEL_PREFIX = "athena:agent-job-events:"
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 _current_job_id: ContextVar[str | None] = ContextVar("agent_job_id", default=None)
 logger = logging.getLogger(__name__)
+
+_UPDATE_JOB_SCRIPT = """
+if redis.call('EXISTS', KEYS[1]) == 0 then
+    return 0
+end
+local current_status = redis.call('HGET', KEYS[1], 'status')
+if current_status == 'cancelled' and ARGV[1] ~= 'cancelled' then
+    return 0
+end
+for index = 3, #ARGV, 2 do
+    redis.call('HSET', KEYS[1], ARGV[index], ARGV[index + 1])
+end
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+return 1
+"""
+
+_CANCEL_JOB_SCRIPT = """
+if redis.call('EXISTS', KEYS[1]) == 0 then
+    return -1
+end
+if redis.call('HGET', KEYS[1], 'user_id') ~= ARGV[1] then
+    return -1
+end
+local current_status = redis.call('HGET', KEYS[1], 'status')
+if current_status == 'succeeded'
+    or current_status == 'failed'
+    or current_status == 'cancelled' then
+    return 0
+end
+redis.call(
+    'HSET', KEYS[1],
+    'status', 'cancelled',
+    'stage', 'cancelled',
+    'cancel_requested', '1',
+    'updated_at', ARGV[2]
+)
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+return 1
+"""
 
 
 class QueueUnavailableError(Exception):
@@ -93,7 +132,7 @@ def enqueue_agent_job(
                 },
             )
             pipe.expire(key, settings.agent_job_ttl_seconds)
-            pipe.execute()
+            pipe.execute()  # type: ignore[no-untyped-call]  # redis pipeline stub
         run_agent_chat_task.apply_async(
             kwargs={
                 "job_id": job_id,
@@ -126,7 +165,7 @@ def enqueue_agent_job(
 
 def get_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
     try:
-        record = redis_client().hgetall(_job_key(job_id))
+        record = cast(dict[str, str], redis_client().hgetall(_job_key(job_id)))
     except RedisError as exc:
         raise QueueUnavailableError("Redis job store is unavailable") from exc
     # Return the same response for missing and foreign jobs to avoid leaking IDs.
@@ -153,7 +192,7 @@ def get_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
 
 def mark_job_running(job_id: str) -> int:
     """Mark worker start and return HTTP-to-worker queue latency."""
-    created_at = redis_client().hget(_job_key(job_id), "created_at")
+    created_at = cast(str | None, redis_client().hget(_job_key(job_id), "created_at"))
     queue_latency_ms = 0
     if created_at:
         queued = datetime.fromisoformat(created_at)
@@ -198,17 +237,23 @@ def cancel_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
     client = redis_client()
     key = _job_key(job_id)
     try:
-        record = client.hgetall(key)
-        if not record or record.get("user_id") != user_id:
-            return None
-        if record.get("status") not in TERMINAL_STATUSES:
-            _update_job(
-                job_id,
-                status="cancelled",
-                stage="cancelled",
-                cancel_requested="1",
-                event="cancelled",
+        transition = int(
+            cast(
+                int | str,
+                client.eval(
+                    _CANCEL_JOB_SCRIPT,
+                    1,
+                    key,
+                    user_id,
+                    _now(),
+                    str(settings.agent_job_ttl_seconds),
+                ),
             )
+        )
+        if transition == -1:
+            return None
+        if transition == 1:
+            _publish_event(job_id, "cancelled")
             from app.workers.celery_app import celery_app
 
             try:
@@ -224,7 +269,10 @@ def cancel_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
 
 def job_is_cancelled(job_id: str) -> bool:
     try:
-        record = redis_client().hmget(_job_key(job_id), "status", "cancel_requested")
+        record = cast(
+            list[str | None],
+            redis_client().hmget(_job_key(job_id), ["status", "cancel_requested"]),
+        )
     except RedisError as exc:
         raise QueueUnavailableError("Redis job store is unavailable") from exc
     return record[0] == "cancelled" or record[1] == "1"
@@ -253,7 +301,7 @@ def raise_if_current_job_cancelled() -> None:
 
 
 def _publish_event(job_id: str, event: str, details: dict[str, Any] | None = None) -> None:
-    job = redis_client().hgetall(_job_key(job_id))
+    job = cast(dict[str, str], redis_client().hgetall(_job_key(job_id)))
     payload: dict[str, Any] = {
         "job_id": job_id,
         "trace_id": job.get("trace_id") or job_id,
@@ -284,12 +332,14 @@ def _update_job(
     fields["updated_at"] = _now()
     key = _job_key(job_id)
     client = redis_client()
-    current_status = client.hget(key, "status")
-    if current_status == "cancelled" and fields.get("status") != "cancelled":
+    arguments = [
+        fields.get("status", ""),
+        str(settings.agent_job_ttl_seconds),
+    ]
+    for name, value in fields.items():
+        arguments.extend((name, value))
+    updated = int(cast(int | str, client.eval(_UPDATE_JOB_SCRIPT, 1, key, *arguments)))
+    if updated == 0:
         raise AgentJobCancelledError("Agent job was cancelled")
-    with client.pipeline() as pipe:
-        pipe.hset(key, mapping=fields)
-        pipe.expire(key, settings.agent_job_ttl_seconds)
-        pipe.execute()
     if event is not None:
         _publish_event(job_id, event, event_details)

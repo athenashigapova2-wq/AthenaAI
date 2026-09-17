@@ -1,9 +1,7 @@
 """Live scenario quality suite; excluded unless both opt-in gates are enabled."""
 
 import pytest
-
 from scripts.eval_longitudinal_quality import run
-
 
 pytestmark = pytest.mark.live
 

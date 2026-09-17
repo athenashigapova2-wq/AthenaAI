@@ -1,5 +1,4 @@
 import pytest
-
 from app.document_ocr.ocr import TextractOCRBackend, UnsupportedOCRLanguageError
 
 

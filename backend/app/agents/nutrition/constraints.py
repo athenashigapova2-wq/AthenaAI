@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from app.agents.nutrition_validation import (
     FoodDiversityAssessment,

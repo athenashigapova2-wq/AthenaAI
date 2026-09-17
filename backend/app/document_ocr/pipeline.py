@@ -12,7 +12,6 @@ from app.document_ocr.models import DocumentOCRResult, ExtractedDocument
 from app.document_ocr.ocr import DocumentTextExtractor
 from app.document_ocr.validation import calculate_confidence, validate_consistency
 
-
 StructuredInvoker = Callable[..., BaseModel]
 
 

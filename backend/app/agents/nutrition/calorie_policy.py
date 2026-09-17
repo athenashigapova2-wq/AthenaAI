@@ -2,12 +2,11 @@
 
 from typing import Any, Literal
 
-from langchain_core.tools import StructuredTool
-
 from app.agents.common.response_pipeline import (
     _sanitize_internal_notation,
     _weight_trend_dates,
 )
+from langchain_core.tools import StructuredTool
 
 MIN_CALORIE_TARGET = 1_200.0
 

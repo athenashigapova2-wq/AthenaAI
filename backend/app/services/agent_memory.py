@@ -7,20 +7,19 @@ their evidence is present in the current user message.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 import json
 import logging
 import re
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
-
-from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.ai_execution import ai_execution_service
 from app.config import settings
 from app.resilience import retry_transient
 from app.services.supabase import get_supabase
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 

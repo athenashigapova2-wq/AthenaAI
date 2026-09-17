@@ -1,9 +1,8 @@
-from fastapi.testclient import TestClient
-from pydantic import BaseModel
-
 from app.api.ai_tasks import get_ai_task_service
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.main import app
+from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 
 class FakeResult(BaseModel):

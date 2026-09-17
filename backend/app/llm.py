@@ -9,8 +9,8 @@ from functools import lru_cache
 from langchain_core.language_models import BaseChatModel
 
 from app.config import settings
-from app.model_routing import ModelSelection
 from app.mock_llm import AthenaMockChatModel
+from app.model_routing import ModelSelection
 
 
 @lru_cache(maxsize=8)

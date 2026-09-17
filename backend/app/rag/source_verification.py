@@ -1,10 +1,9 @@
 """Pure helpers for collecting source identity evidence without approving rights."""
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html.parser import HTMLParser
-from urllib.parse import urlparse
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -23,7 +22,7 @@ class _LinkParser(HTMLParser):
         super().__init__()
         self.links: list[str] = []
 
-    def handle_starttag(self, tag: str, attrs) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() != "a":
             return
         href = dict(attrs).get("href")
@@ -93,7 +92,7 @@ def build_evidence(
         external_id=candidate.external_id,
         requested_url=candidate.canonical_url,
         final_url=final_url,
-        verified_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
         status_code=response.status_code,
         content_type=content_type,
         content_length=len(response.content),

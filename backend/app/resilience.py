@@ -143,7 +143,11 @@ def retry_transient(
                 max_delay,
                 base_delay * (2 ** (attempt - 1)),
             )
-            jitter = random.uniform(0.0, backoff * settings.safe_retry_jitter_ratio)
+            # Retry jitter is scheduling noise, not a security token.
+            jitter = random.uniform(  # noqa: S311
+                0.0,
+                backoff * settings.safe_retry_jitter_ratio,
+            )
             delay = min(max_delay, backoff + jitter)
             if is_rate_limit:
                 provider_delay = retry_after_seconds(error)

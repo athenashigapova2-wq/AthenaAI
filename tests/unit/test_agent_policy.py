@@ -1,13 +1,12 @@
 """Core routing, tool-boundary, and nutrition safety checks."""
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 from app.config import settings
 from scripts import test_agent_architecture as architecture_checks
 from scripts import test_model_routing as routing_checks
 from scripts import test_nutrition_guardrails as nutrition_checks
-
 
 pytestmark = pytest.mark.unit
 

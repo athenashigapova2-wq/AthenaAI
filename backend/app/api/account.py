@@ -32,7 +32,7 @@ class AccountDeletionResponse(BaseModel):
 @router.delete("", response_model=AccountDeletionResponse)
 def delete_account(
     request: AccountDeletionRequest,
-    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> AccountDeletionResponse:
     """Permanently delete the caller's Auth identity and owned data."""
     if not user.email or not hmac.compare_digest(

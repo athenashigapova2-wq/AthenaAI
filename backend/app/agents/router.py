@@ -3,13 +3,12 @@
 import logging
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, ConfigDict, ValidationError
-
 from app.agents.prompts import ROUTER_SYSTEM
 from app.agents.state import AgentName, AgentState
 from app.ai_execution import ai_execution_service
 from app.services import agent_traces
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 logger = logging.getLogger(__name__)
 

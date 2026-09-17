@@ -57,14 +57,14 @@ def insert_idempotently(
     }
     try:
         response = client.table(table_name).insert(stored_payload).execute()
-    except Exception:
+    except Exception as exc:
         existing = _existing_row(client, table_name, user_id, idempotency_key)
         if existing is None:
             raise
         if existing.get("idempotency_fingerprint") != fingerprint:
             raise IdempotencyConflictError(
                 "idempotency key was already used with a different payload"
-            )
+            ) from exc
         return existing, True
 
     rows = response.data or []

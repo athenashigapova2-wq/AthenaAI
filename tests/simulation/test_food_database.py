@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES, lookup_food_reference
 from simulation.food_database import TestFoodDatabase as FoodDatabase
 

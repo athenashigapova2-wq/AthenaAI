@@ -8,7 +8,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 DocumentKind = Literal["receipt", "invoice", "unknown"]
 
 
