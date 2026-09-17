@@ -3,8 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "dev": "vite",
+    "bootstrap": "powershell -NoProfile -ExecutionPolicy RemoteSigned -File ./scripts/bootstrap.ps1",
+    "dev": "vite --configLoader runner --host 127.0.0.1 --port 5175 --strictPort",
     "build": "vite build --configLoader runner",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",

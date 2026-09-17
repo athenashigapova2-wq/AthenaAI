@@ -112,7 +112,31 @@ test("login and chat have no serious accessibility violations", async ({ page })
   expect(results.violations.filter((item) => ["serious", "critical"].includes(item.impact))).toEqual([]);
 });
 
-test.fixme("write tool confirmation blocks execution until explicit approval", async () => {
-  // The current API executes write tools inside the Celery job before the client can approve them.
-  // Keep this executable specification visible until a confirmation token/endpoint is introduced.
+test("login → proposed meal write → confirmation → read-after-write", async ({ page }) => {
+  const state = createMockState({ writeConfirmationFlow: true });
+  await installMockServices(page, state);
+  await login(page);
+  await page.goto("/chat");
+
+  const composer = page.getByPlaceholder("Ask your coach…");
+  await composer.fill("Log oatmeal for breakfast");
+  await composer.press("Enter");
+
+  const confirmation = page.getByRole("region", { name: "Confirm this write" });
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation).toContainText("log_meal");
+  await expect(confirmation).toContainText("Oatmeal");
+  expect(state.meals).toHaveLength(0);
+  expect(state.writeExecutions).toBe(0);
+
+  await confirmation.getByRole("button", { name: "Confirm" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect.poll(() => state.writeExecutions).toBe(1);
+  expect(state.writeConfirmationRequests).toBe(1);
+  expect(state.meals).toHaveLength(1);
+
+  await composer.fill("What did I eat today?");
+  await composer.press("Enter");
+  await expect(page.getByText("Today you logged Oatmeal: 420 kcal.")).toBeVisible();
+  expect(state.meals).toHaveLength(1);
 });

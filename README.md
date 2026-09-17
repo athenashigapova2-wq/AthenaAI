@@ -63,30 +63,36 @@ Click
 ### Requirements
 
 - Git;
-- Node.js 22 and npm;
-- Python 3.11;
+- Node.js 22 and npm (`.nvmrc` is included);
+- Python 3.11 (the CI/Docker version; local bootstrap also accepts 3.12-3.13);
 - Docker Desktop with Linux containers;
 - a Supabase project;
 - a GigaChat credential only for intentional live-provider runs.
 
-### 1. Clone and install
+### 1. Clone and bootstrap
 
 ```powershell
 git clone https://github.com/athenashigapova2-wq/AthenaAI.git
 cd AthenaAI
-npm ci
-python -m venv .venv
-& ".\.venv\Scripts\Activate.ps1"
-python -m pip install -r ".\backend\requirements-dev.txt"
+npm run bootstrap
 ```
 
-### 2. Configure local environment files
+The bootstrap is safe to run again: it reuses `.venv`, installs the locked
+frontend and backend dependencies, and creates missing local environment files
+without overwriting existing values or secrets.
+
+The equivalent manual setup is:
 
 ```powershell
 Copy-Item .env.example .env
 Copy-Item backend/.env.example backend/.env
 Copy-Item observability/.env.example observability/.env
+npm ci
+python -m venv .venv
+& ".\.venv\Scripts\python.exe" -m pip install -r ".\backend\requirements-dev.txt"
 ```
+
+### 2. Configure local environment files
 
 Frontend `.env` example:
 
@@ -149,7 +155,7 @@ The worker may remain in `health: starting` while its local embedding model is d
 ### 5. Start the web client
 
 ```powershell
-npm run dev -- --host 127.0.0.1 --port 5175
+npm run dev
 ```
 
 Open `http://127.0.0.1:5175`, register or sign in through Supabase, and send a message. With the mock provider, a successful response begins with text similar to:
@@ -208,7 +214,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser suite covers login and onboarding, chat, meal logging, expired JWTs, worker failures, duplicate submissions, conversation switching, mobile layout, and accessibility. The write-confirmation browser case is currently skipped and must not be counted as passing coverage.
+The browser suite covers login and onboarding, chat, meal logging, expired JWTs, worker failures, duplicate submissions, conversation switching, mobile layout, and accessibility. Its write-confirmation golden path verifies that a proposed `log_meal` action does not write before approval, executes once after approval, and is returned by the next “today” query.
 
 The default pytest configuration never runs a real provider. Offline longitudinal scenarios use frozen dates, in-memory data, and the deterministic mock:
 

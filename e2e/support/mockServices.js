@@ -49,6 +49,12 @@ export function createMockState(overrides = {}) {
     conversations: [],
     messages: {},
     chatPosts: 0,
+    chatRequests: [],
+    jobs: {},
+    writeConfirmationRequests: 0,
+    writeExecutions: 0,
+    writeResultsByIdempotencyKey: {},
+    writeConfirmationFlow: false,
     chatFailure: null,
     chatDelayMs: 0,
     ...overrides,
@@ -117,7 +123,11 @@ export async function installMockServices(page, state) {
   await page.route(/.*(?:agent-api|127\.0\.0\.1:8001)\/api\/v1\/agent\/chat$/, async (route) => {
     if (state.chatDelayMs) await new Promise((resolve) => setTimeout(resolve, state.chatDelayMs));
     state.chatPosts += 1;
-    return json(route, { job_id: `job-${state.chatPosts}`, status: "queued" }, 202);
+    const jobId = `job-${state.chatPosts}`;
+    const payload = route.request().postDataJSON();
+    state.chatRequests.push(payload);
+    state.jobs[jobId] = payload;
+    return json(route, { job_id: jobId, status: "queued" }, 202);
   });
   await page.route(/.*(?:agent-api|127\.0\.0\.1:8001)\/api\/v1\/agent\/chat\/jobs\/[^/]+\/events$/, async (route) => {
     if (state.chatFailure) {
@@ -127,19 +137,86 @@ export async function installMockServices(page, state) {
         body: `event: failed\ndata: ${JSON.stringify({ status: "failed", error: state.chatFailure })}\n\n`,
       });
     }
-    const conversationId = state.conversations[0]?.id || "conversation-e2e";
+    const jobId = new URL(route.request().url()).pathname.split("/").at(-2);
+    const request = state.jobs[jobId] || {};
+    const conversationId = request.conversation_id || state.conversations[0]?.id || "conversation-e2e";
     if (!state.conversations.length) state.conversations.push({ id: conversationId, user_id: state.user.id, title: "E2E chat" });
-    state.messages[conversationId] = [
-      { id: "assistant-e2e", role: "assistant", content: "Deterministic coach response" },
-    ];
+    const messages = state.messages[conversationId] || [];
+    messages.push({ id: `user-${jobId}`, role: "user", content: request.message || "" });
+
+    let answer = "Deterministic coach response";
+    let pendingWriteAction;
+    if (state.writeConfirmationFlow && /log.+oatmeal/i.test(request.message || "")) {
+      answer = "I prepared an oatmeal entry. Please confirm before it is saved.";
+      pendingWriteAction = {
+        action_id: "11111111-1111-4111-8111-111111111111",
+        confirmation_token: "e2e-confirmation-token-12345",
+        tool_name: "log_meal",
+        preview: {
+          name: "Oatmeal",
+          meal_type: "breakfast",
+          calories: 420,
+          protein_g: 22,
+          carbs_g: 58,
+          fat_g: 12,
+        },
+        expires_at: "2099-01-01T00:00:00Z",
+      };
+    } else if (state.writeConfirmationFlow && /today/i.test(request.message || "")) {
+      const meal = state.meals[0];
+      answer = meal
+        ? `Today you logged ${meal.name}: ${meal.calories} kcal.`
+        : "You have no meals logged today.";
+    }
+    messages.push({ id: `assistant-${jobId}`, role: "assistant", content: answer });
+    state.messages[conversationId] = messages;
+    const completed = {
+      status: "succeeded",
+      conversation_id: conversationId,
+      answer,
+      ...(pendingWriteAction ? { pending_write_action: pendingWriteAction } : {}),
+    };
     return route.fulfill({
       status: 200,
       contentType: "text/event-stream",
       body: [
         'event: running\ndata: {"status":"running"}\n\n',
-        `event: completed\ndata: ${JSON.stringify({ status: "succeeded", conversation_id: conversationId, answer: "Deterministic coach response" })}\n\n`,
+        `event: completed\ndata: ${JSON.stringify(completed)}\n\n`,
       ].join(""),
     });
+  });
+  await page.route(/.*(?:agent-api|127\.0\.0\.1:8001)\/api\/v1\/agent\/write-actions\/[^/]+\/confirm$/, async (route) => {
+    state.writeConfirmationRequests += 1;
+    const request = route.request();
+    const idempotencyKey = request.headers()["idempotency-key"];
+    const existing = state.writeResultsByIdempotencyKey[idempotencyKey];
+    if (existing) return json(route, { ...existing, idempotent_replay: true });
+
+    const actionId = new URL(request.url()).pathname.split("/").at(-2);
+    const meal = {
+      id: `meal-${state.meals.length + 1}`,
+      user_id: state.user.id,
+      date: "2026-08-24",
+      name: "Oatmeal",
+      meal_type: "breakfast",
+      calories: 420,
+      protein_g: 22,
+      carbs_g: 58,
+      fat_g: 12,
+    };
+    state.meals.push(meal);
+    state.writeExecutions += 1;
+    const result = {
+      status: "confirmed",
+      action_id: actionId,
+      tool_name: "log_meal",
+      tool_result: meal,
+      idempotency_key: idempotencyKey,
+      idempotent_replay: false,
+      conversation_id: state.conversations[0]?.id || "conversation-e2e",
+    };
+    state.writeResultsByIdempotencyKey[idempotencyKey] = result;
+    return json(route, result);
   });
   await page.route(/.*(?:agent-api|127\.0\.0\.1:8001)\/api\/v1\/agent\/chat\/jobs\/[^/]+\/cancel$/, (route) => json(route, { status: "cancelled" }));
 }

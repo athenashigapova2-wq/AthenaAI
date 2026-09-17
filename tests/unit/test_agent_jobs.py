@@ -86,6 +86,57 @@ def test_worker_update_cannot_recreate_expired_job() -> None:
     client.hset.assert_not_called()
 
 
+def test_succeeded_state_remains_authoritative_when_event_publish_fails() -> None:
+    client = MagicMock()
+    client.eval.return_value = 1
+
+    with (
+        patch("app.services.agent_jobs.redis_client", return_value=client),
+        patch(
+            "app.services.agent_jobs._publish_event",
+            side_effect=RedisError("pubsub unavailable"),
+        ),
+    ):
+        agent_jobs.mark_job_succeeded("job-1", {"answer": "finished"})
+
+    client.eval.assert_called_once()
+    assert client.eval.call_args.args[3] == "succeeded"
+    assert "failed" not in client.eval.call_args.args[4:]
+
+
+def test_worker_does_not_fail_completed_job_when_success_event_publish_fails() -> None:
+    client = MagicMock()
+    client.eval.return_value = 1
+
+    with (
+        patch.object(agent_jobs.settings, "agent_infrastructure_test_mode", True),
+        patch.object(agent_jobs.settings, "llm_provider", "mock"),
+        patch("app.workers.tasks.resolve_assignment", return_value=None),
+        patch("app.workers.tasks.raise_if_current_job_cancelled"),
+        patch("app.workers.tasks.mark_job_running", return_value=0),
+        patch("app.workers.tasks.publish_current_job_progress"),
+        patch("app.workers.tasks.mark_job_failed") as mark_failed,
+        patch("app.services.agent_jobs.redis_client", return_value=client),
+        patch(
+            "app.services.agent_jobs._publish_event",
+            side_effect=RedisError("pubsub unavailable"),
+        ),
+    ):
+        from app.workers.tasks import run_agent_chat_task
+
+        run_agent_chat_task.run(
+            job_id="job-1",
+            user_id="user-1",
+            message="hello",
+            locale="en",
+            conversation_id=None,
+        )
+
+    mark_failed.assert_not_called()
+    client.eval.assert_called_once()
+    assert client.eval.call_args.args[3] == "succeeded"
+
+
 def test_cancel_atomically_transitions_owned_active_job() -> None:
     client = MagicMock()
     client.eval.return_value = 1
@@ -133,6 +184,31 @@ def test_cancel_does_not_overwrite_job_that_completed_first() -> None:
     assert result["answer"] == "finished"
     publish_event.assert_not_called()
     revoke.assert_not_called()
+
+
+def test_cancel_state_remains_authoritative_when_event_publish_fails() -> None:
+    client = MagicMock()
+    client.eval.return_value = 1
+    client.hgetall.return_value = {
+        "user_id": "user-1",
+        "status": "cancelled",
+        "stage": "cancelled",
+        "trace_id": "trace-1",
+    }
+
+    with (
+        patch("app.services.agent_jobs.redis_client", return_value=client),
+        patch(
+            "app.services.agent_jobs._publish_event",
+            side_effect=RedisError("pubsub unavailable"),
+        ),
+        patch("app.workers.celery_app.celery_app.control.revoke") as revoke,
+    ):
+        result = agent_jobs.cancel_agent_job("job-1", "user-1")
+
+    assert result is not None
+    assert result["status"] == "cancelled"
+    revoke.assert_called_once_with("job-1", terminate=False)
 
 
 def test_cancel_hides_missing_and_foreign_jobs() -> None:

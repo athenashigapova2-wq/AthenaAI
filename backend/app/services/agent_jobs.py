@@ -253,7 +253,14 @@ def cancel_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
         if transition == -1:
             return None
         if transition == 1:
-            _publish_event(job_id, "cancelled")
+            try:
+                _publish_event(job_id, "cancelled")
+            except RedisError:
+                logger.warning(
+                    "Could not publish cancelled event for job %s after durable update",
+                    job_id,
+                    exc_info=True,
+                )
             from app.workers.celery_app import celery_app
 
             try:
@@ -342,4 +349,14 @@ def _update_job(
     if updated == 0:
         raise AgentJobCancelledError("Agent job was cancelled")
     if event is not None:
-        _publish_event(job_id, event, event_details)
+        try:
+            _publish_event(job_id, event, event_details)
+        except RedisError:
+            # The hash update is authoritative. Subscribers reconnecting after
+            # a transient Pub/Sub failure receive the current durable state.
+            logger.warning(
+                "Could not publish %s event for job %s after durable update",
+                event,
+                job_id,
+                exc_info=True,
+            )
