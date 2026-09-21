@@ -28,10 +28,10 @@ def _checkpoint() -> ScenarioCheckpoint:
     return ScenarioCheckpoint.model_validate(
         {
             "checkpoint_id": "quality-d7",
-            "day": 7,
-            "time": "09:00",
+            "day": 83,
+            "time": "15:00",
             "conversation_id": "quality",
-            "turn": 1,
+            "turn": 5,
             "message": "Составь план питания",
             "expected_route": "nutrition",
             "expected_tools": ["get_my_profile", "submit_daily_nutrition_plan"],
@@ -81,7 +81,7 @@ def _records() -> list[ToolCallRecord]:
 def _gold_case() -> GoldCheckpointCase:
     return GoldCheckpointCase(
         scenario_id="anna_14d_v1",
-        checkpoint_id="anna_d7",
+        checkpoint_id="anna_d83",
         category="longitudinal_reasoning",
         language="ru",
         persona=GoldPersona(
@@ -149,6 +149,7 @@ def test_hard_invariants_reject_fact_mismatch_and_unexpected_write() -> None:
     )
 
     assert result["passed"] is False
+    assert result["failed"] is True
     assert result["checks"]["actual_db_values"] is False
     assert result["checks"]["tool_permissions"] is False
     assert result["checks"]["db_writes"] is False
