@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { Button } from '@/components/ui/button';
 import { Droplet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 const SYMPTOM_OPTIONS = ['Спазмы', 'Головная боль', 'Перепады настроения', 'Вздутие', 'Чувствительность груди', 'Усталость', 'Акне'];
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -24,6 +25,7 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
   const [symptoms, setSymptoms] = useState([]);
   const [intimacy, setIntimacy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const savingRef = useRef(false);
 
   const loadLogs = useCallback(async () => {
     if (!profile?.cycle_tracking_enabled) return;
@@ -33,7 +35,11 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
     setLogsByDate(map);
   }, [profile?.cycle_tracking_enabled]);
 
-  useEffect(() => { loadLogs(); }, [loadLogs]);
+  useEffect(() => {
+    loadLogs().catch(() => {
+      toast({ title: 'Не удалось загрузить записи цикла', variant: 'destructive' });
+    });
+  }, [loadLogs]);
 
   useEffect(() => {
     const log = logsByDate[selectedDate];
@@ -47,6 +53,8 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
   };
 
   const respondToOffer = async (accept) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const updated = await entities.UserProfile.update(profile.id, {
@@ -54,30 +62,60 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
         cycle_tracking_offered: true,
       });
       onProfileUpdate(updated);
+    } catch (error) {
+      toast({
+        title: 'Не удалось сохранить настройку',
+        description: error instanceof Error ? error.message : 'Попробуйте ещё раз',
+        variant: 'destructive',
+      });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const toggleTracking = async () => {
+    if (savingRef.current) return;
     if (profile.cycle_tracking_enabled) {
       if (!window.confirm('Отключить отслеживание цикла? Уже сохранённые записи не удалятся.')) return;
     }
-    const updated = await entities.UserProfile.update(profile.id, {
-      cycle_tracking_enabled: !profile.cycle_tracking_enabled,
-      cycle_tracking_offered: true,
-    });
-    onProfileUpdate(updated);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const updated = await entities.UserProfile.update(profile.id, {
+        cycle_tracking_enabled: !profile.cycle_tracking_enabled,
+        cycle_tracking_offered: true,
+      });
+      onProfileUpdate(updated);
+    } catch (error) {
+      toast({
+        title: 'Не удалось изменить настройку',
+        description: error instanceof Error ? error.message : 'Попробуйте ещё раз',
+        variant: 'destructive',
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const saveDay = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const row = await entities.CycleLog.upsert({ date: selectedDate, flow, symptoms, intimacy });
       setLogsByDate((prev) => ({ ...prev, [selectedDate]: row }));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      toast({
+        title: 'Не удалось сохранить запись',
+        description: error instanceof Error ? error.message : 'Данные остались в форме. Попробуйте ещё раз',
+        variant: 'destructive',
+      });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -126,6 +164,7 @@ export default function CycleTracker({ profile, onProfileUpdate }) {
         {/* Явный переключатель, всегда на виду — не спрятан в мелкую иконку */}
         <button
           onClick={toggleTracking}
+          disabled={saving}
           className={`relative w-11 h-6 rounded-full transition-colors ${profile.cycle_tracking_enabled ? 'bg-rose-500' : 'bg-muted'}`}
           role="switch"
           aria-checked={profile.cycle_tracking_enabled}

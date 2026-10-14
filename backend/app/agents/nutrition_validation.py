@@ -9,6 +9,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from app.nutrition_policy import (
+    NonNegativeFiniteFloat,
+    NutritionValues,
+    calculate_macro_calories,
+)
 from app.tools.nutrition import PLAN_FOOD_REFERENCE_NAMES
 from pydantic import BaseModel, Field
 from scipy.optimize import lsq_linear
@@ -51,12 +56,7 @@ _TOTAL_PATTERN = re.compile(
 )
 
 
-@dataclass(frozen=True)
-class NutritionNumbers:
-    calories: float
-    protein_g: float
-    fat_g: float
-    carbs_g: float
+NutritionNumbers = NutritionValues
 
 
 @dataclass(frozen=True)
@@ -73,10 +73,10 @@ class MealPlanItem(BaseModel):
 
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1, max_length=1_000)
-    calories: float = Field(ge=20, le=2_000)
-    protein_g: float = Field(ge=0, le=250)
-    fat_g: float = Field(ge=0, le=250)
-    carbs_g: float = Field(ge=0, le=250)
+    calories: NonNegativeFiniteFloat = Field(ge=20, le=2_000)
+    protein_g: NonNegativeFiniteFloat = Field(le=250)
+    fat_g: NonNegativeFiniteFloat = Field(le=250)
+    carbs_g: NonNegativeFiniteFloat = Field(le=250)
 
 
 PlanFoodReference = StrEnum(  # type: ignore[misc]
@@ -106,10 +106,10 @@ class FoodNutrientReference(BaseModel):
     """Canonical food nutrient values stored per 100 grams."""
 
     food_name: str
-    calories_per_100g: float = Field(ge=0, le=900)
-    protein_g: float = Field(ge=0, le=100)
-    fat_g: float = Field(ge=0, le=100)
-    carbs_g: float = Field(ge=0, le=100)
+    calories_per_100g: NonNegativeFiniteFloat = Field(le=900)
+    protein_g: NonNegativeFiniteFloat = Field(le=100)
+    fat_g: NonNegativeFiniteFloat = Field(le=100)
+    carbs_g: NonNegativeFiniteFloat = Field(le=100)
 
 
 class GroundedIngredient(BaseModel):
@@ -117,23 +117,23 @@ class GroundedIngredient(BaseModel):
     reference_food: str
     matched_food: str
     grams: float
-    calories_per_100g: float
-    protein_per_100g: float
-    fat_per_100g: float
-    carbs_per_100g: float
-    calories: float
-    protein_g: float
-    fat_g: float
-    carbs_g: float
+    calories_per_100g: NonNegativeFiniteFloat
+    protein_per_100g: NonNegativeFiniteFloat
+    fat_per_100g: NonNegativeFiniteFloat
+    carbs_per_100g: NonNegativeFiniteFloat
+    calories: NonNegativeFiniteFloat
+    protein_g: NonNegativeFiniteFloat
+    fat_g: NonNegativeFiniteFloat
+    carbs_g: NonNegativeFiniteFloat
 
 
 class GroundedMeal(BaseModel):
     name: str
     ingredients: list[GroundedIngredient]
-    calories: float
-    protein_g: float
-    fat_g: float
-    carbs_g: float
+    calories: NonNegativeFiniteFloat
+    protein_g: NonNegativeFiniteFloat
+    fat_g: NonNegativeFiniteFloat
+    carbs_g: NonNegativeFiniteFloat
 
 
 @dataclass(frozen=True)
@@ -162,7 +162,7 @@ def _meal_target_rows(targets: NutritionNumbers) -> list[NutritionNumbers]:
         carbs = round(targets.carbs_g * weight, 1)
         rows.append(
             NutritionNumbers(
-                calories=round(protein * 4 + fat * 9 + carbs * 4, 1),
+                calories=round(calculate_macro_calories(protein, carbs, fat), 1),
                 protein_g=protein,
                 fat_g=fat,
                 carbs_g=carbs,
@@ -174,7 +174,7 @@ def _meal_target_rows(targets: NutritionNumbers) -> list[NutritionNumbers]:
     carbs = round(targets.carbs_g - sum(row.carbs_g for row in rows), 1)
     rows.append(
         NutritionNumbers(
-            calories=round(protein * 4 + fat * 9 + carbs * 4, 1),
+            calories=round(calculate_macro_calories(protein, carbs, fat), 1),
             protein_g=protein,
             fat_g=fat,
             carbs_g=carbs,
@@ -691,7 +691,7 @@ def validate_nutrition_numbers(
             if not _close(actual, expected, tolerance):
                 issues.append(f"declared {name} does not equal the meal sum")
 
-        macro_calories = declared.protein_g * 4 + declared.fat_g * 9 + declared.carbs_g * 4
+        macro_calories = declared.macro_calories
         if not _close(
             macro_calories,
             declared.calories,

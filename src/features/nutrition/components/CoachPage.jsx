@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeAthenaTask } from '@/lib/athenaTasks';
@@ -8,10 +8,19 @@ import { Loader2, Sparkles, RefreshCw } from "lucide-react";
 import RecommendationCard from "@/components/RecommendationCard";
 import { useNavigate } from "react-router-dom";
 import { useLang } from "@/lib/i18n";
+import { toast } from "@/components/ui/use-toast";
+import { createIdempotencyKey } from "@/lib/idempotency";
 
 const ATHENA_IMG = "/athena-avatar.png";
 
 const today = () => toLocalDateStr();
+const recommendationKey = (rec) => JSON.stringify([
+  rec.name,
+  rec.calories,
+  rec.protein_g,
+  rec.carbs_g,
+  rec.fat_g,
+]);
 
 export default function Coach() {
   const { user } = useAuth();
@@ -24,6 +33,14 @@ export default function Coach() {
   const [generating, setGenerating] = useState(false);
   const [showLogMeal, setShowLogMeal] = useState(false);
   const [mealToLog, setMealToLog] = useState(null);
+  const [loggingMeals, setLoggingMeals] = useState(new Set());
+  const [loggedMeals, setLoggedMeals] = useState(new Set());
+  const [addingShoppingLists, setAddingShoppingLists] = useState(new Set());
+  const [addedShoppingLists, setAddedShoppingLists] = useState(new Set());
+  const loggingMealsRef = useRef(new Set());
+  const idempotencyKeysRef = useRef(new Map());
+  const addingShoppingListsRef = useRef(new Set());
+  const shoppingIdempotencyKeysRef = useRef(new Map());
 
   const loadData = useCallback(async () => {
     const [profiles, todayMeals] = await Promise.all([
@@ -40,32 +57,41 @@ export default function Coach() {
   const generateRecommendations = async () => {
     if (!profile) return;
     setGenerating(true);
-    const consumed = meals.reduce(
-      (a, m) => ({ cal: a.cal + m.calories, p: a.p + m.protein_g, c: a.c + m.carbs_g, f: a.f + m.fat_g }),
-      { cal: 0, p: 0, c: 0, f: 0 }
-    );
-    const remaining = {
-      calories: Math.max(profile.calorie_target - consumed.cal, 0),
-      protein: Math.max(profile.protein_target_g - consumed.p, 0),
-      carbs: Math.max(profile.carb_target_g - consumed.c, 0),
-      fat: Math.max(profile.fat_target_g - consumed.f, 0),
-    };
+    try {
+      const consumed = meals.reduce(
+        (a, m) => ({ cal: a.cal + m.calories, p: a.p + m.protein_g, c: a.c + m.carbs_g, f: a.f + m.fat_g }),
+        { cal: 0, p: 0, c: 0, f: 0 }
+      );
+      const remaining = {
+        calories: Math.max(profile.calorie_target - consumed.cal, 0),
+        protein: Math.max(profile.protein_target_g - consumed.p, 0),
+        carbs: Math.max(profile.carb_target_g - consumed.c, 0),
+        fat: Math.max(profile.fat_target_g - consumed.f, 0),
+      };
 
-    const res = await invokeAthenaTask('meal_recommendations', {
-      remaining,
-      goal: profile.goal,
-      budget: profile.budget || 'medium',
-      cooking_skill: profile.cooking_skill || 'basic',
-      dietary_pattern: profile.dietary_pattern || 'omnivore',
-      dietary_restrictions: profile.dietary_restrictions || [],
-      allergies: profile.allergies || [],
-      favorite_foods: profile.favorite_foods || [],
-      disliked_foods: profile.disliked_foods || [],
-      meals_eaten: meals.map((meal) => meal.name),
-      language: lang,
-    });
-    setRecommendations(res.meals || []);
-    setGenerating(false);
+      const res = await invokeAthenaTask('meal_recommendations', {
+        remaining,
+        goal: profile.goal,
+        budget: profile.budget || 'medium',
+        cooking_skill: profile.cooking_skill || 'basic',
+        dietary_pattern: profile.dietary_pattern || 'omnivore',
+        dietary_restrictions: profile.dietary_restrictions || [],
+        allergies: profile.allergies || [],
+        favorite_foods: profile.favorite_foods || [],
+        disliked_foods: profile.disliked_foods || [],
+        meals_eaten: meals.map((meal) => meal.name),
+        language: lang,
+      });
+      setRecommendations(res.meals || []);
+    } catch (error) {
+      toast({
+        title: "Не удалось получить рекомендации",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
   };
 
   useEffect(() => {
@@ -74,26 +100,80 @@ export default function Coach() {
   }, [profile, loading, lang]);
 
   const handleLogRec = async (rec) => {
-    const meal = await entities.MealLog.create({
-      name: rec.name,
-      calories: Math.round(rec.calories),
-      protein_g: Math.round(rec.protein_g),
-      carbs_g: Math.round(rec.carbs_g),
-      fat_g: Math.round(rec.fat_g),
-      date: today(),
-      from_recommendation: true,
-    });
-    setMeals((m) => [...m, meal]);
+    const recKey = recommendationKey(rec);
+    if (loggingMealsRef.current.has(recKey) || loggedMeals.has(recKey)) return;
+    loggingMealsRef.current.add(recKey);
+    setLoggingMeals((current) => new Set(current).add(recKey));
+    const idempotencyKey = idempotencyKeysRef.current.get(recKey)
+      || createIdempotencyKey("recommended-meal");
+    idempotencyKeysRef.current.set(recKey, idempotencyKey);
+    try {
+      const meal = await entities.MealLog.createIdempotently({
+        name: rec.name,
+        calories: Math.round(rec.calories),
+        protein_g: Math.round(rec.protein_g),
+        carbs_g: Math.round(rec.carbs_g),
+        fat_g: Math.round(rec.fat_g),
+        date: today(),
+        from_recommendation: true,
+      }, idempotencyKey);
+      idempotencyKeysRef.current.delete(recKey);
+      setMeals((current) => current.some((item) => item.id === meal.id) ? current : [...current, meal]);
+      setLoggedMeals((current) => new Set(current).add(recKey));
+    } catch (error) {
+      toast({
+        title: "Не удалось записать приём пищи",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      loggingMealsRef.current.delete(recKey);
+      setLoggingMeals((current) => {
+        const next = new Set(current);
+        next.delete(recKey);
+        return next;
+      });
+    }
   };
 
-  const handleAddToShoppingList = async (ingredients) => {
-    const existing = await entities.ShoppingItem.filter({ created_by_id: user?.id });
-    const existingNames = new Set(existing.map((i) => i.name.toLowerCase()));
-    const newItems = ingredients.filter((i) => !existingNames.has(i.toLowerCase()));
-    if (newItems.length > 0) {
-      await entities.ShoppingItem.bulkCreate(
-        newItems.map((name) => ({ name, checked: false }))
-      );
+  const handleAddToShoppingList = async (rec) => {
+    const recKey = recommendationKey(rec);
+    if (addingShoppingListsRef.current.has(recKey) || addedShoppingLists.has(recKey)) return;
+    addingShoppingListsRef.current.add(recKey);
+    setAddingShoppingLists((current) => new Set(current).add(recKey));
+    const actionKeys = shoppingIdempotencyKeysRef.current.get(recKey) || new Map();
+    shoppingIdempotencyKeysRef.current.set(recKey, actionKeys);
+    try {
+      const existing = await entities.ShoppingItem.filter({ created_by_id: user?.id });
+      const existingNames = new Set(existing.map((item) => item.name.trim().toLowerCase()));
+      const uniqueIngredients = [...new Map(
+        rec.ingredients
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .map((name) => [name.toLowerCase(), name]),
+      ).values()];
+      const newItems = uniqueIngredients.filter((name) => !existingNames.has(name.toLowerCase()));
+      await Promise.all(newItems.map((name) => {
+        const normalizedName = name.toLowerCase();
+        const key = actionKeys.get(normalizedName) || createIdempotencyKey("shopping-item");
+        actionKeys.set(normalizedName, key);
+        return entities.ShoppingItem.createIdempotently({ name, checked: false }, key);
+      }));
+      shoppingIdempotencyKeysRef.current.delete(recKey);
+      setAddedShoppingLists((current) => new Set(current).add(recKey));
+    } catch (error) {
+      toast({
+        title: "Не удалось добавить продукты",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      addingShoppingListsRef.current.delete(recKey);
+      setAddingShoppingLists((current) => {
+        const next = new Set(current);
+        next.delete(recKey);
+        return next;
+      });
     }
   };
 
@@ -207,6 +287,10 @@ export default function Coach() {
                 rec={rec}
                 onLog={handleLogRec}
                 onAddToShoppingList={handleAddToShoppingList}
+                logging={loggingMeals.has(recommendationKey(rec))}
+                logged={loggedMeals.has(recommendationKey(rec))}
+                addingToShoppingList={addingShoppingLists.has(recommendationKey(rec))}
+                addedToShoppingList={addedShoppingLists.has(recommendationKey(rec))}
               />
             ))}
           </div>

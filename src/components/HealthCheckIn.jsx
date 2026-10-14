@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLang } from '@/lib/i18n';
 import { Heart, Smile, Zap, Moon } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 export function HealthCheckIn() {
   const { t } = useLang();
@@ -13,6 +14,8 @@ export function HealthCheckIn() {
   const [sleep, setSleep] = useState(7);
   const [energy, setEnergy] = useState(5);
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   // value — канонический английский ключ (хранится в БД и используется для
   // перевода в саммари дня в WeekHistory.jsx), label — то, что видит пользователь
@@ -32,16 +35,30 @@ export function HealthCheckIn() {
   };
 
   const submit = async () => {
-    await entities.user_health_logs.create({
-      date: toLocalDateStr(),
-      symptoms: symptoms.includes('None') ? [] : symptoms,
-      mood,
-      sleep_hours: sleep,
-      energy_level: energy
-    });
-    setSubmitted(true);
-    queryClient.invalidateQueries(['health-logs']);
-    setTimeout(() => setSubmitted(false), 3000);
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await entities.user_health_logs.upsert({
+        date: toLocalDateStr(),
+        symptoms: symptoms.includes('None') ? [] : symptoms,
+        mood,
+        sleep_hours: sleep,
+        energy_level: energy
+      }, 'user_id,date');
+      setSubmitted(true);
+      await queryClient.invalidateQueries({ queryKey: ['health-logs'] });
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch {
+      toast({
+        title: t('health_saveError'),
+        description: t('health_saveRetry'),
+        variant: 'destructive',
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -99,10 +116,10 @@ export function HealthCheckIn() {
 
       <button
         onClick={submit}
-        disabled={submitted}
+        disabled={saving || submitted}
         className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl font-medium disabled:opacity-50"
       >
-        {submitted ? t('health_saved') : t('health_save')}
+        {submitted ? t('health_saved') : saving ? t('health_saving') : t('health_save')}
       </button>
     </div>
   );

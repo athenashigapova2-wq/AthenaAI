@@ -5,6 +5,7 @@ from datetime import date as date_type
 from difflib import SequenceMatcher
 from typing import Any
 
+from app.nutrition_policy import NutritionPolicyError, validate_nutrition_values
 from app.services.supabase import get_supabase
 from app.tools.idempotent_writes import insert_idempotently
 from app.tools.write_context import require_idempotency_key
@@ -98,12 +99,18 @@ def lookup_food_reference(query: str) -> dict[str, Any]:
     if matched != normalized:
         raise LookupError(f"food name is not an exact match: {query} -> {matched}")
 
+    values = validate_nutrition_values(
+        calories=float(best["calories_per_100g"] or 0),
+        protein_g=float(best["protein_g"] or 0),
+        carbs_g=float(best["carbs_g"] or 0),
+        fat_g=float(best["fat_g"] or 0),
+    )
     return {
         "food_name": str(best["food_name"]),
-        "calories_per_100g": float(best["calories_per_100g"] or 0),
-        "protein_g": float(best["protein_g"] or 0),
-        "carbs_g": float(best["carbs_g"] or 0),
-        "fat_g": float(best["fat_g"] or 0),
+        "calories_per_100g": values.calories,
+        "protein_g": values.protein_g,
+        "carbs_g": values.carbs_g,
+        "fat_g": values.fat_g,
     }
 
 
@@ -185,11 +192,20 @@ def get_daily_intake(user_id: str, day: str | None = None) -> dict[str, Any]:
     )
 
     meals = result.data or []
+    validated = [
+        validate_nutrition_values(
+            calories=float(meal["calories"] or 0),
+            protein_g=float(meal["protein_g"] or 0),
+            carbs_g=float(meal["carbs_g"] or 0),
+            fat_g=float(meal["fat_g"] or 0),
+        )
+        for meal in meals
+    ]
     totals = {
-        "calories": sum(float(m["calories"] or 0) for m in meals),
-        "protein_g": sum(float(m["protein_g"] or 0) for m in meals),
-        "carbs_g": sum(float(m["carbs_g"] or 0) for m in meals),
-        "fat_g": sum(float(m["fat_g"] or 0) for m in meals),
+        "calories": sum(item.calories for item in validated),
+        "protein_g": sum(item.protein_g for item in validated),
+        "carbs_g": sum(item.carbs_g for item in validated),
+        "fat_g": sum(item.fat_g for item in validated),
     }
 
     return {
@@ -219,8 +235,15 @@ def log_meal(
             "message": f"meal_type должен быть одним из {sorted(allowed)}",
         }
 
-    if calories < 0 or protein_g < 0 or carbs_g < 0 or fat_g < 0:
-        return {"status": "error", "message": "Значения КБЖУ не могут быть отрицательными"}
+    try:
+        values = validate_nutrition_values(
+            calories=calories,
+            protein_g=protein_g,
+            carbs_g=carbs_g,
+            fat_g=fat_g,
+        )
+    except NutritionPolicyError as exc:
+        return {"status": "error", "message": f"Некорректные значения КБЖУ: {exc}"}
 
     sb = get_supabase()
     _, replayed = insert_idempotently(
@@ -230,10 +253,10 @@ def log_meal(
             "user_id": user_id,
             "name": name,
             "meal_type": meal_type,
-            "calories": calories,
-            "protein_g": protein_g,
-            "carbs_g": carbs_g,
-            "fat_g": fat_g,
+            "calories": values.calories,
+            "protein_g": values.protein_g,
+            "carbs_g": values.carbs_g,
+            "fat_g": values.fat_g,
             "date": day or date_type.today().isoformat(),
         },
         require_idempotency_key(),
@@ -241,6 +264,6 @@ def log_meal(
     return {
         "status": "ok",
         "logged": name,
-        "calories": calories,
+        "calories": values.calories,
         "idempotent_replay": replayed,
     }

@@ -1,3 +1,5 @@
+import { carbsForCalories } from "@/lib/macroCalc";
+
 export const GOALS = [
   { key: "lose_weight", labelKey: "goal_lose", subKey: "goal_lose_sub" },
   { key: "maintain", labelKey: "goal_maintain", subKey: "goal_maintain_sub" },
@@ -21,9 +23,9 @@ export function calculateGoalTargets({ weight, height, age, sex, goal }) {
   const maleBmr = 10 * weight + 6.25 * height - 5 * age + 5;
   const femaleBmr = 10 * weight + 6.25 * height - 5 * age - 161;
   const bmr = sex === "male" ? maleBmr : sex === "female" ? femaleBmr : (maleBmr + femaleBmr) / 2;
-  const calories = Math.round(bmr * 1.55 + config.delta);
+  const calories = Math.max(Math.round(bmr * 1.55 + config.delta), 0);
   const protein = Math.round(weight * config.proteinPerKg);
   const fat = Math.round((calories * 0.25) / 9);
-  const carbs = Math.round((calories - protein * 4 - fat * 9) / 4);
+  const carbs = carbsForCalories(calories, protein, fat);
   return { calorie_target: calories, protein_target_g: protein, carb_target_g: carbs, fat_target_g: fat };
 }

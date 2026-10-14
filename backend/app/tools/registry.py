@@ -11,6 +11,7 @@ from typing import Any
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
+from app.nutrition_policy import NonNegativeFiniteFloat
 from app.tools import calendar as calendar_tools
 from app.tools import nutrition as nutrition_tools
 from app.tools import profile as profile_tools
@@ -69,10 +70,10 @@ def build_tools(user_id: str, domains: Iterable[ToolDomain] | None = None) -> li
 
     def log_meal(
         name: str,
-        calories: float,
-        protein_g: float,
-        carbs_g: float,
-        fat_g: float,
+        calories: NonNegativeFiniteFloat,
+        protein_g: NonNegativeFiniteFloat,
+        carbs_g: NonNegativeFiniteFloat,
+        fat_g: NonNegativeFiniteFloat,
         meal_type: str | None = None,
         day: str | None = None,
     ) -> dict[str, Any]:

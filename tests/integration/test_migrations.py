@@ -106,3 +106,30 @@ def test_write_tools_have_database_backed_idempotency() -> None:
         "idempotency_fingerprint",
     ):
         assert required_contract in sql
+
+
+def test_nutrition_values_are_nonnegative_at_database_boundary() -> None:
+    sql = (MIGRATIONS / "0026_nutrition_value_constraints.sql").read_text(
+        encoding="utf-8"
+    )
+    for required_contract in (
+        "user_profiles_nutrition_nonnegative_check",
+        "meal_logs_nutrition_nonnegative_check",
+        "food_nutrients_nutrition_nonnegative_check",
+        "custom_products_nutrition_nonnegative_check",
+        "validate constraint",
+    ):
+        assert required_contract in sql
+
+
+def test_profile_and_daily_weight_retries_are_database_safe() -> None:
+    sql = (MIGRATIONS / "0027_profile_save_integrity.sql").read_text(encoding="utf-8")
+    for required_contract in (
+        "user_profiles_user_id_unique_idx",
+        "weight_logs_user_date_unique_idx",
+        "user_health_logs_user_date_unique_idx",
+        "cycle_logs_user_date_unique_idx",
+        "shopping_items_user_idempotency_idx",
+        "shopping_items_idempotency_pair_check",
+    ):
+        assert required_contract in sql

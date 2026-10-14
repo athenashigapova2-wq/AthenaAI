@@ -8,6 +8,11 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from app.ai_execution import ai_execution_service
+from app.nutrition_policy import (
+    NonNegativeFiniteFloat,
+    validate_non_negative,
+    validate_nutrition_values,
+)
 from app.services.supabase import get_supabase
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,10 +20,10 @@ Locale = Literal["ru", "en", "fr", "es", "zh"]
 
 
 class DailyMacroAverage(BaseModel):
-    calories: float = Field(ge=0)
-    protein_g: float = Field(ge=0)
-    carbs_g: float = Field(ge=0)
-    fat_g: float = Field(ge=0)
+    calories: NonNegativeFiniteFloat
+    protein_g: NonNegativeFiniteFloat
+    carbs_g: NonNegativeFiniteFloat
+    fat_g: NonNegativeFiniteFloat
 
 
 class HabitAnalytics(BaseModel):
@@ -91,9 +96,17 @@ class HabitAnalyticsService:
             lambda: {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
         )
         for meal in meals:
+            validated = validate_nutrition_values(
+                calories=meal.get("calories") or 0,
+                protein_g=meal.get("protein_g") or 0,
+                carbs_g=meal.get("carbs_g") or 0,
+                fat_g=meal.get("fat_g") or 0,
+            )
             values = by_day[str(meal["date"])]
-            for field in values:
-                values[field] += float(meal.get(field) or 0)
+            values["calories"] += validated.calories
+            values["protein_g"] += validated.protein_g
+            values["carbs_g"] += validated.carbs_g
+            values["fat_g"] += validated.fat_g
         day_count = len(by_day)
         average = DailyMacroAverage(
             **{
@@ -121,7 +134,7 @@ class HabitAnalyticsService:
             ("carbs", "carbs_g", "carb_target_g"),
             ("fat", "fat_g", "fat_target_g"),
         ):
-            target = float(profile.get(target_field) or 0)
+            target = validate_non_negative(target_field, profile.get(target_field) or 0)
             if target <= 0:
                 continue
             relative = (getattr(average, average_field) - target) / target

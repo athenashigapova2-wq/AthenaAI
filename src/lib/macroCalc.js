@@ -13,10 +13,29 @@ export const stepsToActivity = (s) =>
 
 export const round = (n) => Math.round(n);
 
+export const isNonNegativeFinite = (value) => Number.isFinite(value) && value >= 0;
+
+export const calculateMacroCalories = (protein, carbs, fat) => {
+  if (![protein, carbs, fat].every(isNonNegativeFinite)) {
+    throw new RangeError("Nutrition values must be finite and non-negative");
+  }
+  return protein * 4 + carbs * 4 + fat * 9;
+};
+
+export const carbsForCalories = (calories, protein, fat, minimum = 0) => {
+  if (![calories, protein, fat, minimum].every(isNonNegativeFinite)) {
+    throw new RangeError("Nutrition values must be finite and non-negative");
+  }
+  return Math.max(round((calories - calculateMacroCalories(protein, 0, fat)) / 4), minimum);
+};
+
+export const isValidNutritionValues = ({ calories, protein, carbs, fat }) =>
+  [calories, protein, carbs, fat].every(isNonNegativeFinite);
+
 export const macrosFor = (cal, w) => {
   const protein = round(w * 1.8);
   const fat = round((cal * 0.25) / 9);
-  const carbs = round((cal - protein * 4 - fat * 9) / 4);
+  const carbs = carbsForCalories(cal, protein, fat);
   return { protein, carbs, fat };
 };
 

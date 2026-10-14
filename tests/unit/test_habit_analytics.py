@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+from app.nutrition_policy import NutritionPolicyError
 from app.services import habit_analytics
 from app.services.habit_analytics import HabitAnalyticsService
 
@@ -90,3 +92,12 @@ def test_habit_analytics_refuses_to_infer_from_too_little_data(monkeypatch) -> N
     fake.rows["meal_logs"] = fake.rows["meal_logs"][:2]
     monkeypatch.setattr(habit_analytics, "get_supabase", lambda: fake)
     assert HabitAnalyticsService().analyze("user-123") is None
+
+
+def test_habit_analytics_rejects_negative_stored_macros(monkeypatch) -> None:
+    fake = FakeSupabase()
+    fake.rows["meal_logs"][0]["protein_g"] = -1
+    monkeypatch.setattr(habit_analytics, "get_supabase", lambda: fake)
+
+    with pytest.raises(NutritionPolicyError):
+        HabitAnalyticsService().analyze("user-123")

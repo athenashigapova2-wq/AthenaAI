@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeAthenaTask } from '@/lib/athenaTasks';
@@ -9,6 +9,7 @@ import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { useLang } from "@/lib/i18n";
 import { WHAT_OPTIONS, INTENSITY_OPTIONS, WHERE_OPTIONS, WHAT_TO_WORKOUT_TYPE } from "@/lib/workoutData";
 import { toast } from "@/components/ui/use-toast";
+import { createIdempotencyKey } from "@/lib/idempotency";
 
 const today = () => toLocalDateStr();
 
@@ -21,10 +22,13 @@ export default function GymGenerator() {
   const [loading, setLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [doneMsg, setDoneMsg] = useState(null);
+  const completingRef = useRef(false);
+  const idempotencyKeyRef = useRef(null);
 
   const generate = async () => {
     setLoading(true);
     setWorkout(null);
+    idempotencyKeyRef.current = null;
     try {
       const res = await invokeAthenaTask('workout_plan', {
         setting: where,
@@ -35,17 +39,21 @@ export default function GymGenerator() {
       setWorkout(res);
     } catch {
       toast({ title: "Athena couldn't generate", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const completeWorkout = async () => {
-    if (!workout) return;
+    if (!workout || completingRef.current) return;
+    completingRef.current = true;
     setCompleting(true);
+    const idempotencyKey = idempotencyKeyRef.current || createIdempotencyKey("workout");
+    idempotencyKeyRef.current = idempotencyKey;
     try {
       const wtype = WHAT_TO_WORKOUT_TYPE[what] || "full_body";
       const burned = Math.round(workout.calories_burned || 0);
-      await entities.WorkoutLog.create({
+      await entities.WorkoutLog.createIdempotently({
         workout_type: wtype,
         date: today(),
         duration_min: workout.duration_min || null,
@@ -56,14 +64,17 @@ export default function GymGenerator() {
         })),
         notes: `${workout.title} · ${intensity}`,
         calories_burned: burned,
-      });
+      }, idempotencyKey);
+      idempotencyKeyRef.current = null;
       setDoneMsg({ title: t("workout_doneTitle"), desc: t("workout_logged", { n: burned }) });
       setWorkout(null);
       setTimeout(() => setDoneMsg(null), 2600);
     } catch {
       toast({ title: "Error", variant: "destructive" });
+    } finally {
+      completingRef.current = false;
+      setCompleting(false);
     }
-    setCompleting(false);
   };
 
   return (

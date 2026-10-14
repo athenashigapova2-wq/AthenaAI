@@ -31,7 +31,11 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services.supabase import get_supabase  # noqa: E402
+from app.nutrition_policy import (
+    calculate_macro_calories,
+    validate_nutrition_values,
+)
+from app.services.supabase import get_supabase
 
 # Колонки массы, из которых складывается вес порции (граммы)
 MASS_COLUMNS = ["Fat", "Carbohydrates", "Protein", "Water", "Dietary Fiber"]
@@ -91,7 +95,13 @@ def rescale_to_100g(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int]]:
 
     # Отбраковка 2: результат физически невозможен
     macro_sum = df["Fat"] + df["Carbohydrates"] + df["Protein"]
-    impossible = (df["Caloric Value"] > MAX_KCAL_PER_100G) | (macro_sum > MAX_MACRO_SUM_G)
+    required_values = df[["Caloric Value", "Fat", "Carbohydrates", "Protein"]]
+    impossible = (
+        required_values.isna().any(axis=1)
+        | required_values.lt(0).any(axis=1)
+        | (df["Caloric Value"] > MAX_KCAL_PER_100G)
+        | (macro_sum > MAX_MACRO_SUM_G)
+    )
     stats["dropped_impossible"] = int(impossible.sum())
     df = df[~impossible]
 
@@ -110,10 +120,10 @@ def classify(row: pd.Series) -> str:
     Нужна для колонки category в схеме БД. Точность здесь не критична:
     поиск идёт по названию, категория - вспомогательный фильтр.
     """
-    protein_kcal = row["Protein"] * 4
-    carb_kcal = row["Carbohydrates"] * 4
-    fat_kcal = row["Fat"] * 9
-    total = protein_kcal + carb_kcal + fat_kcal
+    protein_kcal = calculate_macro_calories(row["Protein"], 0, 0)
+    carb_kcal = calculate_macro_calories(0, row["Carbohydrates"], 0)
+    fat_kcal = calculate_macro_calories(0, 0, row["Fat"])
+    total = calculate_macro_calories(row["Protein"], row["Carbohydrates"], row["Fat"])
 
     if total <= 0:
         return "mixed"
@@ -133,13 +143,19 @@ def to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     """Превращает строки таблицы в словари под схему food_nutrients."""
     records = []
     for _, row in df.iterrows():
+        nutrition = validate_nutrition_values(
+            calories=row["Caloric Value"],
+            protein_g=row["Protein"],
+            carbs_g=row["Carbohydrates"],
+            fat_g=row["Fat"],
+        )
         records.append({
             "food_name": str(row["food"]).strip().lower(),
             "category": classify(row),
-            "calories_per_100g": round(float(row["Caloric Value"]), 1),
-            "protein_g": round(float(row["Protein"]), 1),
-            "carbs_g": round(float(row["Carbohydrates"]), 1),
-            "fat_g": round(float(row["Fat"]), 1),
+            "calories_per_100g": round(nutrition.calories, 1),
+            "protein_g": round(nutrition.protein_g, 1),
+            "carbs_g": round(nutrition.carbs_g, 1),
+            "fat_g": round(nutrition.fat_g, 1),
             "sugar_g": round(float(row["Sugars"]), 1),
         })
     return records

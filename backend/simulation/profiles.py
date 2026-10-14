@@ -7,6 +7,7 @@ import random
 from pathlib import Path
 from typing import Literal
 
+from app.nutrition_policy import calculate_macro_calories
 from pydantic import BaseModel, Field, model_validator
 
 FIXTURES_DIR = Path(__file__).with_name("fixtures")
@@ -43,7 +44,11 @@ class SimulationProfile(BaseModel):
 
     @model_validator(mode="after")
     def validate_energy_budget(self) -> "SimulationProfile":
-        macro_calories = self.protein_target_g * 4 + self.carb_target_g * 4 + self.fat_target_g * 9
+        macro_calories = calculate_macro_calories(
+            self.protein_target_g,
+            self.carb_target_g,
+            self.fat_target_g,
+        )
         if abs(macro_calories - self.calorie_target) > 80:
             raise ValueError("macro targets must stay within 80 kcal of calorie_target")
         return self
@@ -109,6 +114,10 @@ def _derive_missing_macros(
 ) -> tuple[int, int]:
     """Derive required fat/carb fields absent from the source workbook."""
     fat_target_g = max(round(weight_kg * 0.7), round(calorie_target * 0.25 / 9))
-    remaining = calorie_target - protein_target_g * 4 - fat_target_g * 9
+    remaining = calorie_target - calculate_macro_calories(
+        protein_target_g,
+        0,
+        fat_target_g,
+    )
     carb_target_g = max(30, round(remaining / 4))
     return fat_target_g, carb_target_g

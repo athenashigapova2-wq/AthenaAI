@@ -1,9 +1,17 @@
 import React from "react";
-import { Clock, ShoppingCart, Plus } from "lucide-react";
+import { Clock, ShoppingCart, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLang, CURRENCY, CURRENCY_RATE, LANG_CURRENCY_CODE } from "@/lib/i18n";
 
-export default function RecommendationCard({ rec, onLog, onAddToShoppingList }) {
+export default function RecommendationCard({
+  rec,
+  onLog,
+  onAddToShoppingList,
+  logging = false,
+  logged = false,
+  addingToShoppingList = false,
+  addedToShoppingList = false,
+}) {
   const { t, lang } = useLang();
   const priceLabel =
     rec.estimated_price_rub != null
@@ -51,12 +59,22 @@ export default function RecommendationCard({ rec, onLog, onAddToShoppingList }) 
       </div>
 
       <div className="flex gap-2">
-        <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => onLog(rec)}>
-          <Plus className="w-3 h-3 mr-1" /> {t("rec_logMeal")}
+        <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => onLog(rec)} disabled={logging || logged}>
+          {logging ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Plus className="w-3 h-3 mr-1" />}
+          {logged ? "Сохранено" : t("rec_logMeal")}
         </Button>
         {rec.ingredients && rec.ingredients.length > 0 && (
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onAddToShoppingList(rec.ingredients)}>
-            <ShoppingCart className="w-3 h-3 mr-1" /> {t("rec_list")}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => onAddToShoppingList(rec)}
+            disabled={addingToShoppingList || addedToShoppingList}
+          >
+            {addingToShoppingList
+              ? <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              : <ShoppingCart className="w-3 h-3 mr-1" />}
+            {addedToShoppingList ? "Добавлено" : t("rec_list")}
           </Button>
         )}
       </div>

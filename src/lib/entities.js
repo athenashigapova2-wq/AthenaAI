@@ -1,4 +1,5 @@
 import { supabase } from '@/api/supabaseClient';
+import { payloadFingerprint } from '@/lib/idempotency';
 
 /**
  * Повторяет интерфейс, который раньше давал base44.entities.X:
@@ -71,6 +72,50 @@ export function createEntity(table) {
         .single();
       if (error) throw error;
       return data;
+    },
+
+    async createIdempotently(payload, idempotencyKey) {
+      if (!idempotencyKey || idempotencyKey.length > 200) {
+        throw new Error('A valid idempotency key is required');
+      }
+      const userId = await currentUserId();
+      const basePayload = { ...payload, user_id: userId };
+      const fingerprint = await payloadFingerprint(basePayload);
+
+      const findExisting = async () => {
+        const { data, error } = await supabase
+          .from(table)
+          .select('*')
+          .eq('user_id', userId)
+          .eq('idempotency_key', idempotencyKey)
+          .limit(1);
+        if (error) throw error;
+        const existing = data?.[0] || null;
+        if (existing && existing.idempotency_fingerprint !== fingerprint) {
+          throw new Error('Idempotency key was reused with different data');
+        }
+        return existing;
+      };
+
+      const existing = await findExisting();
+      if (existing) return existing;
+
+      const { data, error } = await supabase
+        .from(table)
+        .insert({
+          ...basePayload,
+          idempotency_key: idempotencyKey,
+          idempotency_fingerprint: fingerprint,
+        })
+        .select()
+        .single();
+      if (!error) return data;
+
+      // The insert may have committed even if its response was lost, or a
+      // concurrent retry may have won the unique-index race.
+      const replay = await findExisting();
+      if (replay) return replay;
+      throw error;
     },
 
     async bulkCreate(payloads = []) {

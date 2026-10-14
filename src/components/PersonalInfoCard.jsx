@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { entities } from '@/lib/entities';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Pencil } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 // Стабильный цвет аватара по id пользователя — один и тот же человек всегда
 // получает один и тот же цвет, но у разных людей он разный.
@@ -30,6 +31,7 @@ export default function PersonalInfoCard({ user, profile, onUpdate }) {
   const [age, setAge] = useState(profile?.age || '');
   const [height, setHeight] = useState(profile?.height_cm || '');
   const [weight, setWeight] = useState(profile?.weight_kg || '');
+  const savingRef = useRef(false);
 
   const openDialog = () => {
     setName(user?.user_metadata?.full_name || '');
@@ -40,11 +42,14 @@ export default function PersonalInfoCard({ user, profile, onUpdate }) {
   };
 
   const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       // Имя лежит в двух местах: user_metadata (для мгновенного отображения
       // в приветствии) и в таблице profiles (для остального приложения)
-      await supabase.auth.updateUser({ data: { full_name: name } });
+      const { error: authError } = await supabase.auth.updateUser({ data: { full_name: name } });
+      if (authError) throw authError;
       await entities.Profile.update(user.id, { full_name: name });
       const updated = await entities.UserProfile.update(profile.id, {
         age: Number(age) || null,
@@ -53,7 +58,14 @@ export default function PersonalInfoCard({ user, profile, onUpdate }) {
       });
       onUpdate(updated);
       setOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Не удалось сохранить личные данные',
+        description: error instanceof Error ? error.message : 'Данные остались в форме. Попробуйте ещё раз',
+        variant: 'destructive',
+      });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

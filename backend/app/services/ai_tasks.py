@@ -7,6 +7,7 @@ from time import perf_counter
 from typing import Any, Literal
 
 from app.ai_execution import ai_execution_service
+from app.nutrition_policy import NonNegativeFiniteFloat, calculate_macro_calories
 from app.services import agent_traces
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -21,10 +22,10 @@ class StrictModel(BaseModel):
 
 
 class MacroBlock(StrictModel):
-    calories: float = Field(ge=0, le=10_000)
-    protein: float = Field(ge=0, le=1_000)
-    carbs: float = Field(ge=0, le=1_500)
-    fat: float = Field(ge=0, le=500)
+    calories: NonNegativeFiniteFloat = Field(le=10_000)
+    protein: NonNegativeFiniteFloat = Field(le=1_000)
+    carbs: NonNegativeFiniteFloat = Field(le=1_500)
+    fat: NonNegativeFiniteFloat = Field(le=500)
 
 
 class DietaryContext(StrictModel):
@@ -57,10 +58,10 @@ class MealRecommendationsInput(DietaryContext):
 class MealRecommendation(StrictModel):
     name: str = Field(min_length=1, max_length=160)
     description: str = Field(min_length=1, max_length=500)
-    calories: float = Field(ge=0, le=5_000)
-    protein_g: float = Field(ge=0, le=500)
-    carbs_g: float = Field(ge=0, le=800)
-    fat_g: float = Field(ge=0, le=300)
+    calories: NonNegativeFiniteFloat = Field(le=5_000)
+    protein_g: NonNegativeFiniteFloat = Field(le=500)
+    carbs_g: NonNegativeFiniteFloat = Field(le=800)
+    fat_g: NonNegativeFiniteFloat = Field(le=300)
     prep_time: str = Field(min_length=1, max_length=80)
     estimated_price_rub: float = Field(ge=0, le=100_000)
     ingredients: list[str] = Field(min_length=1, max_length=40)
@@ -119,7 +120,7 @@ class HealthMacroAdjustmentResult(StrictModel):
 
     @model_validator(mode="after")
     def macros_approximately_match_calories(self) -> HealthMacroAdjustmentResult:
-        macro_calories = self.protein_g * 4 + self.carb_g * 4 + self.fat_g * 9
+        macro_calories = calculate_macro_calories(self.protein_g, self.carb_g, self.fat_g)
         if abs(macro_calories - self.adjusted_calories) / self.adjusted_calories > 0.25:
             raise ValueError("macro calories must be within 25% of adjusted_calories")
         return self

@@ -7,6 +7,7 @@ from typing import Literal
 
 from app.agents.nutrition_validation import display_name_from_matched_food
 from app.ai_execution import ai_execution_service
+from app.nutrition_policy import NonNegativeFiniteFloat, NonNegativeFiniteInt
 from app.services.supabase import get_supabase
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,10 +29,10 @@ class CandidateChoice(BaseModel):
 
 class FoodCandidate(BaseModel):
     food_name: str
-    calories_per_100g: float = Field(ge=0)
-    protein_g: float = Field(ge=0)
-    carbs_g: float = Field(ge=0)
-    fat_g: float = Field(ge=0)
+    calories_per_100g: NonNegativeFiniteFloat
+    protein_g: NonNegativeFiniteFloat
+    carbs_g: NonNegativeFiniteFloat
+    fat_g: NonNegativeFiniteFloat
 
 
 class MealEstimate(BaseModel):
@@ -39,10 +40,10 @@ class MealEstimate(BaseModel):
     name: str
     matched_food: str
     quantity_g: float
-    calories: int = Field(ge=0)
-    protein_g: float = Field(ge=0)
-    carbs_g: float = Field(ge=0)
-    fat_g: float = Field(ge=0)
+    calories: NonNegativeFiniteInt
+    protein_g: NonNegativeFiniteFloat
+    carbs_g: NonNegativeFiniteFloat
+    fat_g: NonNegativeFiniteFloat
 
 
 StructuredInvoker = Callable[..., BaseModel]

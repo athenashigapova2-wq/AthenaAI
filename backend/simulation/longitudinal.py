@@ -11,14 +11,15 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from freezegun import freeze_time
-
 from app.agents.graph import run_agent_turn_details
 from app.agents.router import route_with_keywords
 from app.config import settings
 from app.llm import _get_mock_llm
+from app.nutrition_policy import calculate_macro_calories, validate_nutrition_values
 from app.tools import nutrition, profile, recovery, workout
 from app.tools.registry import build_tools
+from freezegun import freeze_time
+
 from simulation.profiles import SimulationProfile, generate_profiles, load_anchor_profiles
 from simulation.scenarios import LongitudinalScenario, ScenarioCheckpoint
 
@@ -133,6 +134,13 @@ def apply_event(
     event: Any,
 ) -> None:
     payload = {"user_id": user_id, "date": at.date().isoformat(), **event.payload}
+    if event.event_type == "meal":
+        validate_nutrition_values(
+            calories=payload["calories"],
+            protein_g=payload["protein_g"],
+            carbs_g=payload["carbs_g"],
+            fat_g=payload["fat_g"],
+        )
     table_name = {
         "weight": "weight_logs",
         "meal": "meal_logs",
@@ -275,7 +283,11 @@ def validate_checkpoint_contract(
         carbs = checkpoint.nutrition.carb_target_g
         fat = checkpoint.nutrition.fat_target_g
         if None not in (calories, protein, carbs, fat):
-            macro_calories = float(protein) * 4 + float(carbs) * 4 + float(fat) * 9
+            macro_calories = calculate_macro_calories(
+                float(protein),
+                float(carbs),
+                float(fat),
+            )
             if abs(macro_calories - float(calories)) > (
                 checkpoint.nutrition.macro_energy_tolerance_kcal
             ):

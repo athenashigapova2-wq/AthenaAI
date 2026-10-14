@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { entities } from '@/lib/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plus, Trash2, Copy, Check } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { useLang } from "@/lib/i18n";
+import { createIdempotencyKey } from "@/lib/idempotency";
 
 const EMOJI_MAP = [
   ["bread", "🍞"], ["milk", "🥛"], ["cheese", "🧀"], ["yogurt", "🥛"], ["egg", "🥚"],
@@ -48,6 +49,13 @@ export default function Shopping() {
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState("");
   const [copied, setCopied] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [pendingItemIds, setPendingItemIds] = useState(() => new Set());
+  const addPendingRef = useRef(false);
+  const clearPendingRef = useRef(false);
+  const pendingItemIdsRef = useRef(new Set());
+  const addAttemptRef = useRef(null);
 
   const copyList = async () => {
     const lines = unchecked.map((i) => i.name);
@@ -67,58 +75,99 @@ export default function Shopping() {
   };
 
   const loadItems = useCallback(async () => {
-    const data = await entities.ShoppingItem.filter({ created_by_id: user?.id });
-    setItems(data);
-    setLoading(false);
+    try {
+      const data = await entities.ShoppingItem.filter({ created_by_id: user?.id });
+      setItems(data);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  useEffect(() => { loadItems(); }, [loadItems]);
+  useEffect(() => {
+    loadItems().catch(() => {
+      toast({ title: t("shop_loadErr"), description: t("shop_addErrDesc"), variant: "destructive" });
+    });
+  }, [loadItems, t]);
 
   const addItem = async () => {
     const name = newItem.trim();
-    if (!name) return;
+    if (!name || addPendingRef.current) return;
+    addPendingRef.current = true;
+    setAdding(true);
+    if (!addAttemptRef.current || addAttemptRef.current.name !== name) {
+      addAttemptRef.current = {
+        name,
+        key: createIdempotencyKey('shopping-item'),
+      };
+    }
     const tempId = `temp-${Date.now()}`;
     setItems((prev) => [...prev, { id: tempId, name, checked: false }]);
-    setNewItem("");
     try {
-      const created = await entities.ShoppingItem.create({ name, checked: false });
+      const created = await entities.ShoppingItem.createIdempotently(
+        { name, checked: false },
+        addAttemptRef.current.key,
+      );
       setItems((prev) => prev.map((i) => (i.id === tempId ? created : i)));
+      setNewItem("");
+      addAttemptRef.current = null;
     } catch {
       setItems((prev) => prev.filter((i) => i.id !== tempId));
       toast({ title: t("shop_addErr"), description: t("shop_addErrDesc"), variant: "destructive" });
+    } finally {
+      addPendingRef.current = false;
+      setAdding(false);
     }
   };
 
+  const setItemPending = (id, pending) => {
+    if (pending) pendingItemIdsRef.current.add(id);
+    else pendingItemIdsRef.current.delete(id);
+    setPendingItemIds(new Set(pendingItemIdsRef.current));
+  };
+
   const toggleItem = async (item) => {
+    if (pendingItemIdsRef.current.has(item.id)) return;
+    setItemPending(item.id, true);
     const next = !item.checked;
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, checked: next } : i)));
     try {
       await entities.ShoppingItem.update(item.id, { checked: next });
     } catch {
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, checked: item.checked } : i)));
+      await loadItems().catch(() => undefined);
       toast({ title: t("shop_updErr"), variant: "destructive" });
+    } finally {
+      setItemPending(item.id, false);
     }
   };
 
   const deleteItem = async (id) => {
-    const removed = items.find((i) => i.id === id);
+    if (pendingItemIdsRef.current.has(id)) return;
+    setItemPending(id, true);
     setItems((prev) => prev.filter((i) => i.id !== id));
     try {
       await entities.ShoppingItem.delete(id);
     } catch {
-      if (removed) setItems((prev) => [...prev, removed]);
+      await loadItems().catch(() => undefined);
       toast({ title: t("shop_delErr"), variant: "destructive" });
+    } finally {
+      setItemPending(id, false);
     }
   };
 
   const clearChecked = async () => {
+    if (clearPendingRef.current) return;
+    clearPendingRef.current = true;
+    setClearing(true);
     const checkedItems = items.filter((i) => i.checked);
     setItems((prev) => prev.filter((i) => !i.checked));
     try {
       await Promise.all(checkedItems.map((i) => entities.ShoppingItem.delete(i.id)));
     } catch {
-      setItems((prev) => [...prev, ...checkedItems]);
+      await loadItems().catch(() => undefined);
       toast({ title: t("shop_clrErr"), variant: "destructive" });
+    } finally {
+      clearPendingRef.current = false;
+      setClearing(false);
     }
   };
 
@@ -148,8 +197,13 @@ export default function Shopping() {
           onKeyDown={(e) => e.key === "Enter" && addItem()}
           className="h-10"
         />
-        <Button className="h-10 shrink-0" onClick={addItem} disabled={!newItem.trim()}>
-          <Plus className="w-4 h-4" />
+        <Button
+          className="h-10 shrink-0"
+          onClick={addItem}
+          disabled={!newItem.trim() || adding}
+          aria-label={t("shop_addPh")}
+        >
+          {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
         </Button>
       </div>
 
@@ -175,10 +229,10 @@ export default function Shopping() {
             <div className="bg-card rounded-2xl border border-border divide-y divide-border">
               {unchecked.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                  <Checkbox checked={false} onCheckedChange={() => toggleItem(item)} />
+                  <Checkbox checked={false} disabled={pendingItemIds.has(item.id)} onCheckedChange={() => toggleItem(item)} />
                   <span className="flex-1 text-sm"><span className="mr-1.5">{foodEmoji(item.name)}</span>{item.name}</span>
                   {item.quantity && <span className="text-xs text-muted-foreground">{item.quantity}</span>}
-                  <Button variant="ghost" size="icon" className="touch-target h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteItem(item.id)}>
+                  <Button variant="ghost" size="icon" disabled={pendingItemIds.has(item.id)} className="touch-target h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteItem(item.id)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -190,14 +244,15 @@ export default function Shopping() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">{t("shop_done", { n: checked.length })}</span>
-                <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearChecked}>
+                <Button variant="ghost" size="sm" disabled={clearing} className="h-6 text-xs text-muted-foreground" onClick={clearChecked}>
+                  {clearing && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
                   {t("shop_clear")}
                 </Button>
               </div>
               <div className="bg-card rounded-2xl border border-border divide-y divide-border opacity-60">
                 {checked.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                    <Checkbox checked onCheckedChange={() => toggleItem(item)} />
+                    <Checkbox checked disabled={pendingItemIds.has(item.id)} onCheckedChange={() => toggleItem(item)} />
                     <span className="flex-1 text-sm line-through"><span className="mr-1.5">{foodEmoji(item.name)}</span>{item.name}</span>
                   </div>
                 ))}

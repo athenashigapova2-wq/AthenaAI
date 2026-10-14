@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Literal, Sequence
 
+from app.nutrition_policy import NutritionPolicyError, validate_nutrition_values
 from pydantic import BaseModel, Field, model_validator
 
 from simulation.longitudinal import _compare_subset
@@ -324,17 +325,26 @@ def evaluate_hard_invariants(
             isinstance(totals.get(name), (int, float))
             for name in ("calories", "protein_g", "fat_g", "carbs_g")
         ):
-            macro_energy = (
-                float(totals["protein_g"]) * 4
-                + float(totals["fat_g"]) * 9
-                + float(totals["carbs_g"]) * 4
-            )
-            metrics["macro_derived_calories"] = round(macro_energy, 2)
-            checks["macro_calorie_consistency"] = (
-                abs(float(totals["calories"]) - macro_energy)
-                <= checkpoint.nutrition.macro_energy_tolerance_kcal
-            )
+            try:
+                validated_totals = validate_nutrition_values(
+                    calories=float(totals["calories"]),
+                    protein_g=float(totals["protein_g"]),
+                    carbs_g=float(totals["carbs_g"]),
+                    fat_g=float(totals["fat_g"]),
+                )
+            except NutritionPolicyError:
+                checks["non_negative_nutrition"] = False
+                checks["macro_calorie_consistency"] = False
+            else:
+                checks["non_negative_nutrition"] = True
+                macro_energy = validated_totals.macro_calories
+                metrics["macro_derived_calories"] = round(macro_energy, 2)
+                checks["macro_calorie_consistency"] = (
+                    abs(validated_totals.calories - macro_energy)
+                    <= checkpoint.nutrition.macro_energy_tolerance_kcal
+                )
         else:
+            checks["non_negative_nutrition"] = False
             checks["macro_calorie_consistency"] = False
         if nutrition_result:
             violations = nutrition_result.get("allergen_check", {}).get(

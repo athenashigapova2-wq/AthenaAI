@@ -12,6 +12,7 @@ from starlette.responses import StreamingResponse
 
 from app.auth.supabase_jwt import AuthenticatedUser, get_current_user
 from app.evaluation.experiments import assign_active_experiment
+from app.nutrition_policy import NonNegativeFiniteFloat
 from app.services import agent_jobs, agent_traces, write_confirmations
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -41,9 +42,9 @@ class CalorieEvidencePeriod(BaseModel):
 
 class CalorieDecisionResponse(BaseModel):
     action: Literal["keep", "increase", "decrease"]
-    current_calories: float
-    proposed_calories: float
-    minimum_calories: float
+    current_calories: NonNegativeFiniteFloat
+    proposed_calories: NonNegativeFiniteFloat
+    minimum_calories: NonNegativeFiniteFloat
     change_kcal: float
     weight_records: int = Field(ge=0)
     evidence_period: CalorieEvidencePeriod

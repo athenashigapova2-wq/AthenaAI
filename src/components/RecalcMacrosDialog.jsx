@@ -129,8 +129,9 @@ export default function RecalcMacrosDialog({ open, onOpenChange, profile, onAppl
       });
     } catch {
       toast({ title: t("calc_couldntSave"), variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (

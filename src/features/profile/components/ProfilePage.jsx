@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from "@/lib/entities";
 import { useAuth } from "@/lib/AuthContext";
@@ -21,6 +21,7 @@ import {
 import ProfileGoals from "@/features/profile/components/ProfileGoals";
 import ProfilePreferences from "@/features/profile/components/ProfilePreferences";
 import { deletePermanentAccount } from "@/features/profile/api/accountApi";
+import { toast } from "@/components/ui/use-toast";
 
 export default function Profile() {
   const { user, logout } = useAuth();
@@ -29,6 +30,11 @@ export default function Profile() {
   const [weights, setWeights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [weightSaving, setWeightSaving] = useState(false);
+  const savingRef = useRef(false);
+  const weightSavingRef = useRef(false);
+  const [deletingWeights, setDeletingWeights] = useState(false);
+  const deletingWeightsRef = useRef(false);
   const [showWeightDialog, setShowWeightDialog] = useState(false);
   const [showRecalc, setShowRecalc] = useState(false);
   const [newWeight, setNewWeight] = useState("");
@@ -64,6 +70,8 @@ export default function Profile() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleSave = async () => {
+    if (savingRef.current || !profile) return;
+    savingRef.current = true;
     setSaving(true);
     const payload = {
       age: Number(form.age) || undefined, sex: form.sex, height_cm: Number(form.height_cm) || undefined,
@@ -77,16 +85,46 @@ export default function Profile() {
       favorite_foods: form.favorite_foods.split(",").map((s) => s.trim()).filter(Boolean),
       disliked_foods: form.disliked_foods.split(",").map((s) => s.trim()).filter(Boolean),
     };
-    await entities.UserProfile.update(profile.id, payload);
-    setSaving(false);
+    try {
+      const updated = await entities.UserProfile.update(profile.id, payload);
+      setProfile(updated);
+    } catch (error) {
+      toast({
+        title: "Не удалось сохранить профиль",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const handleLogWeight = async () => {
-    if (!newWeight) return;
-    const entry = await entities.WeightLog.create({ weight_kg: Number(newWeight), date: toLocalDateStr() });
-    setWeights((w) => [...w, entry]);
-    setNewWeight("");
-    setShowWeightDialog(false);
+    if (!newWeight || weightSavingRef.current) return;
+    weightSavingRef.current = true;
+    setWeightSaving(true);
+    try {
+      const entry = await entities.WeightLog.upsert(
+        { weight_kg: Number(newWeight), date: toLocalDateStr() },
+        "user_id,date",
+      );
+      setWeights((current) => [
+        ...current.filter((item) => item.date !== entry.date),
+        entry,
+      ]);
+      setNewWeight("");
+      setShowWeightDialog(false);
+    } catch (error) {
+      toast({
+        title: "Не удалось сохранить вес",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      weightSavingRef.current = false;
+      setWeightSaving(false);
+    }
   };
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -162,10 +200,25 @@ export default function Profile() {
                 <Button
                   size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                   onClick={async () => {
-                    if (!window.confirm(t("prof_deleteAllWeightsConfirm"))) return;
-                    await entities.WeightLog.deleteMany({ created_by_id: user.id });
-                    setWeights([]);
+                    if (deletingWeightsRef.current || !window.confirm(t("prof_deleteAllWeightsConfirm"))) return;
+                    deletingWeightsRef.current = true;
+                    setDeletingWeights(true);
+                    try {
+                      await entities.WeightLog.deleteMany({ created_by_id: user.id });
+                      setWeights([]);
+                    } catch (error) {
+                      await loadData().catch(() => undefined);
+                      toast({
+                        title: "Не удалось удалить историю веса",
+                        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      deletingWeightsRef.current = false;
+                      setDeletingWeights(false);
+                    }
                   }}
+                  disabled={deletingWeights}
                   aria-label={t("prof_deleteAllWeights")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -262,7 +315,10 @@ export default function Profile() {
               <Label className="text-xs">{t("prof_weightLabel")}</Label>
               <Input type="number" step="0.1" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} placeholder="75.0" autoFocus />
             </div>
-            <Button className="w-full h-10" onClick={handleLogWeight} disabled={!newWeight}>{t("prof_saveBtn")}</Button>
+            <Button className="w-full h-10" onClick={handleLogWeight} disabled={!newWeight || weightSaving}>
+              {weightSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {t("prof_saveBtn")}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

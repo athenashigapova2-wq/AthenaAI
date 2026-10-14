@@ -115,8 +115,9 @@ export default function MacroCalculator() {
       });
     } catch {
       toast({ title: t("calc_couldntSave"), variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (

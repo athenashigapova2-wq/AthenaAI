@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
 import { useLang } from "@/lib/i18n";
+import { carbsForCalories, isValidNutritionValues } from "@/lib/macroCalc";
+import { toast } from "@/components/ui/use-toast";
 
 const STEPS = ["goal", "body", "nutrition", "preferences"];
 
@@ -30,8 +32,7 @@ function calculateDefaults(weight, goal) {
   }
   const protein = Math.round(weight * protMult);
   const fat = Math.round(weight * 0.9);
-  const carbCals = cals - protein * 4 - fat * 9;
-  const carbs = Math.max(Math.round(carbCals / 4), 50);
+  const carbs = carbsForCalories(cals, protein, fat, 50);
   return { calorie_target: cals, protein_target_g: protein, carb_target_g: carbs, fat_target_g: fat };
 }
 
@@ -39,6 +40,7 @@ export default function Onboarding({ onComplete }) {
   const { t } = useLang();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [data, setData] = useState({
     goal: "", sex: "male", age: "", height_cm: "", weight_kg: "",
     calorie_target: "", protein_target_g: "", carb_target_g: "", fat_target_g: "",
@@ -72,7 +74,7 @@ export default function Onboarding({ onComplete }) {
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const handleSave = async () => {
-    setSaving(true);
+    if (savingRef.current) return;
     const payload = {
       ...data,
       age: Number(data.age) || undefined, height_cm: Number(data.height_cm) || undefined, weight_kg: Number(data.weight_kg) || undefined,
@@ -81,18 +83,52 @@ export default function Onboarding({ onComplete }) {
       onboarding_complete: true,
       cycle_tracking_offered: data.sex === "female", // уже спросили здесь — не дублируем вопрос в профиле
     };
-    await entities.UserProfile.create(payload);
-    if (data.weight_kg) {
-      await entities.WeightLog.create({ weight_kg: Number(data.weight_kg), date: toLocalDateStr() });
+    if (!isValidNutritionValues({
+      calories: payload.calorie_target,
+      protein: payload.protein_target_g,
+      carbs: payload.carb_target_g,
+      fat: payload.fat_target_g,
+    })) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await entities.UserProfile.upsert(payload, "user_id");
+      if (data.weight_kg) {
+        await entities.WeightLog.upsert(
+          { weight_kg: Number(data.weight_kg), date: toLocalDateStr() },
+          "user_id,date",
+        );
+      }
+      onComplete();
+    } catch (error) {
+      toast({
+        title: "Не удалось сохранить профиль",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    setSaving(false);
-    onComplete();
   };
 
   const canProceed = () => {
     if (step === 0) return !!data.goal;
     if (step === 1) return data.weight_kg && data.height_cm;
-    if (step === 2) return data.calorie_target && data.protein_target_g && data.carb_target_g && data.fat_target_g;
+    if (step === 2) {
+      const fields = [
+        data.calorie_target,
+        data.protein_target_g,
+        data.carb_target_g,
+        data.fat_target_g,
+      ];
+      return fields.every((value) => value !== "") && isValidNutritionValues({
+        calories: Number(data.calorie_target),
+        protein: Number(data.protein_target_g),
+        carbs: Number(data.carb_target_g),
+        fat: Number(data.fat_target_g),
+      });
+    }
     return true;
   };
 
@@ -198,12 +234,12 @@ export default function Onboarding({ onComplete }) {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>{t("onb_calories")}</Label>
-              <Input type="number" value={data.calorie_target} onChange={(e) => update("calorie_target", e.target.value)} />
+              <Input type="number" min="0" value={data.calorie_target} onChange={(e) => update("calorie_target", e.target.value)} />
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2"><Label>{t("onb_protein")}</Label><Input type="number" value={data.protein_target_g} onChange={(e) => update("protein_target_g", e.target.value)} /></div>
-              <div className="space-y-2"><Label>{t("onb_carbs")}</Label><Input type="number" value={data.carb_target_g} onChange={(e) => update("carb_target_g", e.target.value)} /></div>
-              <div className="space-y-2"><Label>{t("onb_fat")}</Label><Input type="number" value={data.fat_target_g} onChange={(e) => update("fat_target_g", e.target.value)} /></div>
+              <div className="space-y-2"><Label>{t("onb_protein")}</Label><Input type="number" min="0" value={data.protein_target_g} onChange={(e) => update("protein_target_g", e.target.value)} /></div>
+              <div className="space-y-2"><Label>{t("onb_carbs")}</Label><Input type="number" min="0" value={data.carb_target_g} onChange={(e) => update("carb_target_g", e.target.value)} /></div>
+              <div className="space-y-2"><Label>{t("onb_fat")}</Label><Input type="number" min="0" value={data.fat_target_g} onChange={(e) => update("fat_target_g", e.target.value)} /></div>
             </div>
             <p className="text-xs text-muted-foreground">{t("onb_autoNote")}</p>
           </div>

@@ -6,6 +6,11 @@ from app.agents.common.response_pipeline import (
     _sanitize_internal_notation,
     _weight_trend_dates,
 )
+from app.nutrition_policy import (
+    NonNegativeFiniteFloat,
+    NutritionPolicyError,
+    validate_non_negative,
+)
 from langchain_core.tools import StructuredTool
 
 MIN_CALORIE_TARGET = 1_200.0
@@ -26,11 +31,13 @@ def _calorie_decision_tool(
 
     def submit_calorie_decision(
         action: Literal["keep", "increase", "decrease"],
-        proposed_calories: float,
+        proposed_calories: NonNegativeFiniteFloat,
         rationale: str,
     ) -> dict[str, Any]:
         normalized_action = action
-        if not isinstance(current, (int, float)):
+        try:
+            current_calories = validate_non_negative("current_calories", current)
+        except NutritionPolicyError:
             return {
                 "status": "rejected",
                 "issues": ["current calorie target is unavailable"],
@@ -43,11 +50,11 @@ def _calorie_decision_tool(
             )
         if proposed > 6_000:
             issues.append("proposed calories exceed the supported profile limit 6000")
-        if normalized_action == "keep" and proposed != float(current):
+        if normalized_action == "keep" and proposed != current_calories:
             issues.append("keep requires proposed_calories to equal current_calories")
-        if normalized_action == "increase" and proposed <= float(current):
+        if normalized_action == "increase" and proposed <= current_calories:
             issues.append("increase requires proposed_calories above current_calories")
-        if normalized_action == "decrease" and proposed >= float(current):
+        if normalized_action == "decrease" and proposed >= current_calories:
             issues.append("decrease requires proposed_calories below current_calories")
         trend_dates = _weight_trend_dates(trend_result)
         if normalized_action != "keep" and trend_dates is None:
@@ -56,17 +63,17 @@ def _calorie_decision_tool(
             return {
                 "status": "rejected",
                 "issues": issues,
-                "current_calories": float(current),
+                "current_calories": current_calories,
                 "minimum_calories": MIN_CALORIE_TARGET,
             }
 
         first_date, last_date = trend_dates if trend_dates else (None, None)
         decision = {
             "action": normalized_action,
-            "current_calories": float(current),
+            "current_calories": current_calories,
             "proposed_calories": proposed,
             "minimum_calories": MIN_CALORIE_TARGET,
-            "change_kcal": round(proposed - float(current), 1),
+            "change_kcal": round(proposed - current_calories, 1),
             "weight_records": len(
                 trend_result.get("weights") or [] if isinstance(trend_result, dict) else []
             ),
@@ -83,13 +90,13 @@ def _calorie_decision_tool(
                 "decrease": "снизить",
             }[normalized_action]
             answer = (
-                f"Решение по калорийности: {action_text} цель с {float(current):g} "
+                f"Решение по калорийности: {action_text} цель с {current_calories:g} "
                 f"до {proposed:g} ккал. {decision['rationale']}"
             )
         else:
             answer = (
                 f"Calorie decision: {normalized_action} the target from "
-                f"{float(current):g} to {proposed:g} kcal. {decision['rationale']}"
+                f"{current_calories:g} to {proposed:g} kcal. {decision['rationale']}"
             )
         return {"status": "ok", "calorie_decision": decision, "answer": answer.strip()}
 

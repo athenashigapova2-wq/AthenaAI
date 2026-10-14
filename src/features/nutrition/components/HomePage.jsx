@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { invokeAthenaTask } from '@/lib/athenaTasks';
@@ -36,6 +36,8 @@ export default function Home() {
   const [aiTip, setAiTip] = useState(null);
   const [loadingTip, setLoadingTip] = useState(false);
   const [habitInsight, setHabitInsight] = useState(null); // { suggestion, insufficient_data }
+  const [deletingMealIds, setDeletingMealIds] = useState(() => new Set());
+  const deletingMealIdsRef = useRef(new Set());
 
   const [loadError, setLoadError] = useState(false);
 
@@ -134,13 +136,18 @@ export default function Home() {
   }, [profile, loading]);
 
   const handleDeleteMeal = async (id) => {
-    const prevMeals = meals;
+    if (deletingMealIdsRef.current.has(id)) return;
+    deletingMealIdsRef.current.add(id);
+    setDeletingMealIds(new Set(deletingMealIdsRef.current));
     setMeals((m) => m.filter((x) => x.id !== id)); // optimistic
     try {
       await entities.MealLog.delete(id);
     } catch {
-      setMeals(prevMeals); // rollback
+      await loadData().catch(() => undefined);
       toast({ title: "Couldn't delete meal", description: "Please try again.", variant: "destructive" });
+    } finally {
+      deletingMealIdsRef.current.delete(id);
+      setDeletingMealIds(new Set(deletingMealIdsRef.current));
     }
   };
 
@@ -315,7 +322,7 @@ export default function Home() {
         ) : (
           <div className="bg-card rounded-2xl border border-border px-4">
             {meals.map((m) => (
-              <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} compact />
+              <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} deleting={deletingMealIds.has(m.id)} compact />
             ))}
           </div>
         )}

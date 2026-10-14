@@ -5,7 +5,7 @@ import { useLang } from "@/lib/i18n";
 
 const MEAL_KEY = { breakfast: "meal_breakfast", lunch: "meal_lunch", dinner: "meal_dinner", snack: "meal_snack" };
 
-export default function MealCard({ meal, onDelete, compact = false }) {
+export default function MealCard({ meal, onDelete, compact = false, deleting = false }) {
   const { t } = useLang();
   if (compact) {
     return (
@@ -20,7 +20,7 @@ export default function MealCard({ meal, onDelete, compact = false }) {
           </div>
         </div>
         {onDelete && (
-          <Button variant="ghost" size="icon" className="touch-target h-7 w-7 text-muted-foreground hover:text-destructive shrink-0" onClick={() => onDelete(meal.id)}>
+          <Button disabled={deleting} variant="ghost" size="icon" className="touch-target h-7 w-7 text-muted-foreground hover:text-destructive shrink-0" onClick={() => onDelete(meal.id)}>
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         )}
@@ -38,7 +38,7 @@ export default function MealCard({ meal, onDelete, compact = false }) {
           )}
         </div>
         {onDelete && (
-          <Button variant="ghost" size="icon" className="touch-target h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => onDelete(meal.id)}>
+          <Button disabled={deleting} variant="ghost" size="icon" className="touch-target h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => onDelete(meal.id)}>
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         )}

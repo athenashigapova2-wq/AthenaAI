@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { toLocalDateStr } from "@/lib/utils";
 import { entities } from '@/lib/entities';
 import { estimateMeal } from '@/features/nutrition/api/nutritionApi';
@@ -10,6 +10,8 @@ import ResponsiveSelect from "@/components/ResponsiveSelect";
 import { Loader2, Sparkles } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { toast } from "@/components/ui/use-toast";
+import { createIdempotencyKey } from "@/lib/idempotency";
+import { isValidNutritionValues } from "@/lib/macroCalc";
 
 const today = () => toLocalDateStr();
 
@@ -20,8 +22,13 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
   const [form, setForm] = useState({ name: "", meal_type: "lunch", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
   const [source, setSource] = useState(null); // 'db' | 'ai' | null
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const idempotencyKeyRef = useRef(null);
 
-  const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const update = (k, v) => {
+    idempotencyKeyRef.current = null;
+    setForm((f) => ({ ...f, [k]: v }));
+  };
 
   const handleEstimate = async () => {
     if (!desc.trim()) return;
@@ -44,6 +51,7 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
         carbs_g: String(Math.round(res.carbs_g || 0)),
         fat_g: String(Math.round(res.fat_g || 0)),
       }));
+      idempotencyKeyRef.current = null;
       setSource('db');
     } catch (error) {
       toast({
@@ -57,20 +65,48 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
+    const payload = {
+      name: form.name,
+      meal_type: form.meal_type,
+      calories: Number(form.calories),
+      protein_g: Number(form.protein_g),
+      carbs_g: Number(form.carbs_g),
+      fat_g: Number(form.fat_g),
+      date: today(),
+    };
+    const idempotencyKey = idempotencyKeyRef.current || createIdempotencyKey("meal");
+    idempotencyKeyRef.current = idempotencyKey;
+    savingRef.current = true;
     setSaving(true);
-    const meal = await entities.MealLog.create({
-      name: form.name, meal_type: form.meal_type,
-      calories: Number(form.calories), protein_g: Number(form.protein_g),
-      carbs_g: Number(form.carbs_g), fat_g: Number(form.fat_g), date: today(),
-    });
-    setSaving(false);
-    setForm({ name: "", meal_type: "lunch", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
-    setDesc("");
-    setSource(null);
-    onLogged(meal);
+    try {
+      const meal = await entities.MealLog.createIdempotently(payload, idempotencyKey);
+      idempotencyKeyRef.current = null;
+      setForm({ name: "", meal_type: "lunch", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+      setDesc("");
+      setSource(null);
+      onLogged(meal);
+    } catch (error) {
+      toast({
+        title: t("log_saveFailed") || "Не удалось сохранить приём пищи",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
-  const canSave = form.name && form.calories && form.protein_g && form.carbs_g && form.fat_g;
+  const nutritionFields = [form.calories, form.protein_g, form.carbs_g, form.fat_g];
+  const canSave = Boolean(form.name.trim())
+    && nutritionFields.every((value) => value !== "")
+    && isValidNutritionValues({
+      calories: Number(form.calories),
+      protein: Number(form.protein_g),
+      carbs: Number(form.carbs_g),
+      fat: Number(form.fat_g),
+    });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,12 +153,12 @@ export default function LogMealDialog({ open, onOpenChange, onLogged }) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">{t("log_calories")}</Label>
-            <Input type="number" value={form.calories} onChange={(e) => update("calories", e.target.value)} />
+            <Input type="number" min="0" value={form.calories} onChange={(e) => update("calories", e.target.value)} />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5"><Label className="text-xs">{t("log_protein")}</Label><Input type="number" value={form.protein_g} onChange={(e) => update("protein_g", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label className="text-xs">{t("log_carbs")}</Label><Input type="number" value={form.carbs_g} onChange={(e) => update("carbs_g", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label className="text-xs">{t("log_fat")}</Label><Input type="number" value={form.fat_g} onChange={(e) => update("fat_g", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">{t("log_protein")}</Label><Input type="number" min="0" value={form.protein_g} onChange={(e) => update("protein_g", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">{t("log_carbs")}</Label><Input type="number" min="0" value={form.carbs_g} onChange={(e) => update("carbs_g", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">{t("log_fat")}</Label><Input type="number" min="0" value={form.fat_g} onChange={(e) => update("fat_g", e.target.value)} /></div>
           </div>
         </div>
 
