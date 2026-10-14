@@ -31,6 +31,7 @@ jobs:
       LLM_PROVIDER: gigachat
       GIGACHAT_AUTH_KEY: ${{ secrets.GIGACHAT_AUTH_KEY }}
       GIGACHAT_SCOPE: GIGACHAT_API_PERS
+      GIGACHAT_CA_BUNDLE_FILE: certs/russian_trusted_root_ca_pem.crt
       RAG_ENABLED: "false"
       LLM_RATE_LIMITER_ENABLED: "false"
       LLM_CIRCUIT_BREAKER_ENABLED: "false"
@@ -67,6 +68,13 @@ jobs:
       - name: Install Python dependencies
         if: steps.credentials.outputs.available == 'true'
         run: python -m pip install -r backend/requirements-dev.txt
+      - name: Verify pinned GigaChat trust anchor
+        if: steps.credentials.outputs.available == 'true'
+        shell: bash
+        run: |
+          actual_fingerprint="$(openssl x509 -in backend/certs/russian_trusted_root_ca_pem.crt -outform DER | sha256sum | cut -d ' ' -f 1)"
+          expected_fingerprint="d26d2d0231b7c39f92cc738512ba54103519e4405d68b5bd703e9788ca8ecf31"
+          test "$actual_fingerprint" = "$expected_fingerprint"
       - name: Run explicitly opted-in live evaluations
         if: steps.credentials.outputs.available == 'true'
         run: python -m pytest tests/live_evals --run-live-evals -q

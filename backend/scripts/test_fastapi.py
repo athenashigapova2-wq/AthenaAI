@@ -100,6 +100,16 @@ def check_job_api() -> None:
     with (
         patch("app.api.agent.uuid4", return_value=TRACE_ID),
         patch("app.api.agent.agent_jobs.enqueue_agent_job", return_value=JOB_ID) as enqueue,
+        patch(
+            "app.api.agent.agent_jobs.get_agent_job",
+            return_value={
+                "job_id": JOB_ID,
+                "trace_id": TRACE_ID,
+                "experiment_id": None,
+                "variant_id": None,
+                "status": "queued",
+            },
+        ),
     ):
         response = client.post(
             "/api/v1/agent/chat",
@@ -124,6 +134,7 @@ def check_job_api() -> None:
         trace_id=TRACE_ID,
         experiment_id=None,
         variant_id=None,
+        idempotency_key=None,
     )
 
     with patch(

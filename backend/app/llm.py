@@ -5,12 +5,40 @@ resilience, tracing and invocation belong to ``app.ai_execution``.
 """
 
 from functools import lru_cache
+from pathlib import Path
+from ssl import PEM_cert_to_DER_cert
 
 from langchain_core.language_models import BaseChatModel
 
-from app.config import settings
+from app.config import BACKEND_DIR, DEFAULT_GIGACHAT_CA_BUNDLE, settings
 from app.mock_llm import AthenaMockChatModel
 from app.model_routing import ModelSelection
+
+
+def gigachat_ca_bundle_path() -> Path:
+    """Resolve and validate the dedicated GigaChat trust anchor."""
+    configured = settings.gigachat_ca_bundle_file.strip() or DEFAULT_GIGACHAT_CA_BUNDLE
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        path = BACKEND_DIR / path
+    path = path.resolve()
+    if not path.is_file():
+        raise RuntimeError(f"GIGACHAT_CA_BUNDLE_FILE does not exist: {path}")
+    try:
+        contents = path.read_text(encoding="ascii")
+    except (OSError, UnicodeError) as exc:
+        raise RuntimeError(f"GIGACHAT_CA_BUNDLE_FILE is not a readable PEM file: {path}") from exc
+    if "-----BEGIN CERTIFICATE-----" not in contents or "-----END CERTIFICATE-----" not in contents:
+        raise RuntimeError(f"GIGACHAT_CA_BUNDLE_FILE is not a PEM certificate bundle: {path}")
+    first_certificate_end = contents.find("-----END CERTIFICATE-----")
+    first_certificate = contents[
+        : first_certificate_end + len("-----END CERTIFICATE-----")
+    ]
+    try:
+        PEM_cert_to_DER_cert(first_certificate)
+    except ValueError as exc:
+        raise RuntimeError(f"GIGACHAT_CA_BUNDLE_FILE contains an invalid PEM certificate: {path}") from exc
+    return path
 
 
 @lru_cache(maxsize=8)
@@ -26,9 +54,8 @@ def _get_gigachat(model: str, *, temperature: float | None = None) -> BaseChatMo
         "verify_ssl_certs": True,
         "profanity_check": False,
         "timeout": 60,
+        "ca_bundle_file": str(gigachat_ca_bundle_path()),
     }
-    if settings.gigachat_ca_bundle_file.strip():
-        kwargs["ca_bundle_file"] = settings.gigachat_ca_bundle_file.strip()
     if temperature is not None:
         kwargs["temperature"] = temperature
     return GigaChat(**kwargs)

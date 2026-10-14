@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_GIGACHAT_CA_BUNDLE = "certs/russian_trusted_root_ca_pem.crt"
 
 
 def _default_model_routing_policy() -> dict[str, Literal["small", "main"]]:
@@ -67,7 +68,7 @@ class Settings(BaseSettings):
     gigachat_model: str = "GigaChat-2"
     # Optional PEM bundle for environments whose system trust store does not
     # contain the CA chain used by the provider. TLS verification stays enabled.
-    gigachat_ca_bundle_file: str = ""
+    gigachat_ca_bundle_file: str = DEFAULT_GIGACHAT_CA_BUNDLE
 
     # Retries are used only around idempotent LLM and read operations.
     safe_retry_max_attempts: int = Field(default=3, ge=1, le=10)

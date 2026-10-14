@@ -121,6 +121,12 @@ def chat_with_agent(
     request: AgentChatRequest,
     http_request: Request,
     response: Response,
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=200,
+    ),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentChatAccepted:
     """Validate the caller and enqueue a long-running agent turn."""
@@ -135,7 +141,13 @@ def chat_with_agent(
             trace_id=trace_id,
             experiment_id=assignment.experiment_id if assignment else None,
             variant_id=assignment.variant_id if assignment else None,
+            idempotency_key=idempotency_key,
         )
+        persisted_job = agent_jobs.get_agent_job(job_id, user.user_id)
+        if persisted_job is None:
+            raise agent_jobs.QueueUnavailableError("Accepted job disappeared")
+    except agent_jobs.IdempotencyConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except agent_jobs.QueueUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -143,12 +155,13 @@ def chat_with_agent(
         ) from exc
 
     status_url = str(http_request.url_for("get_agent_job", job_id=job_id))
+    trace_id = str(persisted_job["trace_id"])
     response.headers["X-Trace-ID"] = trace_id
     return AgentChatAccepted(
         job_id=job_id,
         trace_id=trace_id,
-        experiment_id=assignment.experiment_id if assignment else None,
-        variant_id=assignment.variant_id if assignment else None,
+        experiment_id=persisted_job.get("experiment_id"),
+        variant_id=persisted_job.get("variant_id"),
         status="queued",
         status_url=status_url,
     )

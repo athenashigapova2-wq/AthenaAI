@@ -1,7 +1,7 @@
 """Offline checks for the manual GigaChat diagnostic script."""
 
-import json
 import base64
+import json
 import sys
 from pathlib import Path
 
@@ -9,7 +9,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.check_gigachat_api import (  # noqa: E402
+from scripts.check_gigachat_api import (
     list_models,
     normalize_authorization_key,
     request_access_token,

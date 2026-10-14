@@ -1,6 +1,7 @@
 """Persist user-owned chat history around one agent turn."""
 
 from typing import Any
+from uuid import UUID, uuid5
 
 from app.config import settings
 from app.resilience import retry_transient
@@ -12,6 +13,8 @@ def prepare_conversation(
     conversation_id: str | None,
     message: str,
     locale: str,
+    *,
+    job_id: str | None = None,
 ) -> tuple[str, list[dict[str, str]]]:
     client = get_supabase()
     if conversation_id:
@@ -29,21 +32,29 @@ def prepare_conversation(
         if not response.data:
             raise ValueError("Conversation not found")
     else:
-        response = (
-            client.table("agent_conversations")
-            .insert(
-                {
-                    "user_id": user_id,
-                    "agent_name": "athena_multi_agent",
-                    "title": message[:48],
-                    "metadata": {"locale": locale},
-                }
+        conversation = {
+            "user_id": user_id,
+            "agent_name": "athena_multi_agent",
+            "title": message[:48],
+            "metadata": {"locale": locale},
+        }
+        if job_id is not None:
+            # A redelivered Celery task must resolve to the same conversation.
+            # Job IDs are server-generated UUIDs, so they are safe deterministic IDs.
+            conversation["id"] = str(UUID(job_id))
+            response = (
+                client.table("agent_conversations")
+                .upsert(conversation, on_conflict="id", ignore_duplicates=True)
+                .execute()
             )
-            .execute()
-        )
+            conversation_id = str(UUID(job_id))
+        else:
+            response = client.table("agent_conversations").insert(conversation).execute()
         if not response.data:
-            raise RuntimeError("Supabase did not return the created conversation")
-        conversation_id = str(response.data[0]["id"])
+            if conversation_id is None:
+                raise RuntimeError("Supabase did not return the created conversation")
+        elif conversation_id is None:
+            conversation_id = str(response.data[0]["id"])
 
     history_query = (
         client.table("agent_messages")
@@ -65,18 +76,25 @@ def prepare_conversation(
     return conversation_id, history
 
 
-def save_turn(conversation_id: str, message: str, answer: str) -> None:
-    response = (
-        get_supabase()
-        .table("agent_messages")
-        .insert(
-            [
-                {"conversation_id": conversation_id, "role": "user", "content": message},
-                {"conversation_id": conversation_id, "role": "assistant", "content": answer},
-            ]
-        )
-        .execute()
-    )
+def save_turn(
+    conversation_id: str,
+    message: str,
+    answer: str,
+    *,
+    job_id: str | None = None,
+) -> None:
+    rows = [
+        {"conversation_id": conversation_id, "role": "user", "content": message},
+        {"conversation_id": conversation_id, "role": "assistant", "content": answer},
+    ]
+    query = get_supabase().table("agent_messages")
+    if job_id is not None:
+        namespace = UUID(job_id)
+        rows[0]["id"] = str(uuid5(namespace, "user"))
+        rows[1]["id"] = str(uuid5(namespace, "assistant"))
+        response = query.upsert(rows, on_conflict="id", ignore_duplicates=True).execute()
+    else:
+        response = query.insert(rows).execute()
     if response.data is None:
         raise RuntimeError("Supabase did not persist the agent turn")
 

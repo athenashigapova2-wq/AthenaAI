@@ -60,6 +60,9 @@ def run_agent_chat_task(
         try:
             raise_if_current_job_cancelled()
             queue_latency_ms = mark_job_running(job_id)
+            if queue_latency_ms is None:
+                logger.info("Skipping terminal or expired redelivery for job %s", job_id)
+                return
             if settings.agent_infrastructure_test_mode:
                 publish_current_job_progress("generating")
                 result = _run_infrastructure_test_job(

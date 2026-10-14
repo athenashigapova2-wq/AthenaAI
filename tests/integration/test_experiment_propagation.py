@@ -32,6 +32,16 @@ def test_http_assigns_experiment_server_side_and_enqueues_it() -> None:
             "app.api.agent.agent_jobs.enqueue_agent_job",
             return_value=api_checks.JOB_ID,
         ) as enqueue,
+        patch(
+            "app.api.agent.agent_jobs.get_agent_job",
+            return_value={
+                "job_id": api_checks.JOB_ID,
+                "trace_id": api_checks.TRACE_ID,
+                "experiment_id": "quality-v1",
+                "variant_id": "small",
+                "status": "queued",
+            },
+        ),
     ):
         response = api_checks.client.post(
             "/api/v1/agent/chat",

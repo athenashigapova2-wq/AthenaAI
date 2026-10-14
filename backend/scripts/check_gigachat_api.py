@@ -5,8 +5,8 @@ import base64
 import binascii
 import getpass
 import re
-import sys
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -14,6 +14,7 @@ import httpx
 OAUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 MODELS_URL = "https://api.giga.chat/v1/models"
 CHAT_URL = "https://api.giga.chat/v1/chat/completions"
+DEFAULT_CA_BUNDLE = Path(__file__).resolve().parents[1] / "certs/russian_trusted_root_ca_pem.crt"
 
 
 def normalize_authorization_key(value: str) -> str:
@@ -83,19 +84,21 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", help="Exact model id returned by GET /v1/models")
     parser.add_argument("--prompt", default="Ответь одним словом: привет")
-    parser.add_argument("--ca-bundle", help="Path to a trusted CA PEM/CRT bundle")
-    parser.add_argument("--insecure", action="store_true", help="Disable TLS verification for this diagnostic only")
+    parser.add_argument(
+        "--ca-bundle",
+        default=str(DEFAULT_CA_BUNDLE),
+        help="Path to a trusted CA PEM/CRT bundle (TLS verification is always enabled)",
+    )
     args = parser.parse_args()
-
-    if args.insecure:
-        print("WARNING: TLS verification is disabled for this diagnostic run", file=sys.stderr)
-    verify: bool | str = False if args.insecure else (args.ca_bundle or True)
+    ca_bundle = Path(args.ca_bundle).expanduser().resolve()
+    if not ca_bundle.is_file():
+        raise SystemExit(f"CA bundle does not exist: {ca_bundle}")
     authorization_key = normalize_authorization_key(
         getpass.getpass("Paste GigaChat Authorization key (input hidden): ")
     )
 
     try:
-        with httpx.Client(verify=verify, timeout=60) as client:
+        with httpx.Client(verify=str(ca_bundle), timeout=60) as client:
             access_token = request_access_token(client, authorization_key)
             print("OAuth succeeded; access token received (not displayed)")
             model_ids = list_models(client, access_token)

@@ -53,6 +53,7 @@ def run_agent_chat(
             conversation_id,
             message,
             locale,
+            job_id=job_id,
         )
     except ValueError as exc:
         raise ConversationNotFoundError(str(exc)) from exc
@@ -90,6 +91,7 @@ def run_agent_chat(
             resolved_conversation_id,
             message,
             result["answer"],
+            job_id=job_id,
         )
         agent_memory.update_agent_memory_best_effort(
             user_id=user_id,

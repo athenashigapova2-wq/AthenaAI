@@ -52,7 +52,12 @@ def check_agent_service() -> None:
         "route": "nutrition",
         "conversation_id": "conversation-id",
     }
-    save_turn.assert_called_once_with("conversation-id", "Add breakfast", "Done")
+    save_turn.assert_called_once_with(
+        "conversation-id",
+        "Add breakfast",
+        "Done",
+        job_id="job-id",
+    )
     assert run_turn.call_args.kwargs["memory_context"] == "memory-context"
     assert run_turn.call_args.kwargs["trace_id"] == "trace-id"
     create_run.assert_called_once_with(

@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from functools import lru_cache
+from hashlib import sha256
 from typing import Any, cast
 from uuid import uuid4
 
@@ -16,6 +17,7 @@ from redis.exceptions import RedisError
 
 JOB_KEY_PREFIX = "athena:agent-job:"
 JOB_EVENT_CHANNEL_PREFIX = "athena:agent-job-events:"
+JOB_REQUEST_KEY_PREFIX = "athena:agent-job-request:"
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 _current_job_id: ContextVar[str | None] = ContextVar("agent_job_id", default=None)
 logger = logging.getLogger(__name__)
@@ -25,7 +27,10 @@ if redis.call('EXISTS', KEYS[1]) == 0 then
     return 0
 end
 local current_status = redis.call('HGET', KEYS[1], 'status')
-if current_status == 'cancelled' and ARGV[1] ~= 'cancelled' then
+if (current_status == 'cancelled'
+    or current_status == 'succeeded'
+    or current_status == 'failed')
+    and ARGV[1] ~= current_status then
     return 0
 end
 for index = 3, #ARGV, 2 do
@@ -33,6 +38,59 @@ for index = 3, #ARGV, 2 do
 end
 redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
 return 1
+"""
+
+_START_JOB_SCRIPT = """
+if redis.call('EXISTS', KEYS[1]) == 0 then
+    return -1
+end
+local current_status = redis.call('HGET', KEYS[1], 'status')
+if current_status == 'succeeded'
+    or current_status == 'failed'
+    or current_status == 'cancelled' then
+    return 0
+end
+redis.call(
+    'HSET', KEYS[1],
+    'status', 'running',
+    'stage', 'running',
+    'queue_latency_ms', ARGV[1],
+    'updated_at', ARGV[2]
+)
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+return 1
+"""
+
+_CREATE_IDEMPOTENT_JOB_SCRIPT = """
+local existing = redis.call('GET', KEYS[1])
+if existing then
+    local separator = string.find(existing, '|', 1, true)
+    local existing_job_id = string.sub(existing, 1, separator - 1)
+    local existing_fingerprint = string.sub(existing, separator + 1)
+    if existing_fingerprint ~= ARGV[2] then
+        return {'conflict', existing_job_id}
+    end
+    if redis.call('EXISTS', KEYS[2] .. existing_job_id) == 1 then
+        redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+        return {'replay', existing_job_id}
+    end
+    redis.call('DEL', KEYS[1])
+end
+redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2], 'EX', tonumber(ARGV[3]))
+redis.call(
+    'HSET', KEYS[2] .. ARGV[1],
+    'user_id', ARGV[4],
+    'trace_id', ARGV[5],
+    'experiment_id', ARGV[6],
+    'variant_id', ARGV[7],
+    'status', 'queued',
+    'stage', 'queued',
+    'created_at', ARGV[8],
+    'updated_at', ARGV[8],
+    'request_key', KEYS[1]
+)
+redis.call('EXPIRE', KEYS[2] .. ARGV[1], tonumber(ARGV[3]))
+return {'created', ARGV[1]}
 """
 
 _CANCEL_JOB_SCRIPT = """
@@ -68,6 +126,10 @@ class AgentJobCancelledError(Exception):
     """The authenticated caller requested cancellation of the current job."""
 
 
+class IdempotencyConflictError(Exception):
+    """An idempotency key was reused for a different chat request."""
+
+
 @lru_cache(maxsize=1)
 def redis_client() -> Redis:
     return Redis.from_url(
@@ -81,6 +143,22 @@ def redis_client() -> Redis:
 
 def _job_key(job_id: str) -> str:
     return f"{JOB_KEY_PREFIX}{job_id}"
+
+
+def _request_key(user_id: str, idempotency_key: str) -> str:
+    owner = sha256(user_id.encode()).hexdigest()
+    request = sha256(idempotency_key.encode()).hexdigest()
+    return f"{JOB_REQUEST_KEY_PREFIX}{owner}:{request}"
+
+
+def _request_fingerprint(message: str, locale: str, conversation_id: str | None) -> str:
+    payload = json.dumps(
+        {"conversation_id": conversation_id, "locale": locale, "message": message},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return sha256(payload.encode()).hexdigest()
 
 
 def job_event_channel(job_id: str) -> str:
@@ -107,8 +185,9 @@ def enqueue_agent_job(
     trace_id: str,
     experiment_id: str | None = None,
     variant_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> str:
-    """Create an owner-scoped Redis record, then enqueue the Celery task."""
+    """Create one owner-scoped job per stable client request and enqueue it."""
     # Imported lazily so service and API unit tests do not need to initialize Celery.
     from app.workers.tasks import run_agent_chat_task
 
@@ -116,23 +195,53 @@ def enqueue_agent_job(
     key = _job_key(job_id)
     client = redis_client()
     enqueued_at = _now()
+    request_key: str | None = None
     try:
-        with client.pipeline() as pipe:
-            pipe.hset(
-                key,
-                mapping={
-                    "user_id": user_id,
-                    "trace_id": trace_id,
-                    "experiment_id": experiment_id or "",
-                    "variant_id": variant_id or "",
-                    "status": "queued",
-                    "stage": "queued",
-                    "created_at": enqueued_at,
-                    "updated_at": enqueued_at,
-                },
+        if idempotency_key:
+            request_key = _request_key(user_id, idempotency_key)
+            outcome = cast(
+                list[str],
+                client.eval(
+                    _CREATE_IDEMPOTENT_JOB_SCRIPT,
+                    2,
+                    request_key,
+                    JOB_KEY_PREFIX,
+                    job_id,
+                    _request_fingerprint(message, locale, conversation_id),
+                    str(settings.agent_job_ttl_seconds),
+                    user_id,
+                    trace_id,
+                    experiment_id or "",
+                    variant_id or "",
+                    enqueued_at,
+                ),
             )
-            pipe.expire(key, settings.agent_job_ttl_seconds)
-            pipe.execute()  # type: ignore[no-untyped-call]  # redis pipeline stub
+            state, resolved_job_id = outcome
+            if state == "conflict":
+                raise IdempotencyConflictError(
+                    "Idempotency-Key уже использован для другого сообщения"
+                )
+            if state == "replay":
+                return resolved_job_id
+            job_id = resolved_job_id
+            key = _job_key(job_id)
+        else:
+            with client.pipeline() as pipe:
+                pipe.hset(
+                    key,
+                    mapping={
+                        "user_id": user_id,
+                        "trace_id": trace_id,
+                        "experiment_id": experiment_id or "",
+                        "variant_id": variant_id or "",
+                        "status": "queued",
+                        "stage": "queued",
+                        "created_at": enqueued_at,
+                        "updated_at": enqueued_at,
+                    },
+                )
+                pipe.expire(key, settings.agent_job_ttl_seconds)
+                pipe.execute()  # type: ignore[no-untyped-call]  # redis pipeline stub
         run_agent_chat_task.apply_async(
             kwargs={
                 "job_id": job_id,
@@ -147,9 +256,13 @@ def enqueue_agent_job(
             task_id=job_id,
             queue=settings.agent_job_queue,
         )
+    except IdempotencyConflictError:
+        raise
     except Exception as exc:
         try:
             client.delete(key)
+            if request_key is not None:
+                client.delete(request_key)
         except RedisError:
             logger.warning("Could not remove rejected job %s", job_id, exc_info=True)
         raise QueueUnavailableError("Redis job queue is unavailable") from exc
@@ -190,9 +303,11 @@ def get_agent_job(job_id: str, user_id: str) -> dict[str, Any] | None:
     return response
 
 
-def mark_job_running(job_id: str) -> int:
-    """Mark worker start and return HTTP-to-worker queue latency."""
-    created_at = cast(str | None, redis_client().hget(_job_key(job_id), "created_at"))
+def mark_job_running(job_id: str) -> int | None:
+    """Claim active work, or return ``None`` for a terminal/expired job."""
+    client = redis_client()
+    key = _job_key(job_id)
+    created_at = cast(str | None, client.hget(key, "created_at"))
     queue_latency_ms = 0
     if created_at:
         queued = datetime.fromisoformat(created_at)
@@ -200,14 +315,29 @@ def mark_job_running(job_id: str) -> int:
             0,
             round((datetime.now(UTC) - queued).total_seconds() * 1_000),
         )
-    _update_job(
-        job_id,
-        status="running",
-        stage="running",
-        queue_latency_ms=str(queue_latency_ms),
-        event="running",
-        event_details={"queue_latency_ms": queue_latency_ms},
+    started = int(
+        cast(
+            int | str,
+            client.eval(
+                _START_JOB_SCRIPT,
+                1,
+                key,
+                str(queue_latency_ms),
+                _now(),
+                str(settings.agent_job_ttl_seconds),
+            ),
+        )
     )
+    if started != 1:
+        return None
+    try:
+        _publish_event(job_id, "running", {"queue_latency_ms": queue_latency_ms})
+    except RedisError:
+        logger.warning(
+            "Could not publish running event for job %s after durable update",
+            job_id,
+            exc_info=True,
+        )
     return queue_latency_ms
 
 

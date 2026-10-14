@@ -19,13 +19,15 @@ import ChatComposer from "@/features/agent-chat/components/ChatComposer";
 import ChatHeader from "@/features/agent-chat/components/ChatHeader";
 import ChatMessages from "@/features/agent-chat/components/ChatMessages";
 import ConversationHistoryDrawer from "@/features/agent-chat/components/ConversationHistoryDrawer";
+import {
+  clearPendingChatJob,
+  createChatRequestId,
+  loadPendingChatJob,
+  savePendingChatJob,
+} from "@/features/agent-chat/model/pendingChatJob";
 
-function createIdempotencyKey() {
-  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-  const bytes = new Uint8Array(16);
-  globalThis.crypto?.getRandomValues?.(bytes);
-  const entropy = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
-  return `write:${Date.now()}:${entropy || "client"}`;
+function writeIdempotencyKey(actionId) {
+  return `write:${actionId}`;
 }
 
 export default function CoachChat() {
@@ -45,6 +47,7 @@ export default function CoachChat() {
   const [showHistory, setShowHistory] = useState(false);
   const textareaRef = useRef(null);
   const activeRequestRef = useRef(null);
+  const recoveredUserRef = useRef(null);
   const scrollRef = useAutoScroll(messages);
 
   const loadMessages = async (conversationId) => {
@@ -77,52 +80,113 @@ export default function CoachChat() {
   }, [user?.id]);
 
   useEffect(() => () => {
-    activeRequestRef.current?.cancel();
+    // Leaving or reloading the page only disconnects this browser. The durable
+    // Redis job keeps running and is resumed on the next mount.
+    activeRequestRef.current?.detach();
   }, []);
 
-  const sendText = async (text) => {
-    const trimmed = (text ?? input).trim();
-    if (!trimmed || sending) return;
-    setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
+  const runPendingJob = async (pending) => {
     setSending(true);
     setSendError("");
-    setMessages((current) => [
-      ...current,
-      { role: "user", content: trimmed, id: `tmp-${Date.now()}` },
-    ]);
 
     try {
       const request = startAgentMessage({
-        conversationId: conversation?.id || null,
-        message: trimmed,
-        locale: lang,
+        conversationId: pending.conversationId,
+        jobId: pending.jobId,
+        message: pending.message,
+        locale: pending.locale,
+        requestId: pending.requestId,
+        onAccepted: (accepted) => {
+          const { message: _sensitiveMessage, ...durablePending } = pending;
+          savePendingChatJob(user.id, {
+            ...durablePending,
+            jobId: accepted.job_id,
+          });
+        },
         onProgress: setProgress,
       });
       activeRequestRef.current = request;
       const result = await request.promise;
       if (result.pending_write_action) {
-        setPendingWriteAction({
+        const action = {
           ...result.pending_write_action,
-          idempotencyKey: createIdempotencyKey(),
-        });
+          idempotencyKey: writeIdempotencyKey(result.pending_write_action.action_id),
+        };
+        setPendingWriteAction(action);
       }
       if (!conversation) {
         const data = await loadConversations();
         setConversation(data.find((item) => item.id === result.conversation_id) || null);
       }
       await loadMessages(result.conversation_id);
+      if (!result.pending_write_action) {
+        clearPendingChatJob(user.id, pending.requestId);
+      }
     } catch (error) {
       const cancelled = error instanceof DOMException && error.name === "AbortError";
       const message = error instanceof Error ? error.message : "Chat request failed";
-      setSendError(cancelled ? t("chat_cancelled") : agentFetchErrorMessage(message));
-      setInput(trimmed);
-      setMessages((current) => current.filter((item) => !String(item.id).startsWith("tmp-")));
+      const detached = cancelled && message === "Agent request detached";
+      const explicitlyCancelled = cancelled && !detached;
+      const terminalFailure = error instanceof Error
+        && "code" in error
+        && error.code === "AGENT_JOB_FAILED";
+      const jobGone = error instanceof Error
+        && "code" in error
+        && error.code === "AGENT_JOB_GONE";
+      if (!detached) {
+        setSendError(cancelled ? t("chat_cancelled") : agentFetchErrorMessage(message));
+      }
+      if (explicitlyCancelled || terminalFailure || jobGone) {
+        clearPendingChatJob(user.id, pending.requestId);
+        if (pending.message) setInput(pending.message);
+        setMessages((current) => current.filter(
+          (item) => item.id !== `tmp-${pending.requestId}`,
+        ));
+      }
     } finally {
       activeRequestRef.current = null;
       setProgress(null);
       setSending(false);
     }
+  };
+
+  useEffect(() => {
+    if (loading || !user?.id || recoveredUserRef.current === user.id) return;
+    recoveredUserRef.current = user.id;
+    const pending = loadPendingChatJob(user.id);
+    if (!pending) return;
+    if (pending.message) {
+      setMessages((current) => current.some((item) => item.id === `tmp-${pending.requestId}`)
+        ? current
+        : [...current, {
+          role: "user",
+          content: pending.message,
+          id: `tmp-${pending.requestId}`,
+        }]);
+    }
+    void runPendingJob(pending);
+    // Recovery is intentionally attempted once for this mounted user session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user?.id]);
+
+  const sendText = async (text) => {
+    const trimmed = (text ?? input).trim();
+    if (!trimmed || sending) return;
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    const pending = {
+      conversationId: conversation?.id || null,
+      jobId: null,
+      locale: lang,
+      message: trimmed,
+      requestId: createChatRequestId(),
+    };
+    savePendingChatJob(user.id, pending);
+    setMessages((current) => [
+      ...current,
+      { role: "user", content: trimmed, id: `tmp-${pending.requestId}` },
+    ]);
+    await runPendingJob(pending);
   };
 
   const confirmPendingWrite = async () => {
@@ -135,6 +199,7 @@ export default function CoachChat() {
         pendingWriteAction.idempotencyKey,
       );
       setPendingWriteAction(null);
+      clearPendingChatJob(user.id);
       if (result.conversation_id) await loadMessages(result.conversation_id);
     } catch (error) {
       setConfirmationError(error instanceof Error ? error.message : t("chat_writeFailed"));
@@ -150,6 +215,7 @@ export default function CoachChat() {
     try {
       await rejectWriteAction(pendingWriteAction);
       setPendingWriteAction(null);
+      clearPendingChatJob(user.id);
     } catch (error) {
       setConfirmationError(error instanceof Error ? error.message : t("chat_writeFailed"));
     } finally {

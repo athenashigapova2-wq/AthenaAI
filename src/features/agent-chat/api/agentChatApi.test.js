@@ -61,6 +61,7 @@ describe("agent chat SSE lifecycle", () => {
       conversationId: null,
       message: "How am I doing?",
       locale: "en",
+      requestId: "chat-request-1",
       onProgress: (event) => progress.push(event.stage),
     });
 
@@ -70,6 +71,33 @@ describe("agent chat SSE lifecycle", () => {
     });
     expect(progress).toEqual(["queued", "running", "tool_call", "completed"]);
     expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0][1].headers["Idempotency-Key"]).toBe("chat-request-1");
+  });
+
+  it("resumes an accepted job without creating a second one", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          'event: completed\ndata: {"job_id":"job-existing","status":"succeeded","answer":"Recovered","conversation_id":"conversation-1"}\n\n',
+        ));
+        controller.close();
+      },
+    });
+    const fetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+
+    const request = startAgentMessage({
+      jobId: "job-existing",
+      message: "hello",
+      locale: "en",
+      requestId: "stable-request",
+    });
+
+    await expect(request.promise).resolves.toMatchObject({ answer: "Recovered" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toContain("/jobs/job-existing/events");
+    expect(fetch.mock.calls[0][1].method).toBeUndefined();
   });
 
   it("rejects an expired session before sending a request", async () => {

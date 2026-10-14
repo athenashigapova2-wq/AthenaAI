@@ -13,6 +13,7 @@ from redis.exceptions import RedisError
 def _redis_client() -> MagicMock:
     client = MagicMock()
     client.pipeline.return_value.__enter__.return_value = MagicMock()
+    client.eval.return_value = ["created", "job-1"]
     return client
 
 
@@ -23,6 +24,7 @@ def _enqueue() -> str:
         locale="en",
         conversation_id=None,
         trace_id="trace-1",
+        idempotency_key="request-1",
     )
 
 
@@ -55,7 +57,33 @@ def test_enqueue_removes_job_record_when_broker_submission_fails() -> None:
     ):
         _enqueue()
 
-    client.delete.assert_called_once()
+    assert client.delete.call_count == 2
+
+
+def test_duplicate_submission_returns_existing_job_without_requeueing() -> None:
+    client = _redis_client()
+    client.eval.return_value = ["replay", "existing-job"]
+    with (
+        patch("app.services.agent_jobs.redis_client", return_value=client),
+        patch("app.workers.tasks.run_agent_chat_task.apply_async") as apply_async,
+    ):
+        job_id = _enqueue()
+
+    assert job_id == "existing-job"
+    apply_async.assert_not_called()
+
+
+def test_idempotency_key_cannot_be_reused_for_different_payload() -> None:
+    client = _redis_client()
+    client.eval.return_value = ["conflict", "existing-job"]
+    with (
+        patch("app.services.agent_jobs.redis_client", return_value=client),
+        patch("app.workers.tasks.run_agent_chat_task.apply_async") as apply_async,
+        pytest.raises(agent_jobs.IdempotencyConflictError),
+    ):
+        _enqueue()
+
+    apply_async.assert_not_called()
 
 
 def test_worker_update_cannot_overwrite_cancelled_job() -> None:
@@ -84,6 +112,44 @@ def test_worker_update_cannot_recreate_expired_job() -> None:
         agent_jobs.mark_job_failed("expired-job", "late failure")
 
     client.hset.assert_not_called()
+
+
+def test_terminal_job_cannot_be_claimed_again() -> None:
+    client = MagicMock()
+    client.hget.return_value = "2026-08-01T00:00:00+00:00"
+    client.eval.return_value = 0
+
+    with (
+        patch("app.services.agent_jobs.redis_client", return_value=client),
+        patch("app.services.agent_jobs._publish_event") as publish_event,
+    ):
+        queue_latency = agent_jobs.mark_job_running("completed-job")
+
+    assert queue_latency is None
+    assert client.eval.call_args.args[0] == agent_jobs._START_JOB_SCRIPT
+    publish_event.assert_not_called()
+
+
+def test_worker_skips_terminal_job_redelivery() -> None:
+    with (
+        patch("app.workers.tasks.resolve_assignment", return_value=None),
+        patch("app.workers.tasks.raise_if_current_job_cancelled"),
+        patch("app.workers.tasks.mark_job_running", return_value=None),
+        patch("app.workers.tasks.run_agent_chat") as run_agent_chat,
+        patch("app.workers.tasks.mark_job_succeeded") as mark_succeeded,
+    ):
+        from app.workers.tasks import run_agent_chat_task
+
+        run_agent_chat_task.run(
+            job_id="completed-job",
+            user_id="user-1",
+            message="hello",
+            locale="en",
+            conversation_id=None,
+        )
+
+    run_agent_chat.assert_not_called()
+    mark_succeeded.assert_not_called()
 
 
 def test_succeeded_state_remains_authoritative_when_event_publish_fails() -> None:

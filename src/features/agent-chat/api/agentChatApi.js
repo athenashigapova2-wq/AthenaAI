@@ -9,7 +9,10 @@ const JOB_TIMEOUT_MS = 5 * 60 * 1000;
 const parseResponse = async (response) => {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.detail || data?.error || `Agent request failed (${response.status})`);
+    throw Object.assign(
+      new Error(data?.detail || data?.error || `Agent request failed (${response.status})`),
+      { status: response.status },
+    );
   }
   return data;
 };
@@ -32,34 +35,67 @@ function decodeEvent(block) {
 }
 
 async function waitForJobEvents(jobId, token, signal, onProgress) {
-  const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}/events`, {
-    headers: {
-      Accept: "text/event-stream",
-      Authorization: `Bearer ${token}`,
-    },
-    signal,
-  });
-  if (!response.ok || !response.body) return parseResponse(response);
+  let reconnects = 0;
+  while (!signal.aborted) {
+    try {
+      const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}/events`, {
+        headers: {
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${token}`,
+        },
+        signal,
+      });
+      if (!response.ok || !response.body) return parseResponse(response);
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
-    const blocks = buffer.split("\n\n");
-    buffer = blocks.pop() || "";
-    for (const block of blocks) {
-      const message = decodeEvent(block);
-      if (!message) continue;
-      onProgress?.({ stage: message.event, ...message.data });
-      if (message.event === "completed") return message.data;
-      if (message.event === "failed") throw new Error(message.data.error || "Agent job failed");
-      if (message.event === "cancelled") throw new DOMException("Agent job cancelled", "AbortError");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() || "";
+        for (const block of blocks) {
+          const event = decodeEvent(block);
+          if (!event) continue;
+          onProgress?.({ stage: event.event, ...event.data });
+          if (event.event === "completed") return event.data;
+          if (event.event === "failed") {
+            throw Object.assign(new Error(event.data.error || "Agent job failed"), {
+              code: "AGENT_JOB_FAILED",
+            });
+          }
+          if (event.event === "cancelled") {
+            throw new DOMException("Agent job cancelled", "AbortError");
+          }
+        }
+        if (done) break;
+      }
+    } catch (error) {
+      if (signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+        throw error;
+      }
+      if (error instanceof Error && "code" in error && error.code === "AGENT_JOB_FAILED") {
+        throw error;
+      }
+      if (error instanceof Error
+        && "status" in error
+        && typeof error.status === "number"
+        && [401, 404, 422].includes(error.status)) {
+        throw Object.assign(error, { code: "AGENT_JOB_GONE" });
+      }
+      if (reconnects >= 5) throw error;
     }
-    if (done) break;
+    reconnects += 1;
+    await new Promise((resolve, reject) => {
+      const timer = globalThis.setTimeout(resolve, Math.min(250 * 2 ** reconnects, 4_000));
+      signal.addEventListener("abort", () => {
+        globalThis.clearTimeout(timer);
+        reject(new DOMException("Agent request detached", "AbortError"));
+      }, { once: true });
+    });
   }
-  throw new Error("Agent event stream ended before completion.");
+  throw new DOMException("Agent request detached", "AbortError");
 }
 
 async function cancelJob(jobId, token) {
@@ -105,9 +141,17 @@ export async function rejectWriteAction(action) {
   return parseResponse(response);
 }
 
-export function startAgentMessage({ conversationId, message, locale, onProgress }) {
+export function startAgentMessage({
+  conversationId,
+  jobId: resumedJobId = null,
+  message,
+  locale,
+  onAccepted,
+  onProgress,
+  requestId,
+}) {
   const controller = new AbortController();
-  let jobId = null;
+  let jobId = resumedJobId;
   let token = null;
   let cancelled = false;
   const timeout = globalThis.setTimeout(() => {
@@ -119,19 +163,23 @@ export function startAgentMessage({ conversationId, message, locale, onProgress 
   const promise = (async () => {
     if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
     token = await accessToken();
-    const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ conversation_id: conversationId, message, locale }),
-      signal: controller.signal,
-    });
-    const accepted = await parseResponse(response);
-    if (!accepted?.job_id) return accepted;
-    jobId = accepted.job_id;
-    onProgress?.({ stage: "queued", ...accepted });
+    if (!jobId) {
+      const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(requestId ? { "Idempotency-Key": requestId } : {}),
+        },
+        body: JSON.stringify({ conversation_id: conversationId, message, locale }),
+        signal: controller.signal,
+      });
+      const accepted = await parseResponse(response);
+      if (!accepted?.job_id) return accepted;
+      jobId = accepted.job_id;
+      onAccepted?.(accepted);
+      onProgress?.({ stage: "queued", ...accepted });
+    }
     if (cancelled) {
       await cancelJob(jobId, token);
       throw new DOMException("Agent job cancelled", "AbortError");
@@ -143,9 +191,10 @@ export function startAgentMessage({ conversationId, message, locale, onProgress 
     promise,
     cancel: async () => {
       cancelled = true;
-      controller.abort("cancelled");
+      controller.abort(new DOMException("Agent job cancelled", "AbortError"));
       await cancelJob(jobId, token);
     },
+    detach: () => controller.abort(new DOMException("Agent request detached", "AbortError")),
   };
 }
 
