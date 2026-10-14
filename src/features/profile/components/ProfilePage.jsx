@@ -20,7 +20,12 @@ import {
 } from "@/features/profile/model/profileOptions";
 import ProfileGoals from "@/features/profile/components/ProfileGoals";
 import ProfilePreferences from "@/features/profile/components/ProfilePreferences";
-import { deletePermanentAccount } from "@/features/profile/api/accountApi";
+import {
+  deletePermanentAccount,
+  reauthenticateAccountDeletionWithPassword,
+  startAccountDeletionOAuthReauthentication,
+} from "@/features/profile/api/accountApi";
+import { consumeAccountDeletionReauthMarker } from "@/lib/authCallbacks";
 import { toast } from "@/components/ui/use-toast";
 
 export default function Profile() {
@@ -43,6 +48,11 @@ export default function Profile() {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteReauthenticated, setDeleteReauthenticated] = useState(false);
+  const [reauthenticatingDelete, setReauthenticatingDelete] = useState(false);
+  const authProvider = user?.app_metadata?.provider || "email";
+  const usesOAuth = authProvider !== "email";
 
   const loadData = useCallback(async () => {
     const [profiles, allWeights] = await Promise.all([
@@ -68,6 +78,22 @@ export default function Profile() {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const markReauthenticated = () => setDeleteReauthenticated(true);
+    const params = new URLSearchParams(window.location.search);
+    const webOAuthReauthenticated = params.get("reauth") === "account-delete";
+    if (consumeAccountDeletionReauthMarker() || webOAuthReauthenticated) {
+      markReauthenticated();
+      if (webOAuthReauthenticated) {
+        window.history.replaceState({}, "", "/profile");
+      }
+    }
+    window.addEventListener("athena:account-deletion-reauthenticated", markReauthenticated);
+    return () => {
+      window.removeEventListener("athena:account-deletion-reauthenticated", markReauthenticated);
+    };
+  }, []);
 
   const handleSave = async () => {
     if (savingRef.current || !profile) return;
@@ -154,6 +180,27 @@ export default function Profile() {
       setDeleteError(error instanceof Error ? error.message : t("prof_delError"));
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDeleteReauthentication = async () => {
+    setReauthenticatingDelete(true);
+    setDeleteError("");
+    try {
+      if (usesOAuth) {
+        await startAccountDeletionOAuthReauthentication(authProvider);
+      } else {
+        await reauthenticateAccountDeletionWithPassword(
+          user?.email || "",
+          deletePassword,
+        );
+        setDeletePassword("");
+        setDeleteReauthenticated(true);
+      }
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : t("prof_delError"));
+    } finally {
+      setReauthenticatingDelete(false);
     }
   };
 
@@ -265,6 +312,8 @@ export default function Profile() {
           setShowDeleteConfirm(open);
           if (!open) {
             setDeleteConfirmation("");
+            setDeletePassword("");
+            setDeleteReauthenticated(false);
             setDeleteError("");
           }
         }}
@@ -284,6 +333,40 @@ export default function Profile() {
               autoComplete="off"
               disabled={deleting}
             />
+            {!usesOAuth && !deleteReauthenticated && (
+              <Input
+                id="account-delete-password"
+                type="password"
+                value={deletePassword}
+                onChange={(event) => setDeletePassword(event.target.value)}
+                placeholder={t("prof_delCurrentPassword")}
+                autoComplete="current-password"
+                disabled={deleting}
+                aria-label={t("prof_delCurrentPassword")}
+              />
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDeleteReauthentication}
+                disabled={
+                  deleting
+                  || reauthenticatingDelete
+                  || deleteReauthenticated
+                  || (!usesOAuth && !deletePassword)
+                }
+              >
+                {reauthenticatingDelete
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : t(usesOAuth ? "prof_delReauthOAuth" : "prof_delReauthPassword")}
+              </Button>
+              {deleteReauthenticated && (
+                <span className="text-sm text-green-700" role="status">
+                  {t("prof_delReauthComplete")}
+                </span>
+              )}
+            </div>
             {deleteError && (
               <p role="alert" className="text-sm text-destructive">{deleteError}</p>
             )}
@@ -296,7 +379,11 @@ export default function Profile() {
                 event.preventDefault();
                 handleDeleteAccount();
               }}
-              disabled={deleting || deleteConfirmation !== "DELETE"}
+              disabled={
+                deleting
+                || deleteConfirmation !== "DELETE"
+                || !deleteReauthenticated
+              }
             >
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <AlertTriangle className="w-4 h-4 mr-1.5" />}
               {deleting ? t("prof_deleting") : t("prof_deleteEverything")}

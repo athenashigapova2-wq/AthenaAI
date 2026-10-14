@@ -46,7 +46,7 @@ def delete_account(
     if not _has_recent_authentication(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Recent authentication is required; refresh the session and try again",
+            detail="Recent password or OAuth authentication is required; sign in again",
         )
     try:
         result = account_deletion.delete_account(user.user_id)
@@ -68,7 +68,7 @@ def delete_account(
 
 
 def _has_recent_authentication(user: AuthenticatedUser) -> bool:
-    if user.issued_at is None:
+    if user.last_authenticated_at is None:
         return False
-    age = datetime.now(UTC).timestamp() - user.issued_at
+    age = datetime.now(UTC).timestamp() - user.last_authenticated_at
     return -60 <= age <= MAX_AUTH_AGE_SECONDS

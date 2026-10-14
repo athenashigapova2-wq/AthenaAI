@@ -1,5 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/api/supabaseClient';
+import { authRedirectUrl, registerNativeAuthCallbacks } from '@/lib/authCallbacks';
 
 const AuthContext = createContext();
 
@@ -21,7 +24,15 @@ export const AuthProvider = ({ children }) => {
       setAuthChecked(true);
     });
 
-    return () => listener?.subscription?.unsubscribe();
+    const unregisterNativeCallbacks = registerNativeAuthCallbacks((error) => {
+      console.error('Auth callback failed:', error);
+      setAuthError({ type: 'auth_callback', message: error.message });
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+      unregisterNativeCallbacks();
+    };
   }, []);
 
   const checkUserAuth = async () => {
@@ -54,18 +65,29 @@ export const AuthProvider = ({ children }) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: authRedirectUrl('callback'),
+      },
     });
     if (error) throw error;
     return data.user;
   };
 
   const loginWithProvider = async (provider = 'google') => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const native = Capacitor.isNativePlatform();
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: authRedirectUrl('callback'),
+        skipBrowserRedirect: native,
+      },
     });
     if (error) throw error;
+    if (native) {
+      if (!data?.url) throw new Error('OAuth provider did not return an authorization URL');
+      await Browser.open({ url: data.url });
+    }
   };
 
   const verifyOtp = async (email, token) => {
@@ -81,7 +103,7 @@ export const AuthProvider = ({ children }) => {
 
   const resetPasswordRequest = async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: authRedirectUrl('reset-password'),
     });
     if (error) throw error;
   };

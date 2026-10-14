@@ -22,6 +22,7 @@ def _user(*, age_seconds: int = 0) -> AuthenticatedUser:
         USER_ID,
         EMAIL,
         issued_at=round(datetime.now(UTC).timestamp()) - age_seconds,
+        last_authenticated_at=round(datetime.now(UTC).timestamp()) - age_seconds,
     )
 
 
@@ -51,6 +52,28 @@ def test_confirmed_recent_user_can_delete_entire_account() -> None:
 
 def test_account_deletion_requires_recent_authentication() -> None:
     app.dependency_overrides[get_current_user] = lambda: _user(age_seconds=601)
+    try:
+        with patch("app.api.account.account_deletion.delete_account") as delete:
+            response = client.request(
+                "DELETE",
+                "/api/v1/account",
+                json={"confirmation": "DELETE", "email": EMAIL},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+    delete.assert_not_called()
+
+
+def test_fresh_token_refresh_does_not_count_as_reauthentication() -> None:
+    now = round(datetime.now(UTC).timestamp())
+    app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        USER_ID,
+        EMAIL,
+        issued_at=now,
+        last_authenticated_at=now - 601,
+    )
     try:
         with patch("app.api.account.account_deletion.delete_account") as delete:
             response = client.request(

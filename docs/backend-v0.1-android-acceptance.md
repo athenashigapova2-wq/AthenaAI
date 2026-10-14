@@ -56,3 +56,30 @@ Record no raw tokens, prompts containing personal data, or secret values.
 Backend v0.1 is accepted only when all ten rows pass on the same APK and backend
 revision. Restarting or changing either artifact resets the sequence.
 
+# Android authentication callbacks
+
+Before building an APK, add all three exact redirect URLs to the Supabase Auth URL
+allow list (`Authentication` → `URL Configuration` → `Redirect URLs`):
+
+```text
+dev.aminashigapova2.athena://auth/callback
+dev.aminashigapova2.athena://auth/reset-password
+dev.aminashigapova2.athena://auth/reauth-delete
+```
+
+The Android manifest accepts only the `dev.aminashigapova2.athena://auth/*`
+scheme/host pair. OAuth, signup confirmation, and password recovery use PKCE;
+the app exchanges the returned code before navigating. Account deletion
+requires either the current password or a fresh OAuth round trip and never
+treats token refresh as proof of recent user authentication.
+
+Before release, verify these links on the physical Android test device:
+
+1. Google login returns to the installed app and opens the authenticated home.
+2. A password-reset email opens the installed app on `/reset-password`, and the
+   new password works after logout.
+3. Account deletion stays disabled until the current password is accepted or a
+   fresh OAuth round trip returns to the app.
+4. Refreshing an old session without re-entering credentials is rejected by the
+   deletion endpoint.
+

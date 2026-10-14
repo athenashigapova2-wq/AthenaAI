@@ -21,6 +21,12 @@ class AuthenticatedUser:
     user_id: str
     email: str | None = None
     issued_at: int | None = None
+    last_authenticated_at: int | None = None
+
+
+DIRECT_AUTHENTICATION_METHODS = frozenset(
+    {"password", "oauth", "otp", "totp", "magiclink", "sso/saml"}
+)
 
 
 @lru_cache(maxsize=1)
@@ -87,7 +93,25 @@ def decode_access_token(token: str) -> AuthenticatedUser:
         user_id=str(payload["sub"]),
         email=payload.get("email"),
         issued_at=int(issued_at) if issued_at is not None else None,
+        last_authenticated_at=_latest_direct_authentication(payload.get("amr")),
     )
+
+
+def _latest_direct_authentication(amr: object) -> int | None:
+    """Return the latest real authentication, excluding token refreshes."""
+    if not isinstance(amr, list):
+        return None
+    timestamps: list[int] = []
+    for entry in amr:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("method") not in DIRECT_AUTHENTICATION_METHODS:
+            continue
+        try:
+            timestamps.append(int(entry["timestamp"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return max(timestamps, default=None)
 
 
 def get_current_user(
