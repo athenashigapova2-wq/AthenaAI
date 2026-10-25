@@ -49,6 +49,9 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
       - name: Build APK against the supplied backend
         run: npm run android:apk
 
