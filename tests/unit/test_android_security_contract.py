@@ -33,6 +33,11 @@ def test_android_build_refuses_insecure_or_misconfigured_dependencies() -> None:
     assert 'Origin: "https://localhost"' in build_script
     assert 'body?.llm_provider !== "gigachat"' in build_script
     assert "body?.agent_infrastructure_test_mode !== false" in build_script
-    assert (
-        '"Access-Control-Request-Headers": "authorization,content-type,idempotency-key"'
-    ) in build_script
+    assert '"Access-Control-Request-Headers": [' in build_script
+    for required_header in (
+        '"authorization"',
+        '"content-type"',
+        '"idempotency-key"',
+        '...Object.keys(ngrokHeaders)',
+    ):
+        assert required_header in build_script
