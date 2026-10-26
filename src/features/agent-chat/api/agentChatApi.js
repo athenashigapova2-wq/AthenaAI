@@ -1,4 +1,5 @@
 import { supabase } from "@/api/supabaseClient";
+import { apiErrorMessage, fetchBackend } from "@/api/backendClient";
 
 const AGENT_API_URL = import.meta.env.DEV
   ? "/agent-api"
@@ -10,7 +11,7 @@ const parseResponse = async (response) => {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw Object.assign(
-      new Error(data?.detail || data?.error || `Agent request failed (${response.status})`),
+      new Error(apiErrorMessage(data, `Agent request failed (${response.status})`)),
       { status: response.status },
     );
   }
@@ -38,7 +39,7 @@ async function waitForJobEvents(jobId, token, signal, onProgress) {
   let reconnects = 0;
   while (!signal.aborted) {
     try {
-      const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}/events`, {
+      const response = await fetchBackend(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}/events`, {
         headers: {
           Accept: "text/event-stream",
           Authorization: `Bearer ${token}`,
@@ -100,7 +101,7 @@ async function waitForJobEvents(jobId, token, signal, onProgress) {
 
 async function cancelJob(jobId, token) {
   if (!jobId || !token) return;
-  await fetch(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}/cancel`, {
+  await fetchBackend(`${AGENT_API_URL}/api/v1/agent/chat/jobs/${jobId}/cancel`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   }).catch(() => null);
@@ -109,7 +110,7 @@ async function cancelJob(jobId, token) {
 export async function confirmWriteAction(action, idempotencyKey) {
   if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
   const token = await accessToken();
-  const response = await fetch(
+  const response = await fetchBackend(
     `${AGENT_API_URL}/api/v1/agent/write-actions/${action.action_id}/confirm`,
     {
       method: "POST",
@@ -127,7 +128,7 @@ export async function confirmWriteAction(action, idempotencyKey) {
 export async function rejectWriteAction(action) {
   if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
   const token = await accessToken();
-  const response = await fetch(
+  const response = await fetchBackend(
     `${AGENT_API_URL}/api/v1/agent/write-actions/${action.action_id}/reject`,
     {
       method: "POST",
@@ -164,7 +165,7 @@ export function startAgentMessage({
     if (!AGENT_API_URL) throw new Error("VITE_AGENT_API_URL is not configured");
     token = await accessToken();
     if (!jobId) {
-      const response = await fetch(`${AGENT_API_URL}/api/v1/agent/chat`, {
+      const response = await fetchBackend(`${AGENT_API_URL}/api/v1/agent/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

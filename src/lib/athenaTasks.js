@@ -1,4 +1,5 @@
 import { supabase } from '@/api/supabaseClient';
+import { apiErrorMessage, fetchBackend } from '@/api/backendClient';
 
 const API_URL = import.meta.env.DEV
   ? '/agent-api'
@@ -16,7 +17,7 @@ export async function invokeAthenaTask(useCase, input) {
   if (error || !token) throw new Error('Your session expired. Please sign in again.');
   if (!API_URL) throw new Error('VITE_AGENT_API_URL is not configured');
 
-  const response = await fetch(`${API_URL}/api/v1/ai/tasks/${encodeURIComponent(useCase)}`, {
+  const response = await fetchBackend(`${API_URL}/api/v1/ai/tasks/${encodeURIComponent(useCase)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -26,7 +27,7 @@ export async function invokeAthenaTask(useCase, input) {
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload?.detail || payload?.error || `AI task failed (${response.status})`);
+    throw new Error(apiErrorMessage(payload, `AI task failed (${response.status})`));
   }
   return payload;
 }

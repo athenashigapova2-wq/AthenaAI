@@ -82,13 +82,19 @@ if (supabaseUrl.protocol !== "https:" || forbiddenHosts.has(supabaseUrl.hostname
 if (!supabaseAnonKey) fail("VITE_SUPABASE_ANON_KEY is required");
 
 const apiOrigin = backendUrl.origin;
+const ngrokHeaders = backendUrl.hostname.endsWith(".ngrok-free.dev")
+  ? { "ngrok-skip-browser-warning": "athena-android" }
+  : {};
 console.log(`Building Android debug APK for ${apiOrigin}`);
 
 if (process.env.SKIP_BACKEND_PREFLIGHT !== "1") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch(`${apiOrigin}/health/ready`, { signal: controller.signal });
+    const response = await fetch(`${apiOrigin}/health/ready`, {
+      headers: ngrokHeaders,
+      signal: controller.signal,
+    });
     const body = await response.json().catch(() => null);
     if (!response.ok || body?.status !== "ready") {
       fail(`backend readiness failed (${response.status}): ${JSON.stringify(body)}`);
@@ -105,7 +111,12 @@ if (process.env.SKIP_BACKEND_PREFLIGHT !== "1") {
       headers: {
         Origin: "https://localhost",
         "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "authorization,content-type,idempotency-key",
+        "Access-Control-Request-Headers": [
+          "authorization",
+          "content-type",
+          "idempotency-key",
+          ...Object.keys(ngrokHeaders),
+        ].join(","),
       },
       signal: controller.signal,
     });

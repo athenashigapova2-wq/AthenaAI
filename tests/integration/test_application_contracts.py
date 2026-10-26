@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import pytest
 from app.config import settings
+from app.main import app
+from fastapi.testclient import TestClient
 from scripts import test_agent_workers as worker_checks
 from scripts import test_fastapi as api_checks
 from scripts import test_jmeter_observability as observability_checks
@@ -11,6 +13,25 @@ from scripts import test_load_tests as load_checks
 from scripts import test_mock_llm as mock_checks
 
 pytestmark = pytest.mark.integration
+
+
+def test_android_ngrok_header_is_allowed_by_cors() -> None:
+    response = TestClient(app).options(
+        "/api/v1/agent/chat",
+        headers={
+            "Origin": "https://localhost",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": (
+                "authorization,content-type,idempotency-key,ngrok-skip-browser-warning"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://localhost"
+    assert "ngrok-skip-browser-warning" in response.headers[
+        "access-control-allow-headers"
+    ].lower()
 
 
 @pytest.mark.parametrize(

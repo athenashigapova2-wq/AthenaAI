@@ -2,6 +2,7 @@ import { supabase } from "@/api/supabaseClient";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { authRedirectUrl } from "@/lib/authCallbacks";
+import { apiErrorMessage, fetchBackend } from "@/api/backendClient";
 
 const API_URL = import.meta.env.DEV
   ? "/agent-api"
@@ -42,7 +43,7 @@ export async function deletePermanentAccount(email) {
     throw new Error("Your session expired. Re-authenticate and try again.");
   }
 
-  const response = await fetch(`${API_URL}/api/v1/account`, {
+  const response = await fetchBackend(`${API_URL}/api/v1/account`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
@@ -53,7 +54,7 @@ export async function deletePermanentAccount(email) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(
-      payload?.detail || payload?.error || `Account deletion failed (${response.status})`,
+      apiErrorMessage(payload, `Account deletion failed (${response.status})`),
     );
   }
   return payload;

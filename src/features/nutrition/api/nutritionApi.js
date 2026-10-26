@@ -1,4 +1,5 @@
 import { supabase } from '@/api/supabaseClient';
+import { apiErrorMessage, fetchBackend } from '@/api/backendClient';
 
 const API_URL = import.meta.env.DEV
   ? '/agent-api'
@@ -10,7 +11,7 @@ async function post(path, body) {
   if (error || !token) throw new Error('Your session expired. Please sign in again.');
   if (!API_URL) throw new Error('VITE_AGENT_API_URL is not configured');
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetchBackend(`${API_URL}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -20,7 +21,7 @@ async function post(path, body) {
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload?.detail || payload?.error || `Nutrition request failed (${response.status})`);
+    throw new Error(apiErrorMessage(payload, `Nutrition request failed (${response.status})`));
   }
   return payload;
 }
