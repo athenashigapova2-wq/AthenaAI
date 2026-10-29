@@ -179,5 +179,4 @@ export const entities = {
   agent_memory: createEntity('agent_memory'),
   user_health_logs: createEntity('user_health_logs'),
   food_nutrients: createEntity('food_nutrients'),
-  health_research: createEntity('health_research'),
 };

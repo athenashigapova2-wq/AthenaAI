@@ -84,7 +84,6 @@ def test_user_owned_tables_and_traces_cascade_from_auth_deletion() -> None:
             "0002_agent_chat.sql",
             "0006_cycle_tracking.sql",
             "0011_agent_observability.sql",
-            "0017_edge_llm_quota.sql",
         )
     )
     for table in (
@@ -100,7 +99,6 @@ def test_user_owned_tables_and_traces_cascade_from_auth_deletion() -> None:
         "cycle_logs",
         "agent_runs",
         "agent_feedback",
-        "edge_llm_usage",
     ):
         table_sql = schema.split(f"create table public.{table}", 1)[1].split(
             "create table public.", 1
