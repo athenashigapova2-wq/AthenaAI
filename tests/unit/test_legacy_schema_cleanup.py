@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "supabase" / "migrations" / "0028_remove_unused_legacy_tables.sql"
 ROLLBACK = ROOT / "supabase" / "rollbacks" / "0028_restore_unused_legacy_tables.sql"
