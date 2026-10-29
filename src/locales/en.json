@@ -57,6 +57,7 @@
   "workout_complete": "Log workout",
   "workout_doneTitle": "Great workout! 🎉",
   "workout_logged": "Workout logged · {n} kcal burned",
+  "workout_logFailed": "Workout could not be saved",
   "week_title": "This week",
   "week_cal": "kcal",
   "week_workout": "workout",

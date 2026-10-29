@@ -57,6 +57,7 @@
   "workout_complete": "Enregistrer",
   "workout_doneTitle": "Bel entraînement ! 🎉",
   "workout_logged": "Entraînement enregistré · {n} kcal brûlées",
+  "workout_logFailed": "Impossible d’enregistrer l’entraînement",
   "week_title": "Cette semaine",
   "week_cal": "kcal",
   "week_workout": "entraînement",

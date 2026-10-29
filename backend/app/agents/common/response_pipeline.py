@@ -129,6 +129,10 @@ def _sanitize_internal_notation(text: str, locale: str) -> str:
         text,
         flags=re.IGNORECASE,
     )
+    # Some providers occasionally render an attempted tool call as a textual
+    # marker instead of structured tool-call metadata. Never expose it to the
+    # user (for example: ``[GET_GETMYPROFILE]``).
+    cleaned = re.sub(r"\[(?:GET_)?[A-Z][A-Z0-9_]{2,}\]", "", cleaned)
     database_label = "проверенная база продуктов" if locale == "ru" else "verified food database"
     cleaned = re.sub(r"\bfood_nutrients\b", database_label, cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(?:matched_food|reference_food)\b", "", cleaned, flags=re.IGNORECASE)

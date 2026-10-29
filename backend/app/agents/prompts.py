@@ -47,6 +47,21 @@ LOCALE_NAMES = {
 }
 
 
+def response_locale(requested_locale: str, message: str) -> str:
+    """Prefer an unambiguous message language over the interface locale.
+
+    Latin-script languages cannot be distinguished reliably without another
+    model call, so they keep the explicit client locale. Cyrillic and Han
+    scripts are deterministic and cover the two cases where an interface
+    language commonly differs from the language of the current question.
+    """
+    if any("\u0400" <= char <= "\u052f" for char in message):
+        return "ru"
+    if any("\u3400" <= char <= "\u9fff" for char in message):
+        return "zh"
+    return requested_locale if requested_locale in LOCALE_NAMES else "ru"
+
+
 def localized_system_prompt(system_prompt: str, locale: str) -> str:
     """Make the API locale an explicit response-language contract."""
     language = LOCALE_NAMES.get(locale, "the same language as the user")
@@ -58,5 +73,7 @@ def localized_system_prompt(system_prompt: str, locale: str) -> str:
     )
     return (
         f"{system_prompt}\nThe user's language is {language}. Reply only in {language}. "
-        f"{address_style} Never expose internal field, table, tool or trace names."
+        f"{address_style} Answer the latest user message directly; use earlier messages only "
+        "as supporting context and never answer an earlier question instead. "
+        "Never expose internal field, table, tool or trace names."
     )

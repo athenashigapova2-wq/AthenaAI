@@ -57,6 +57,7 @@
   "workout_complete": "记录训练",
   "workout_doneTitle": "训练完成！🎉",
   "workout_logged": "训练已记录 · 消耗 {n} 千卡",
+  "workout_logFailed": "无法保存训练",
   "week_title": "本周",
   "week_cal": "千卡",
   "week_workout": "训练",

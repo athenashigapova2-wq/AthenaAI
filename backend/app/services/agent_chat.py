@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Any
 
 from app.agents import graph as agent_graph
+from app.agents.prompts import response_locale
 from app.services import agent_conversations, agent_memory, agent_traces
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def run_agent_chat(
 ) -> dict[str, Any]:
     """Execute and persist an agent turn. Safe to call from a Celery worker."""
     started_at = perf_counter()
+    locale = response_locale(locale, message)
     try:
         resolved_conversation_id, history = agent_conversations.prepare_conversation(
             user_id,

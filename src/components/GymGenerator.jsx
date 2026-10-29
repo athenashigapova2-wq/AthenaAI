@@ -69,8 +69,12 @@ export default function GymGenerator() {
       setDoneMsg({ title: t("workout_doneTitle"), desc: t("workout_logged", { n: burned }) });
       setWorkout(null);
       setTimeout(() => setDoneMsg(null), 2600);
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: t("workout_logFailed"),
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
     } finally {
       completingRef.current = false;
       setCompleting(false);

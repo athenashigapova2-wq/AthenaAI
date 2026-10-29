@@ -4,6 +4,7 @@ from functools import lru_cache
 from typing import Any, TypedDict
 
 from app.agents.nutrition.agent import nutrition_node
+from app.agents.prompts import response_locale
 from app.agents.recovery.agent import recovery_node
 from app.agents.retrieval import retriever_node
 from app.agents.router import router_node
@@ -75,6 +76,7 @@ def run_agent_turn_details(
 ) -> AgentTurnResult:
     """Run one graph turn and return the answer plus the selected specialist."""
     app = get_agent_graph()
+    locale = response_locale(locale, message)
     prior_messages: list[BaseMessage] = []
     for item in history or []:
         message_class = AIMessage if item.get("role") == "assistant" else HumanMessage

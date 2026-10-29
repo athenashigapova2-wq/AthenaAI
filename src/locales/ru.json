@@ -57,6 +57,7 @@
   "workout_complete": "Записать тренировку",
   "workout_doneTitle": "Хорошей тренировки! 🎉",
   "workout_logged": "Тренировка записана · сожжено {n} ккал",
+  "workout_logFailed": "Не удалось сохранить тренировку",
   "week_title": "Эта неделя",
   "week_cal": "ккал",
   "week_workout": "тренировка",
