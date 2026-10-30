@@ -273,7 +273,10 @@ class AITaskService:
         result = MealRecommendationsResult.model_validate(
             build_fallback_recommendations(value.model_dump(mode="json"))
         )
-        result._resolution_mode = "deterministic_fallback"
+        # agent_runs.resolution_mode is a stable, DB-constrained dimension.
+        # Keep the deterministic detail in routing_fallback_reason while using
+        # the canonical fallback value accepted by observability storage.
+        result._resolution_mode = "fallback"
         result._fallback_reason = fallback_reason
         return result
 

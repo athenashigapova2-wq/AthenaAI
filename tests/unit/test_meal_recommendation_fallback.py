@@ -65,7 +65,7 @@ def test_invalid_provider_output_uses_deterministic_fallback() -> None:
         result = service._meal_recommendations(value, run_id="run-id")
 
     assert len(result.meals) == 3
-    assert result._resolution_mode == "deterministic_fallback"
+    assert result._resolution_mode == "fallback"
     assert result._fallback_reason == "structured_output:ValueError"
 
 
@@ -96,7 +96,7 @@ def test_provider_constraint_violation_uses_safe_fallback() -> None:
 
     payload = result.model_dump(mode="json")
     assert recommendation_policy_issues(payload, value.model_dump(mode="json")) == []
-    assert result._resolution_mode == "deterministic_fallback"
+    assert result._resolution_mode == "fallback"
 
 
 def test_provider_food_alias_violation_is_detected() -> None:
