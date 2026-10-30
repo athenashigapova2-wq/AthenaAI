@@ -203,9 +203,9 @@ export default function Onboarding({ onComplete }) {
 
             {data.sex === "female" && (
               <div className="p-3 bg-secondary rounded-xl space-y-2">
-                <Label>Хотите включить отслеживание менструального цикла?</Label>
+                <Label>{t("cycle_onboardingQuestion")}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Полностью приватно — видно только Вам. Можно включить или отключить позже в профиле.
+                  {t("cycle_onboardingPrivacy")}
                 </p>
                 <div className="flex gap-2 pt-1">
                   <Button
@@ -214,7 +214,7 @@ export default function Onboarding({ onComplete }) {
                     variant="default"
                     onClick={() => update("cycle_tracking_enabled", true)}
                   >
-                    {data.cycle_tracking_enabled && "✓ "}Да
+                    {data.cycle_tracking_enabled && "✓ "}{t("cycle_yes")}
                   </Button>
                   <Button
                     type="button"
@@ -222,7 +222,7 @@ export default function Onboarding({ onComplete }) {
                     variant="outline"
                     onClick={() => update("cycle_tracking_enabled", false)}
                   >
-                    {!data.cycle_tracking_enabled && "✓ "}Нет
+                    {!data.cycle_tracking_enabled && "✓ "}{t("cycle_no")}
                   </Button>
                 </div>
               </div>
