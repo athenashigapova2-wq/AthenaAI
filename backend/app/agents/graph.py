@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Any, TypedDict
 
+from app.agents.common.response_pipeline import _sanitize_internal_notation
 from app.agents.nutrition.agent import nutrition_node
 from app.agents.prompts import response_locale
 from app.agents.recovery.agent import recovery_node
@@ -99,8 +100,9 @@ def run_agent_turn_details(
         "variant_id": variant_id,
     }
     result = app.invoke(initial_state)
+    answer = _sanitize_internal_notation(str(result["messages"][-1].content), locale)
     return {
-        "answer": str(result["messages"][-1].content),
+        "answer": answer,
         "route": result.get("route", "general"),
         "resolution_mode": result.get("resolution_mode", "main_llm"),
         "calorie_decision": result.get("calorie_decision"),

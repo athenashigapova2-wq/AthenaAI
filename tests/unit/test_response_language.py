@@ -28,6 +28,17 @@ def test_internal_provider_tool_marker_never_reaches_answer() -> None:
     assert "GETMYPROFILE" not in answer
 
 
+def test_tool_markers_with_arguments_never_reach_answer() -> None:
+    answer = _sanitize_internal_notation(
+        '[GET_GETMYPROFILE, SEARCH_SEARCHFOOD "домашняя творожная запеканка"] '
+        "Попробуйте творожную запеканку.",
+        "ru",
+    )
+
+    assert answer == "Попробуйте творожную запеканку."
+    assert "SEARCHFOOD" not in answer
+
+
 def test_prompt_prioritizes_latest_user_message() -> None:
     prompt = localized_system_prompt("System policy.", "ru")
     assert "Answer the latest user message directly" in prompt
