@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import logging
 from time import perf_counter
 from typing import Any, Literal
 
 from app.ai_execution import ai_execution_service
 from app.nutrition_policy import NonNegativeFiniteFloat, calculate_macro_calories
 from app.services import agent_traces
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app.services.meal_recommendation_fallback import (
+    build_fallback_recommendations,
+    recommendation_policy_issues,
+)
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+
+logger = logging.getLogger(__name__)
 
 Locale = Literal["ru", "en", "fr", "es", "zh"]
 Goal = Literal["lose_weight", "maintain", "gain_muscle", "recomp"]
@@ -19,6 +26,9 @@ DietaryRestriction = Literal["halal", "kosher", "lactose_free", "gluten_free"]
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    _resolution_mode: str = PrivateAttr(default="main_llm")
+    _fallback_reason: str | None = PrivateAttr(default=None)
 
 
 class MacroBlock(StrictModel):
@@ -183,7 +193,8 @@ class AITaskService:
             route="general",
             output_text=result.model_dump_json(),
             latency_ms=agent_traces.elapsed_ms(started_at),
-            resolution_mode="main_llm",
+            resolution_mode=result._resolution_mode,
+            routing_fallback_reason=result._fallback_reason,
         )
         return result
 
@@ -226,20 +237,45 @@ class AITaskService:
         *,
         run_id: str,
     ) -> MealRecommendationsResult:
-        return MealRecommendationsResult.model_validate(
-            self._invoke(
-                response_model=MealRecommendationsResult,
-                purpose="meal_recommendations",
-                prompt=(
-                    "Generate exactly three distinct meals: one under 10 minutes, one "
-                    "cooked, and one bought or ordered. Respect all dietary constraints, "
-                    "avoid meals already eaten, use feasible household portions, move "
-                    "toward remaining macros, and use the requested language."
-                ),
-                value=value,
-                run_id=run_id,
+        fallback_reason: str | None = None
+        try:
+            result = MealRecommendationsResult.model_validate(
+                self._invoke(
+                    response_model=MealRecommendationsResult,
+                    purpose="meal_recommendations",
+                    prompt=(
+                        "Generate exactly three distinct meals: one under 10 minutes, one "
+                        "cooked, and one bought or ordered. Every string and ingredients "
+                        "list must be non-empty. Respect all dietary constraints, avoid "
+                        "meals already eaten, use feasible household portions, move toward "
+                        "remaining macros, and use the requested language. Shopping-list "
+                        "contents are not an input and must not limit meal generation."
+                    ),
+                    value=value,
+                    run_id=run_id,
+                )
             )
+            issues = recommendation_policy_issues(
+                result.model_dump(mode="json"),
+                value.model_dump(mode="json"),
+            )
+            if not issues:
+                return result
+            fallback_reason = "constraint_validation:" + ",".join(issues)
+            logger.warning("Meal recommendation provider output rejected: %s", fallback_reason)
+        except Exception as exc:
+            fallback_reason = f"structured_output:{type(exc).__name__}"
+            logger.warning(
+                "Meal recommendation provider output invalid; using deterministic fallback error_type=%s",
+                type(exc).__name__,
+            )
+
+        result = MealRecommendationsResult.model_validate(
+            build_fallback_recommendations(value.model_dump(mode="json"))
         )
+        result._resolution_mode = "deterministic_fallback"
+        result._fallback_reason = fallback_reason
+        return result
 
     def _workout_plan(self, value: StrictModel, *, run_id: str) -> WorkoutPlanResult:
         return WorkoutPlanResult.model_validate(

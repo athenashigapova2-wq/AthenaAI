@@ -41,6 +41,7 @@ export default function Coach() {
   const idempotencyKeysRef = useRef(new Map());
   const addingShoppingListsRef = useRef(new Set());
   const shoppingIdempotencyKeysRef = useRef(new Map());
+  const recommendationRequestInFlightRef = useRef(false);
 
   const loadData = useCallback(async () => {
     const [profiles, todayMeals] = await Promise.all([
@@ -55,7 +56,8 @@ export default function Coach() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const generateRecommendations = async () => {
-    if (!profile) return;
+    if (!profile || recommendationRequestInFlightRef.current) return;
+    recommendationRequestInFlightRef.current = true;
     setGenerating(true);
     try {
       const consumed = meals.reduce(
@@ -90,6 +92,7 @@ export default function Coach() {
         variant: "destructive",
       });
     } finally {
+      recommendationRequestInFlightRef.current = false;
       setGenerating(false);
     }
   };
