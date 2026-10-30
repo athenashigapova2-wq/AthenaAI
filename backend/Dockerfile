@@ -4,7 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
+    CUDA_VISIBLE_DEVICES="" \
     HF_HOME=/home/athena/.cache/huggingface
+
+ARG TORCH_VERSION=2.5.1
 
 WORKDIR /app
 
@@ -24,7 +27,12 @@ RUN apt-get update \
 
 COPY requirements.txt ./requirements.txt
 RUN python -m pip install --upgrade pip \
+    && python -m pip install "torch==${TORCH_VERSION}" \
+        --index-url https://download.pytorch.org/whl/cpu \
     && python -m pip install -r requirements.txt
+
+# Fail the image build if dependency resolution ever replaces the CPU wheel.
+RUN python -c "import torch; assert '+cpu' in torch.__version__, torch.__version__; assert not torch.cuda.is_available()"
 
 RUN useradd --create-home --uid 10001 athena \
     && mkdir -p /home/athena/.cache/huggingface \
