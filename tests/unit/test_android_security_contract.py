@@ -60,5 +60,6 @@ def test_android_release_build_requires_signing_and_verifies_artifacts() -> None
     assert "ATHENA_ANDROID_KEYSTORE_FILE" in build_script
     assert "ATHENA_VERSION_CODE" in build_script
     assert "lintRelease assembleRelease bundleRelease" in build_script
+    assert "npm audit --omit=dev --audit-level=high" in workflow
     assert '"$apksigner" verify' in workflow
     assert "jarsigner -verify" in workflow
