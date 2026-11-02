@@ -11,7 +11,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const androidDir = path.join(root, "android");
 const npmCli = process.env.npm_execpath;
 const capacitorCli = path.join(root, "node_modules", "@capacitor", "cli", "bin", "capacitor");
-const apk = path.join(androidDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
+const releaseBuild = process.argv.includes("--release");
+const apk = path.join(
+  androidDir,
+  "app",
+  "build",
+  "outputs",
+  "apk",
+  releaseBuild ? "release" : "debug",
+  releaseBuild ? "app-release.apk" : "app-debug.apk",
+);
+const aab = path.join(androidDir, "app", "build", "outputs", "bundle", "release", "app-release.aab");
 const forbiddenHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0", "10.0.2.2"]);
 
 function fail(message) {
@@ -80,12 +90,30 @@ if (supabaseUrl.protocol !== "https:" || forbiddenHosts.has(supabaseUrl.hostname
   fail("VITE_SUPABASE_URL must be a public HTTPS origin");
 }
 if (!supabaseAnonKey) fail("VITE_SUPABASE_ANON_KEY is required");
+if (releaseBuild) {
+  for (const variable of [
+    "ATHENA_ANDROID_KEYSTORE_FILE",
+    "ATHENA_ANDROID_KEYSTORE_PASSWORD",
+    "ATHENA_ANDROID_KEY_ALIAS",
+    "ATHENA_ANDROID_KEY_PASSWORD",
+    "ATHENA_VERSION_CODE",
+    "ATHENA_VERSION_NAME",
+  ]) {
+    if (!process.env[variable]) fail(`${variable} is required for a signed release build`);
+  }
+  if (!fs.existsSync(process.env.ATHENA_ANDROID_KEYSTORE_FILE)) {
+    fail("ATHENA_ANDROID_KEYSTORE_FILE does not exist");
+  }
+  if (!/^\d+$/.test(process.env.ATHENA_VERSION_CODE) || Number(process.env.ATHENA_VERSION_CODE) < 1) {
+    fail("ATHENA_VERSION_CODE must be a positive integer");
+  }
+}
 
 const apiOrigin = backendUrl.origin;
 const ngrokHeaders = backendUrl.hostname.endsWith(".ngrok-free.dev")
   ? { "ngrok-skip-browser-warning": "athena-android" }
   : {};
-console.log(`Building Android debug APK for ${apiOrigin}`);
+console.log(`Building Android ${releaseBuild ? "signed release" : "debug"} APK for ${apiOrigin}`);
 
 if (process.env.SKIP_BACKEND_PREFLIGHT !== "1") {
   const controller = new AbortController();
@@ -142,20 +170,23 @@ const buildEnv = {
 if (!npmCli) fail("run this script through npm run android:apk");
 run(process.execPath, [npmCli, "run", "build"], { env: buildEnv });
 
-const bundle = bundledText(path.join(root, "dist"));
+const bundledSource = bundledText(path.join(root, "dist"));
 for (const forbidden of ["http://127.0.0.1", "http://10.0.2.2", "localhost:8001"]) {
-  if (bundle.includes(forbidden)) fail(`web bundle still contains ${forbidden}`);
+  if (bundledSource.includes(forbidden)) fail(`web bundle still contains ${forbidden}`);
 }
-if (!bundle.includes(apiOrigin)) fail("the HTTPS backend origin is absent from the web bundle");
+if (!bundledSource.includes(apiOrigin)) fail("the HTTPS backend origin is absent from the web bundle");
 
 run(process.execPath, [capacitorCli, "sync", "android"], { env: buildEnv });
 if (!javaHome) {
   fail("JDK 21+ is required; install it or place a portable JDK in .jdk/temurin-21");
 }
 const gradleCommand = process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : "./gradlew";
+const gradleTasks = releaseBuild
+  ? "lintRelease assembleRelease bundleRelease"
+  : "assembleDebug";
 const gradleArgs = process.platform === "win32"
-  ? ["/d", "/s", "/c", "gradlew.bat assembleDebug --no-daemon --max-workers=1"]
-  : ["assembleDebug", "--no-daemon", "--max-workers=1"];
+  ? ["/d", "/s", "/c", `gradlew.bat ${gradleTasks} --no-daemon --max-workers=1`]
+  : [...gradleTasks.split(" "), "--no-daemon", "--max-workers=1"];
 run(gradleCommand, gradleArgs, {
   cwd: androidDir,
   env: {
@@ -165,5 +196,7 @@ run(gradleCommand, gradleArgs, {
   },
 });
 
-if (!fs.existsSync(apk)) fail("Gradle completed but the debug APK was not found");
+if (!fs.existsSync(apk)) fail(`Gradle completed but the ${releaseBuild ? "release" : "debug"} APK was not found`);
+if (releaseBuild && !fs.existsSync(aab)) fail("Gradle completed but the release AAB was not found");
 console.log(`APK ready: ${apk}`);
+if (releaseBuild) console.log(`AAB ready: ${aab}`);

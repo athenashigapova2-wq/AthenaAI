@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningVariables = [
+    'ATHENA_ANDROID_KEYSTORE_FILE',
+    'ATHENA_ANDROID_KEYSTORE_PASSWORD',
+    'ATHENA_ANDROID_KEY_ALIAS',
+    'ATHENA_ANDROID_KEY_PASSWORD',
+]
+def hasReleaseSigning = releaseSigningVariables.every { System.getenv(it) }
+def athenaVersionCode = Integer.parseInt(System.getenv('ATHENA_VERSION_CODE') ?: '1')
+def athenaVersionName = System.getenv('ATHENA_VERSION_NAME') ?: '1.0'
+
 android {
     namespace = "dev.aminashigapova2.athena"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +17,8 @@ android {
         applicationId "dev.aminashigapova2.athena"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode athenaVersionCode
+        versionName athenaVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +26,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(System.getenv('ATHENA_ANDROID_KEYSTORE_FILE'))
+                storePassword System.getenv('ATHENA_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ATHENA_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ATHENA_ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

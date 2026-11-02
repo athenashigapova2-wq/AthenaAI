@@ -184,6 +184,8 @@ plain HTTP, a mock LLM provider, or infrastructure-test mode. The resulting
 debug APK is suitable for controlled device acceptance testing, not store
 publication. The ten-pass manual backend v0.1 gate is documented in
 [Android acceptance](docs/backend-v0.1-android-acceptance.md).
+For a signed APK/AAB, release-key requirements, signature verification, and the
+public-distribution gate, use [Android public release](docs/android-public-release.md).
 
 ### API example
 
