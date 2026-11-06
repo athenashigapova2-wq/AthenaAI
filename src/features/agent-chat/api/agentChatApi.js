@@ -46,7 +46,8 @@ async function waitForJobEvents(jobId, token, signal, onProgress) {
         },
         signal,
       });
-      if (!response.ok || !response.body) return parseResponse(response);
+      // Await here so HTTP errors are classified by this retry/recovery loop.
+      if (!response.ok || !response.body) return await parseResponse(response);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();

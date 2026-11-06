@@ -133,7 +133,9 @@ export default function CoachChat() {
       const jobGone = error instanceof Error
         && "code" in error
         && error.code === "AGENT_JOB_GONE";
-      if (!detached) {
+      // A Redis job may legitimately expire before a browser session resumes.
+      // Clear that stale recovery marker without showing a false chat failure.
+      if (!detached && !jobGone) {
         setSendError(cancelled ? t("chat_cancelled") : agentFetchErrorMessage(message));
       }
       if (explicitlyCancelled || terminalFailure || jobGone) {

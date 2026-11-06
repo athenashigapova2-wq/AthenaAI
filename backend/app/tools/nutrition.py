@@ -11,6 +11,14 @@ from app.tools.idempotent_writes import insert_idempotently
 from app.tools.write_context import require_idempotency_key
 
 _FOOD_NUTRIENT_COLUMNS = "food_name, calories_per_100g, protein_g, carbs_g, fat_g"
+_TODAY_ALIASES = {
+    "today",
+    "сегодня",
+    "aujourd'hui",
+    "aujourd’hui",
+    "hoy",
+    "今天",
+}
 
 # Exact names verified against the imported food_nutrients dataset. Full-day plans
 # deliberately use a small auditable catalogue: a model may choose foods and grams,
@@ -38,6 +46,18 @@ PLAN_FOOD_REFERENCE_NAMES = (
     "vegetable salad",
     "olive oil",
 )
+
+
+def _normalize_day(day: str | None) -> str:
+    """Resolve supported relative labels and validate an ISO calendar date."""
+    if day is None or not day.strip() or day.strip().casefold() in _TODAY_ALIASES:
+        return date_type.today().isoformat()
+
+    value = day.strip()
+    try:
+        return date_type.fromisoformat(value).isoformat()
+    except ValueError as exc:
+        raise ValueError("day must be an ISO date (YYYY-MM-DD) or 'today'") from exc
 
 
 def _normalized_food_name(value: str) -> str:
@@ -179,7 +199,10 @@ def search_food(query: str, limit: int = 5) -> dict[str, Any]:
 
 def get_daily_intake(user_id: str, day: str | None = None) -> dict[str, Any]:
     """Сводка съеденного за день: суммы КБЖУ и список приёмов пищи."""
-    target_day = day or date_type.today().isoformat()
+    try:
+        target_day = _normalize_day(day)
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
 
     sb = get_supabase()
     result = (
@@ -236,6 +259,11 @@ def log_meal(
         }
 
     try:
+        target_day = _normalize_day(day)
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
+
+    try:
         values = validate_nutrition_values(
             calories=calories,
             protein_g=protein_g,
@@ -257,7 +285,7 @@ def log_meal(
             "protein_g": values.protein_g,
             "carbs_g": values.carbs_g,
             "fat_g": values.fat_g,
-            "date": day or date_type.today().isoformat(),
+            "date": target_day,
         },
         require_idempotency_key(),
     )

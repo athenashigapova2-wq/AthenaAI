@@ -100,6 +100,26 @@ describe("agent chat SSE lifecycle", () => {
     expect(fetch.mock.calls[0][1].method).toBeUndefined();
   });
 
+  it("classifies an expired recovered job so the UI can discard it", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      detail: "Задание не найдено",
+    }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    const request = startAgentMessage({
+      jobId: "expired-job",
+      message: "hello",
+      locale: "en",
+      requestId: "stable-request",
+    });
+
+    await expect(request.promise).rejects.toMatchObject({ code: "AGENT_JOB_GONE" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects an expired session before sending a request", async () => {
     getSession.mockResolvedValueOnce({ data: { session: null }, error: null });
     const fetch = vi.fn();

@@ -1,6 +1,6 @@
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from app.agents.nutrition_validation import NutritionNumbers
@@ -12,7 +12,7 @@ from app.nutrition_policy import (
 from app.services.ai_tasks import MacroBlock
 from app.services.habit_analytics import DailyMacroAverage
 from app.services.meal_estimation import FoodCandidate
-from app.tools.nutrition import log_meal
+from app.tools.nutrition import get_daily_intake, log_meal
 from app.tools.registry import build_tools
 from pydantic import ValidationError
 from simulation.longitudinal import MemorySupabase, apply_event
@@ -83,6 +83,32 @@ def test_log_meal_rejects_invalid_values_before_database_access() -> None:
         result = log_meal("user-1", "bad meal", 100, -1, 10, 5)
 
     assert result["status"] == "error"
+    get_supabase.assert_not_called()
+
+
+@pytest.mark.parametrize("relative_day", ["today", "сегодня", "hoy", "aujourd'hui", "今天"])
+def test_get_daily_intake_normalizes_supported_today_labels(relative_day: str) -> None:
+    query = MagicMock(data=[])
+    query.select.return_value = query
+    query.eq.return_value = query
+    query.order.return_value = query
+    query.execute.return_value = query
+    client = SimpleNamespace(table=lambda _name: query)
+
+    with patch("app.tools.nutrition.get_supabase", return_value=client):
+        result = get_daily_intake("user-1", relative_day)
+
+    assert result["status"] == "ok"
+    assert result["date"] == datetime.now().date().isoformat()
+    assert query.eq.call_args_list[-1].args == ("date", result["date"])
+
+
+def test_get_daily_intake_rejects_unknown_date_before_database_access() -> None:
+    with patch("app.tools.nutrition.get_supabase") as get_supabase:
+        result = get_daily_intake("user-1", "когда-нибудь")
+
+    assert result["status"] == "error"
+    assert "YYYY-MM-DD" in result["message"]
     get_supabase.assert_not_called()
 
 
