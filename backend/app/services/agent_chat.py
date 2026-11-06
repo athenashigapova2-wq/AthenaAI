@@ -45,6 +45,7 @@ def run_agent_chat(
     queue_latency_ms: int = 0,
     experiment_id: str | None = None,
     variant_id: str | None = None,
+    defer_memory_update: bool = False,
 ) -> dict[str, Any]:
     """Execute and persist an agent turn. Safe to call from a Celery worker."""
     started_at = perf_counter()
@@ -95,14 +96,15 @@ def run_agent_chat(
             result["answer"],
             job_id=job_id,
         )
-        agent_memory.update_agent_memory_best_effort(
-            user_id=user_id,
-            user_message=message,
-            assistant_answer=result["answer"],
-            previous=memory_snapshot,
-            locale=locale,
-            run_id=run_id,
-        )
+        if not defer_memory_update:
+            agent_memory.update_agent_memory_best_effort(
+                user_id=user_id,
+                user_message=message,
+                assistant_answer=result["answer"],
+                previous=memory_snapshot,
+                locale=locale,
+                run_id=run_id,
+            )
     except Exception as exc:
         logger.exception("Agent turn failed for user %s", user_id)
         _record_failed_run(run_id, user_id, exc, started_at)

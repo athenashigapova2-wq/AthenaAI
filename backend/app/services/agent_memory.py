@@ -165,6 +165,26 @@ def update_agent_memory_best_effort(
         return False
 
 
+def refresh_agent_memory_best_effort(
+    *,
+    user_id: str,
+    user_message: str,
+    assistant_answer: str,
+    locale: str,
+    run_id: str | None,
+) -> bool:
+    """Reload and update memory after the user-visible job has completed."""
+    previous = load_agent_memory_best_effort(user_id)
+    return update_agent_memory_best_effort(
+        user_id=user_id,
+        user_message=user_message,
+        assistant_answer=assistant_answer,
+        previous=previous,
+        locale=locale,
+        run_id=run_id,
+    )
+
+
 def _extract_memory(
     *,
     user_message: str,

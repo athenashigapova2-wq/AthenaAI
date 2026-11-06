@@ -93,6 +93,7 @@ def test_celery_verifies_assignment_and_binds_it_to_execution_context() -> None:
         patch("app.workers.tasks.mark_job_running", return_value=17),
         patch("app.workers.tasks.run_agent_chat", side_effect=run_agent),
         patch("app.workers.tasks.mark_job_succeeded"),
+        patch("app.workers.tasks.agent_memory.refresh_agent_memory_best_effort"),
     ):
         run_agent_chat_task.run(
             job_id="job-id",

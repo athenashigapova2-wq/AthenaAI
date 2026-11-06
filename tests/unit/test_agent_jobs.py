@@ -203,6 +203,39 @@ def test_worker_does_not_fail_completed_job_when_success_event_publish_fails() -
     assert client.eval.call_args.args[3] == "succeeded"
 
 
+def test_worker_completes_visible_job_before_refreshing_memory() -> None:
+    order: list[str] = []
+    result = {"answer": "Done", "route": "general", "conversation_id": "conversation-1"}
+
+    with (
+        patch.object(agent_jobs.settings, "agent_infrastructure_test_mode", False),
+        patch("app.workers.tasks.resolve_assignment", return_value=None),
+        patch("app.workers.tasks.raise_if_current_job_cancelled"),
+        patch("app.workers.tasks.mark_job_running", return_value=0),
+        patch("app.workers.tasks.run_agent_chat", return_value=result) as run_agent_chat,
+        patch(
+            "app.workers.tasks.mark_job_succeeded",
+            side_effect=lambda *_: order.append("succeeded"),
+        ),
+        patch(
+            "app.workers.tasks.agent_memory.refresh_agent_memory_best_effort",
+            side_effect=lambda **_: order.append("memory"),
+        ),
+    ):
+        from app.workers.tasks import run_agent_chat_task
+
+        run_agent_chat_task.run(
+            job_id="job-1",
+            user_id="user-1",
+            message="hello",
+            locale="en",
+            conversation_id=None,
+        )
+
+    assert order == ["succeeded", "memory"]
+    assert run_agent_chat.call_args.kwargs["defer_memory_update"] is True
+
+
 def test_cancel_atomically_transitions_owned_active_job() -> None:
     client = MagicMock()
     client.eval.return_value = 1

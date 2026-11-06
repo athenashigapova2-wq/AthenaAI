@@ -5,6 +5,7 @@ from time import sleep
 
 from app.config import settings
 from app.evaluation.experiments import experiment_context, resolve_assignment
+from app.services import agent_memory
 from app.services.agent_chat import ConversationNotFoundError, run_agent_chat
 from app.services.agent_jobs import (
     AgentJobCancelledError,
@@ -80,9 +81,20 @@ def run_agent_chat_task(
                     queue_latency_ms=queue_latency_ms,
                     experiment_id=assignment.experiment_id if assignment else None,
                     variant_id=assignment.variant_id if assignment else None,
+                    defer_memory_update=True,
                 )
             raise_if_current_job_cancelled()
             mark_job_succeeded(job_id, result)
+            if not settings.agent_infrastructure_test_mode:
+                # Memory extraction is useful but must not delay the visible answer.
+                # It remains best-effort and runs only after durable job completion.
+                agent_memory.refresh_agent_memory_best_effort(
+                    user_id=user_id,
+                    user_message=message,
+                    assistant_answer=result["answer"],
+                    locale=locale,
+                    run_id=trace_id,
+                )
         except AgentJobCancelledError:
             logger.info("Agent job %s cancelled", job_id)
             return
