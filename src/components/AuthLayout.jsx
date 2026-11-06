@@ -21,6 +21,10 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
         {footer && (
           <p className="text-center text-sm text-muted-foreground mt-6">{footer}</p>
         )}
+        <nav className="mt-4 flex justify-center gap-4 text-xs text-muted-foreground" aria-label="Legal">
+          <a href="/privacy" className="hover:text-primary hover:underline">Privacy Policy</a>
+          <a href="/account-deletion" className="hover:text-primary hover:underline">Delete account</a>
+        </nav>
       </div>
     </div>
   );

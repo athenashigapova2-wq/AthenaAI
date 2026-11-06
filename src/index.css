@@ -139,3 +139,35 @@
     min-height: 44px;
   }
 }
+
+@layer components {
+  .legal-copy {
+    @apply space-y-5 leading-7;
+  }
+
+  .legal-copy h2 {
+    @apply pt-3 font-heading text-2xl font-semibold;
+  }
+
+  .legal-copy p,
+  .legal-copy li {
+    @apply text-sm text-foreground/85 sm:text-base;
+  }
+
+  .legal-copy ul,
+  .legal-copy ol {
+    @apply ml-6 space-y-2;
+  }
+
+  .legal-copy ul {
+    @apply list-disc;
+  }
+
+  .legal-copy ol {
+    @apply list-decimal;
+  }
+
+  .legal-copy a {
+    @apply font-medium text-primary underline underline-offset-4;
+  }
+}
