@@ -96,6 +96,24 @@ def main() -> None:
         "successful_meals": [],
     }, "Low-confidence and unsupported facts must not enter long-term memory"
 
+    with patch.object(
+        agent_memory.ai_execution_service,
+        "invoke_structured",
+        return_value=extraction,
+    ) as invoke_structured:
+        extracted = agent_memory._extract_memory(
+            user_message="I prefer savory breakfasts.",
+            assistant_answer="Understood.",
+            previous_summary="",
+            locale="en",
+            run_id="run-id",
+        )
+    assert extracted is extraction
+    assert invoke_structured.call_args.kwargs["response_model"] is agent_memory.MemoryExtraction
+    assert invoke_structured.call_args.kwargs["input_payload"]["current_user_message"] == (
+        "I prefer savory breakfasts."
+    )
+
     client = Mock()
     builder = Mock()
     client.table.return_value = builder

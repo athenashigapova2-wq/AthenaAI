@@ -25,7 +25,6 @@ from app.trace_privacy import sanitize_provider_text
 
 logger = logging.getLogger(__name__)
 StructuredResult = TypeVar("StructuredResult", bound=BaseModel)
-_JSON_BLOCK_RE = re.compile(r"\{.*\}", flags=re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -287,14 +286,41 @@ class AIExecutionService:
     ) -> StructuredResult:
         if isinstance(content, dict):
             return response_model.model_validate(content)
-        text = str(content).strip()
+        text = _structured_content_text(content)
         try:
             return response_model.model_validate_json(text)
-        except ValidationError:
-            match = _JSON_BLOCK_RE.search(text)
-            if match is None:
-                raise
-            return response_model.model_validate_json(match.group(0))
+        except ValidationError as initial_error:
+            decoder = json.JSONDecoder()
+            for match in re.finditer(r"\{", text):
+                try:
+                    candidate, _ = decoder.raw_decode(text, match.start())
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(candidate, dict):
+                    continue
+                try:
+                    return response_model.model_validate(candidate)
+                except ValidationError:
+                    continue
+            raise initial_error
+
+
+def _structured_content_text(content: Any) -> str:
+    """Flatten provider text blocks without treating Python repr as JSON."""
+    if not isinstance(content, list):
+        return str(content).strip()
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+            continue
+        if isinstance(block, dict) and isinstance(block.get("text"), str):
+            parts.append(block["text"])
+            continue
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "\n".join(parts).strip()
 
 
 llm_gateway = LLMGateway()

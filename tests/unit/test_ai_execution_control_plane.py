@@ -6,6 +6,7 @@ import pytest
 from app.ai_execution import AIExecutionService
 from app.config import settings
 from langchain_core.messages import AIMessage, HumanMessage
+from pydantic import BaseModel
 
 
 class RecordingGateway:
@@ -20,6 +21,10 @@ class RecordingGateway:
         assert model is self.model
         self.messages = messages
         return AIMessage(content="ok")
+
+
+class StructuredAnswer(BaseModel):
+    value: str
 
 
 def test_control_plane_routes_sanitizes_and_invokes(monkeypatch) -> None:
@@ -97,3 +102,22 @@ def test_provider_failure_is_traced_and_propagated(monkeypatch) -> None:
         )
 
     fail_trace.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '```json\n{"value":"ok"}\n```',
+        'Result follows: {"value":"ok"} Thanks.',
+        'Example: {"wrong":true}\nActual: {"value":"ok"}',
+        [{"type": "text", "text": '```json\n{"value":"ok"}\n```'}],
+    ],
+)
+def test_structured_parser_accepts_provider_wrappers(content) -> None:
+    parsed = AIExecutionService._parse_structured(StructuredAnswer, content)
+    assert parsed == StructuredAnswer(value="ok")
+
+
+def test_structured_parser_rejects_invalid_json() -> None:
+    with pytest.raises(ValueError):
+        AIExecutionService._parse_structured(StructuredAnswer, "not JSON")
