@@ -124,7 +124,7 @@ test("login → proposed meal write → confirmation → read-after-write", asyn
 
   const confirmation = page.getByRole("region", { name: "Confirm this write" });
   await expect(confirmation).toBeVisible();
-  await expect(confirmation).toContainText("log_meal");
+  await expect(confirmation).toContainText("Meal entry");
   await expect(confirmation).toContainText("Oatmeal");
   expect(state.meals).toHaveLength(0);
   expect(state.writeExecutions).toBe(0);
