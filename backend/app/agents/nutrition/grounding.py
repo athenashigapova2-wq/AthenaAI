@@ -22,6 +22,19 @@ _ALTERNATIVE_PLAN_TEMPLATES: tuple[tuple[str, tuple[tuple[str, tuple[str, ...]],
         ),
     ),
     (
+        "dairy_free_omnivore",
+        (
+            ("Breakfast", ("oats", "egg raw", "banana")),
+            ("Snack 1", ("turkey breast roasted", "cucumber")),
+            (
+                "Lunch",
+                ("chicken breast raw", "white rice cooked", "broccoli cooked", "olive oil"),
+            ),
+            ("Snack 2", ("cod cooked", "carrots raw")),
+            ("Dinner", ("salmon raw", "potato raw", "spinach raw", "olive oil")),
+        ),
+    ),
+    (
         "turkey_potato",
         (
             ("Breakfast", ("oats", "egg raw", "banana")),
@@ -112,19 +125,16 @@ def _alternative_plan_candidates(
     *,
     low_budget: bool,
     dietary_pattern: str = "omnivore",
+    dairy_free: bool = False,
 ) -> list[tuple[str, list[GroundedMealPlanItem]]]:
     """Build deterministic candidate plans in profile-aware priority order."""
     templates = list(_ALTERNATIVE_PLAN_TEMPLATES)
-    preferred = (
-        dietary_pattern
-        if dietary_pattern
-        in {
-            "vegetarian",
-            "vegan",
-            "pescatarian",
-        }
-        else ("low_budget" if low_budget else "balanced_lean")
-    )
+    if dairy_free and dietary_pattern == "omnivore":
+        preferred = "dairy_free_omnivore"
+    elif dietary_pattern in {"vegetarian", "vegan", "pescatarian"}:
+        preferred = dietary_pattern
+    else:
+        preferred = "low_budget" if low_budget else "balanced_lean"
     templates.sort(key=lambda item: item[0] != preferred)
     ru_names = ("Завтрак", "Перекус 1", "Обед", "Перекус 2", "Ужин")
     candidates: list[tuple[str, list[GroundedMealPlanItem]]] = []

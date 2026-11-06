@@ -75,6 +75,19 @@ jobs:
           actual_fingerprint="$(openssl x509 -in backend/certs/russian_trusted_root_ca_pem.crt -outform DER | sha256sum | cut -d ' ' -f 1)"
           expected_fingerprint="d26d2d0231b7c39f92cc738512ba54103519e4405d68b5bd703e9788ca8ecf31"
           test "$actual_fingerprint" = "$expected_fingerprint"
-      - name: Run explicitly opted-in live evaluations
+      - name: Run GigaChat TLS smoke
         if: steps.credentials.outputs.available == 'true'
-        run: python -m pytest tests/live_evals --run-live-evals -q
+        run: python -m pytest tests/live_evals/test_gigachat_smoke.py --run-live-evals -q
+      - name: Run longitudinal live evaluation
+        if: steps.credentials.outputs.available == 'true'
+        run: >-
+          python backend/scripts/eval_longitudinal_quality.py
+          --ci-report-dir live-eval-reports
+      - name: Upload metadata-only longitudinal report
+        if: always() && steps.credentials.outputs.available == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: longitudinal-live-report-${{ github.run_id }}
+          path: live-eval-reports/
+          if-no-files-found: warn
+          retention-days: 30

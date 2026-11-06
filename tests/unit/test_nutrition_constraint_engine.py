@@ -120,10 +120,28 @@ def test_fallback_candidates_prioritize_profile_dietary_pattern() -> None:
         low_budget=False,
         dietary_pattern="pescatarian",
     )
+    dairy_free = _alternative_plan_candidates(
+        "en",
+        low_budget=False,
+        dietary_pattern="omnivore",
+        dairy_free=True,
+    )
 
     assert vegetarian[0][0] == "vegetarian"
     assert vegan[0][0] == "vegan"
     assert pescatarian[0][0] == "pescatarian"
+    assert dairy_free[0][0] == "dairy_free_omnivore"
+
+    dairy_free_foods = {
+        str(ingredient.reference_food)
+        for meal in dairy_free[0][1]
+        for ingredient in meal.ingredients
+    }
+    assert not dairy_free_foods & {
+        "greek yogurt",
+        "yogurt",
+        "cottage cheese nonfat",
+    }
 
     vegan_foods = {
         str(ingredient.reference_food) for meal in vegan[0][1] for ingredient in meal.ingredients

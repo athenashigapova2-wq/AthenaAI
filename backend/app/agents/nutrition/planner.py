@@ -61,6 +61,9 @@ def _plan_submission_tool(
         for item in profile_data.get("dietary_restrictions") or []
         if str(item).strip()
     ]
+    dairy_free = bool(
+        set(allergies) & {"milk", "dairy", "lactose", "молоко", "молочные продукты"}
+    ) or "lactose_free" in dietary_restrictions
     contract += (
         f" The profile dietary_pattern is {dietary_pattern}. The profile "
         "dietary_restrictions are "
@@ -126,6 +129,7 @@ def _plan_submission_tool(
                 locale,
                 low_budget=budget_is_low,
                 dietary_pattern=str(profile_data.get("dietary_pattern") or "omnivore").lower(),
+                dairy_free=dairy_free,
             ):
                 candidate_food_set = {
                     str(ingredient.reference_food)

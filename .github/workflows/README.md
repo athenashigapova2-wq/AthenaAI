@@ -17,3 +17,8 @@ the repository secret `GIGACHAT_AUTH_KEY`. It is never triggered by a commit
 or pull request. A weekly run is reported as intentionally skipped when the
 secret is absent; a manual run fails with setup instructions so it cannot be
 mistaken for an executed live regression.
+
+Every executed longitudinal run uploads a 30-day metadata-only JSON artifact,
+including checkpoint outcomes and constraint issues even when the gate fails.
+Raw prompts, model answers, tool arguments, profile evidence, and secrets are
+excluded from that CI artifact.

@@ -457,6 +457,82 @@ def write_live_reports(report: dict, output_dir: Path, stem: str) -> tuple[Path,
     return json_path, md_path
 
 
+def sanitized_ci_report(report: dict) -> dict:
+    """Keep actionable synthetic-eval evidence without raw prompts or model text."""
+
+    scenarios = []
+    for scenario in report["scenarios"]:
+        checkpoints = []
+        for item in scenario["results"]:
+            tool_calls = []
+            for call in item.get("tool_calls", []):
+                result = call.get("result")
+                result_metadata = {}
+                if isinstance(result, dict):
+                    result_metadata = {
+                        "status": result.get("status"),
+                        "food_set_selection": result.get("food_set_selection"),
+                        "constraint_issues": [str(issue) for issue in result.get("issues", [])],
+                    }
+                tool_calls.append(
+                    {
+                        "name": call.get("name"),
+                        "read_only": call.get("read_only"),
+                        "status": "error" if call.get("error") else "success",
+                        "result_metadata": result_metadata,
+                    }
+                )
+            execution_error = item.get("execution_error")
+            checkpoints.append(
+                {
+                    "checkpoint_id": item["checkpoint_id"],
+                    "route": item.get("route"),
+                    "execution_status": "error" if execution_error else "completed",
+                    "execution_error_type": (
+                        str(execution_error).split(":", 1)[0] if execution_error else None
+                    ),
+                    "tool_calls": tool_calls,
+                    "hard_invariants": {
+                        "passed": item["hard_invariants"].get("passed"),
+                        "checks": item["hard_invariants"].get("checks", {}),
+                        "metrics": item["hard_invariants"].get("metrics", {}),
+                    },
+                    "semantic_quality": {
+                        "status": item["semantic_quality"].get("status"),
+                        "passed": item["semantic_quality"].get("passed"),
+                    },
+                    "evaluation": item["evaluation"],
+                }
+            )
+        scenarios.append(
+            {
+                "scenario_id": scenario["scenario_id"],
+                "checkpoints_passed": scenario["checkpoints_passed"],
+                "checkpoints_total": scenario["checkpoints_total"],
+                "checkpoints": checkpoints,
+            }
+        )
+    return {
+        "provider": report["provider"],
+        "model": report["model"],
+        "scenario_count": report["scenario_count"],
+        "scenarios_passed": report["scenarios_passed"],
+        "food_database": report["food_database"],
+        "evaluation_layers": report["evaluation_layers"],
+        "scenarios": scenarios,
+    }
+
+
+def write_sanitized_ci_report(report: dict, output_dir: Path, stem: str) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / f"{stem}.json"
+    path.write_text(
+        json.dumps(sanitized_ci_report(report), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -467,12 +543,32 @@ def main() -> int:
         )
     parser = argparse.ArgumentParser()
     parser.add_argument("--report-dir", type=Path)
+    parser.add_argument("--ci-report-dir", type=Path)
     args = parser.parse_args()
     report = run()
     if args.report_dir:
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         write_live_reports(report, args.report_dir, f"longitudinal-live-{timestamp}")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if args.ci_report_dir:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        write_sanitized_ci_report(
+            report,
+            args.ci_report_dir,
+            f"longitudinal-live-sanitized-{timestamp}",
+        )
+        print(
+            json.dumps(
+                {
+                    "provider": report["provider"],
+                    "scenario_count": report["scenario_count"],
+                    "scenarios_passed": report["scenarios_passed"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    else:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["scenarios_passed"] == report["scenario_count"] else 1
 
 
