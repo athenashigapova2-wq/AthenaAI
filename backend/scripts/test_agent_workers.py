@@ -82,6 +82,7 @@ def check_worker_task() -> None:
         patch("app.workers.tasks.mark_job_running", return_value=321) as running,
         patch("app.workers.tasks.run_agent_chat", return_value=result) as agent_chat,
         patch("app.workers.tasks.mark_job_succeeded") as succeeded,
+        patch("app.workers.tasks.agent_memory.refresh_agent_memory_best_effort") as refresh_memory,
     ):
         run_agent_chat_task.run(
             job_id="job-id",
@@ -102,8 +103,16 @@ def check_worker_task() -> None:
         queue_latency_ms=321,
         experiment_id=None,
         variant_id=None,
+        defer_memory_update=True,
     )
     succeeded.assert_called_once_with("job-id", result)
+    refresh_memory.assert_called_once_with(
+        user_id="user-id",
+        user_message="Hello",
+        assistant_answer="Done",
+        locale="en",
+        run_id="trace-id",
+    )
 
     with (
         patch.object(settings, "agent_infrastructure_test_mode", False),
