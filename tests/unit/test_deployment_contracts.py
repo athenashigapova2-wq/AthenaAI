@@ -30,3 +30,16 @@ def test_vercel_uses_validated_spa_build() -> None:
         assert variable in validator
     assert "must use HTTPS" in validator
     assert "must not point to localhost" in validator
+
+
+def test_production_compose_exposes_only_the_tls_proxy() -> None:
+    compose = (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+    caddyfile = (ROOT / "deploy/production/Caddyfile").read_text(encoding="utf-8")
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    assert '"80:80"' in compose
+    assert '"443:443"' in compose
+    assert '"6379:6379"' not in compose
+    assert '"8001:8001"' not in compose
+    assert "reverse_proxy api:8001" in caddyfile
+    assert "deploy/production/backend.env" in gitignore

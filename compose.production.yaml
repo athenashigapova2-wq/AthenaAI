@@ -1,0 +1,110 @@
+name: athenaai-production
+
+x-backend: &backend
+  image: athenaai-backend:cpu
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  env_file:
+    - ${ATHENA_BACKEND_ENV_FILE:-./deploy/production/backend.env}
+  environment:
+    APP_ENV: production
+    REDIS_URL: redis://redis:6379/0
+  restart: unless-stopped
+  networks:
+    - athena
+  depends_on:
+    redis:
+      condition: service_healthy
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+    volumes:
+      - redis-data:/data
+    networks:
+      - athena
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    <<: *backend
+    expose:
+      - "8001"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json, urllib.request;
+          assert json.load(urllib.request.urlopen('http://127.0.0.1:8001/health/ready'))['status'] == 'ready'
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    <<: *backend
+    command:
+      - python
+      - -m
+      - celery
+      - -A
+      - app.workers.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --pool=threads
+      - --concurrency=4
+      - --hostname=athena-worker@%h
+    volumes:
+      - hf-cache:/home/athena/.cache/huggingface
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -m celery -A app.workers.celery_app:celery_app inspect ping
+          --destination athena-worker@$$(hostname) --timeout=5 | grep -q pong
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15m
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      ATHENA_API_DOMAIN: ${ATHENA_API_DOMAIN:?set ATHENA_API_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - athena
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  athena:
+    driver: bridge
+
+volumes:
+  redis-data:
+  hf-cache:
+  caddy-data:
+  caddy-config:

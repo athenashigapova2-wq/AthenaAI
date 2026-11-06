@@ -38,6 +38,7 @@ athena-release-key
 .env
 .env.local
 backend/.env
+deploy/production/backend.env
 # python
 .venv/
 venv/
