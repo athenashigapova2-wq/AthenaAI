@@ -44,6 +44,8 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.pytest-temp-*/
+backend/.pytest-tmp-*/
 .npm-cache-ci-setup/
 .npm-cache/
 .playwright-browsers/
